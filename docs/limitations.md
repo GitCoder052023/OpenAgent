@@ -1,0 +1,12 @@
+# Limitations and required calibration
+
+WhatsApp Desktop's macOS Accessibility tree changes across app versions. We have not seen the AX tree on your Mac. This project therefore does **not** blindly guess the composer, chat header or sender of a reply.
+
+- The current number check matches a shallow AX element and does not prove that element is the selected chat header. Treat it as a prototype and do not send unattended until you have confirmed the selector against your app version and shown it fails on a different open chat. A valid chat saved under the name "Instinct" may still fail its number lock. That is intentional: a display name alone can point to the wrong conversation.
+- `send.scpt` requires exactly one `text area` in window 1. Some builds expose several, no text areas, or a nested text field. It will fail. You may adapt the script only after inspecting your own UI and preserving the exact-number check on both sides of paste. If a post-paste verification fails, remove the unsent text yourself before continuing.
+- An opt-in reply watcher exists but requires a locally identified message-list path and non-body incoming-direction marker. It takes a baseline and speaks only newly appended groups via `say`. There is no reliable message ID in this prototype; on virtualization or reordering it stops. If direction cannot be proved from AX labels, leave it off. Run `jarvis-bridge speak --text '...'` to test audio separately; do not claim the loop is end-to-end.
+- The chat might change in the small interval between header recheck and Enter. Keep WhatsApp foreground, do not switch chats during a send, and supervise each test. A true atomic recipient lock is not exposed by GUI scripting.
+- Mac permissions, `pynput` hotkeys, `rec` device selection, whisper-cli output, and AppleScript selection need on-device tests. The tests here cover parsing/safety invariants, not the WhatsApp UI.
+- Clipboard content remains until replaced and other apps with clipboard access may read it. Avoid secrets and sensitive speech.
+
+To calibrate incoming playback safely: capture a redacted AX tree with a single harmless test message sent to this exact chat; find a stable message-list container, sender metadata and message IDs or a monotonic cursor. Implement an adapter that proves chat header identity before and after reading and only speaks newly received messages from that container. If sender direction and chat association cannot be proven, keep auto playback off. Never use broad macOS notification text from all chats as a shortcut.
