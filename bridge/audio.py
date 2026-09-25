@@ -21,3 +21,15 @@ def start_recording(path, cfg):
     # SoX rec from default mic. No background streaming; kill on key release.
     return subprocess.Popen([cfg.recorder, "-q", "-c", "1", "-r", "16000", "-b", "16", str(path), "trim", "0", str(cfg.max_record_seconds)],
                             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+
+
+
+def encode_attachment(wav_path):
+    """Encode recorded WAV as small AAC/M4A; caller removes both temp files."""
+    target = Path(wav_path).with_suffix(".m4a")
+    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(wav_path),
+                    "-ac", "1", "-c:a", "aac", "-b:a", "64k", str(target)],
+                   check=True, timeout=45)
+    if not target.is_file() or target.stat().st_size < 1000:
+        raise RuntimeError("Audio encoding failed")
+    return target
