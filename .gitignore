@@ -6,3 +6,6 @@ __pycache__/
 models/
 .env
 .DS_Store
+*.egg-info/
+ax-tree.json
+

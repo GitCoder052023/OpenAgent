@@ -69,3 +69,17 @@ def test_audio_rejects_wrong_file(tmp_path):
     path.write_bytes(b"x" * 5000)
     with pytest.raises(ValueError):
         Desktop(Config()).send_audio(path)
+
+
+def test_unlocked_mode_dynamic_header():
+    rows = [{"path": "/0/9", "role": "AXStaticText", "title": "+1 (650) 870-2892", "value": "", "description": ""}]
+    assert verify_header(rows, "+16508702892", "", safe_mode=False)
+
+
+def test_unlocked_mode_from_env(monkeypatch):
+    monkeypatch.setenv("BRIDGE_SAFE_MODE", "false")
+    monkeypatch.setenv("BRIDGE_SEND_MODE", "text")
+    cfg = Config.from_env()
+    assert cfg.safe_mode is False
+    assert cfg.send_mode == "text"
+

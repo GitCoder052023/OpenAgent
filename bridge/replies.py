@@ -58,10 +58,14 @@ def voice_groups(rows, cfg):
     for group in groups:
         descendants = [r for r in children if r["path"] == group["path"] or under(r["path"], group["path"])]
         metadata = [r for r in descendants if r["role"] != "AXStaticText"]
+        if not metadata:
+            metadata = descendants
         if not any(cfg.incoming_marker.casefold() in " ".join((r["title"], r["description"])).casefold() for r in metadata):
             continue
-        controls = [r for r in descendants if r["role"] == "AXButton" and cfg.voice_play_marker.casefold() in _label(r)]
-        pauses = [r for r in descendants if r["role"] == "AXButton" and cfg.voice_pause_marker.casefold() in _label(r)]
+        if any("your" in " ".join((r["title"], r["description"])).casefold() for r in metadata):
+            continue
+        controls = [r for r in descendants if r["role"] in ("AXButton", "AXStaticText") and cfg.voice_play_marker.casefold() in _label(r)]
+        pauses = [r for r in descendants if r["role"] in ("AXButton", "AXStaticText") and cfg.voice_pause_marker.casefold() in _label(r)]
         if controls or pauses:
             if len(controls) + len(pauses) != 1:
                 raise RuntimeError("Voice control ambiguous; stopping")
@@ -70,7 +74,7 @@ def voice_groups(rows, cfg):
 
 
 def _state(rows, cfg, group_path):
-    descendants = [r for r in rows if r["role"] == "AXButton" and under(r["path"], group_path)]
+    descendants = [r for r in rows if r["role"] in ("AXButton", "AXStaticText") and (r["path"] == group_path or under(r["path"], group_path))]
     playing = [r for r in descendants if cfg.voice_pause_marker.casefold() in _label(r)]
     ready = [r for r in descendants if cfg.voice_play_marker.casefold() in _label(r)]
     if len(playing) + len(ready) != 1:

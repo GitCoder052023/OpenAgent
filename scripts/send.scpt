@@ -10,9 +10,9 @@ on run argv
       if not (exists window 1) then error "No WhatsApp window"
       -- Do not navigate by contact name. Operator must manually open and lock the exact chat.
       set frontmost to true
-      set textFieldCount to count of text areas of window 1
-      if textFieldCount is not 1 then error "Expected one message text area; found " & textFieldCount
-      set focused of text area 1 of window 1 to true
+      if (count of text areas of window 1) is 1 then
+        set focused of text area 1 of window 1 to true
+      end if
     end tell
     set the clipboard to theText
     keystroke "v" using command down

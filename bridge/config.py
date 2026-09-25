@@ -1,5 +1,21 @@
 from dataclasses import dataclass
+from pathlib import Path
 import os
+
+
+def load_env_file(path=None):
+    env_file = Path(path) if path else Path(__file__).resolve().parents[1] / ".env"
+    if env_file.is_file():
+        with open(env_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, val = line.split("=", 1)
+                    key = key.strip()
+                    val = val.strip().strip("\"'")
+                    if key and key not in os.environ:
+                        os.environ[key] = val
+
 
 @dataclass(frozen=True)
 class Config:
@@ -20,9 +36,24 @@ class Config:
     attach_label: str = ""
     document_label: str = ""
     attachment_send_label: str = ""
+    safe_mode: bool = True
+    send_mode: str = "text"
 
     @classmethod
     def from_env(cls):
+        load_env_file()
+        safe_mode_env = os.getenv("BRIDGE_SAFE_MODE", "").strip().lower()
+        if safe_mode_env in ("false", "0", "no", "off"):
+            safe_mode = False
+        elif os.getenv("BRIDGE_UNLOCKED", "").strip().lower() in ("true", "1", "yes", "on"):
+            safe_mode = False
+        else:
+            safe_mode = True
+
+        send_mode = os.getenv("BRIDGE_SEND_MODE", "text").strip().lower()
+        if send_mode not in ("text", "audio"):
+            send_mode = "text"
+
         return cls(number=os.getenv("BRIDGE_WHATSAPP_NUMBER", cls.number),
                    model=os.getenv("BRIDGE_WHISPER_MODEL", cls.model),
                    whisper_cli=os.getenv("BRIDGE_WHISPER_CLI", cls.whisper_cli),
@@ -35,4 +66,6 @@ class Config:
                    voice_pause_marker=os.getenv("BRIDGE_VOICE_PAUSE_MARKER", ""),
                    attach_label=os.getenv("BRIDGE_ATTACH_LABEL", ""),
                    document_label=os.getenv("BRIDGE_DOCUMENT_LABEL", ""),
-                   attachment_send_label=os.getenv("BRIDGE_ATTACHMENT_SEND_LABEL", ""))
+                   attachment_send_label=os.getenv("BRIDGE_ATTACHMENT_SEND_LABEL", ""),
+                   safe_mode=safe_mode,
+                   send_mode=send_mode)

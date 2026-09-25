@@ -1,5 +1,6 @@
 """Push-to-talk runner with opt-in calibrated reply playback."""
 import argparse
+import dataclasses
 import signal
 import subprocess
 import tempfile
@@ -8,7 +9,7 @@ import time
 import threading
 from pathlib import Path
 from pynput import keyboard
-from .audio import start_recording, speak, encode_attachment
+from .audio import start_recording, speak, encode_attachment, transcribe
 from .ax import snapshot, dump
 from .config import Config
 from .desktop import Desktop
@@ -19,18 +20,31 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("command", choices=["inspect", "run", "speak"])
     p.add_argument("--text", default="")
+    p.add_argument("--unlocked", action="store_true", help="Unlock system from strict safe mode")
+    p.add_argument("--send-mode", choices=["text", "audio"], default=None, help="Send mode: text (Whisper STT) or audio (M4A file)")
     args = p.parse_args()
     cfg = Config.from_env()
+    if args.unlocked:
+        cfg = dataclasses.replace(cfg, safe_mode=False)
+    if args.send_mode:
+        cfg = dataclasses.replace(cfg, send_mode=args.send_mode)
+
     desk = Desktop(cfg)
     if args.command == "inspect":
-        print(dump(snapshot()))
+        print(dump(snapshot(safe_mode=cfg.safe_mode)))
         return
     if args.command == "speak":
         speak(args.text)
         return
     desk.assert_locked()
-    print(f"Locked to visible WhatsApp header {cfg.number}. Hold F8 to talk; press Esc to quit.")
-    print("Voice watcher is opt-in, requires calibrated incoming voice AX markers; read docs/limitations.md.")
+    status_str = "UNLOCKED (safe mode disabled)" if not cfg.safe_mode else "LOCKED (safe mode active)"
+    print(f"[{status_str}] Destination: {cfg.number} | Mode: {cfg.send_mode}")
+    print("Hold F8 to talk; release to send; press Esc to quit.")
+    if cfg.message_list_path and cfg.incoming_marker and cfg.voice_play_marker and cfg.voice_pause_marker:
+        print("Voice reply watcher: ENABLED (incoming notes will play automatically).")
+    else:
+        print("Voice reply watcher: DISABLED (calibration needed for inbound voice playback).")
+
     recording = None
     path = None
     last_send = 0.0
@@ -50,7 +64,7 @@ def main():
                 path = Path(name)
                 path.unlink()  # SoX creates its own WAV
                 recording = start_recording(path, cfg)
-                print("Recording... release F8 to attach audio")
+                print(f"Recording... release F8 to send ({cfg.send_mode})")
             except Exception as exc: print(f"Recording refused: {exc}")
     busy = threading.Lock()
     def release(key):
@@ -73,10 +87,21 @@ def main():
             if stop.is_set(): return
             if not recorded_path.exists() or recorded_path.stat().st_size < 4000: raise RuntimeError("No audio captured")
             if time.monotonic() - last_send < cfg.min_send_interval: raise RuntimeError("Rate limit: wait before sending again")
-            attachment = encode_attachment(recorded_path)
-            desk.send_audio(attachment)
+
+            if cfg.send_mode == "text":
+                print("Transcribing audio locally with Whisper...")
+                text = transcribe(recorded_path, cfg)
+                print(f"Transcript: \"{text}\"")
+                if not text:
+                    raise RuntimeError("Empty transcription; not sending.")
+                desk.send(text)
+                print("Text message sent to WhatsApp.")
+            else:
+                attachment = encode_attachment(recorded_path)
+                desk.send_audio(attachment)
+                print("Audio attachment submitted.")
+
             last_send = time.monotonic()
-            print("Audio attachment submitted. Watching for incoming voice notes if calibrated; text is silent.")
             if cfg.message_list_path and cfg.incoming_marker and cfg.voice_play_marker and cfg.voice_pause_marker:
                 def hear():
                     try: watch(cfg, stop=stop)
