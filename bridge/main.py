@@ -8,7 +8,7 @@ import time
 import threading
 from pathlib import Path
 from pynput import keyboard
-from .audio import start_recording, transcribe, speak
+from .audio import start_recording, speak, encode_attachment
 from .ax import snapshot, dump
 from .config import Config
 from .desktop import Desktop
@@ -50,7 +50,7 @@ def main():
                 path = Path(name)
                 path.unlink()  # SoX creates its own WAV
                 recording = start_recording(path, cfg)
-                print("Recording... release F8 to transcribe")
+                print("Recording... release F8 to attach audio")
             except Exception as exc: print(f"Recording refused: {exc}")
     busy = threading.Lock()
     def release(key):
@@ -65,20 +65,18 @@ def main():
         threading.Thread(target=process_recording, args=(proc, recorded_path), daemon=True).start()
     def process_recording(proc, recorded_path):
         nonlocal last_send, watcher
+        attachment = None
         try:
             proc.send_signal(signal.SIGINT)
             try: proc.wait(timeout=3)
             except subprocess.TimeoutExpired: proc.kill(); proc.wait()
             if stop.is_set(): return
             if not recorded_path.exists() or recorded_path.stat().st_size < 4000: raise RuntimeError("No audio captured")
-            text = transcribe(recorded_path, cfg)
-            if stop.is_set(): return
-            if not text: raise RuntimeError("No speech detected")
             if time.monotonic() - last_send < cfg.min_send_interval: raise RuntimeError("Rate limit: wait before sending again")
-            print("Transcribed:", text)
-            desk.send(text)
+            attachment = encode_attachment(recorded_path)
+            desk.send_audio(attachment)
             last_send = time.monotonic()
-            print("Sent. Watching this chat for new incoming voice notes if calibrated; text is silent.")
+            print("Audio attachment submitted. Watching for incoming voice notes if calibrated; text is silent.")
             if cfg.message_list_path and cfg.incoming_marker and cfg.voice_play_marker and cfg.voice_pause_marker:
                 def hear():
                     try: watch(cfg, stop=stop)
@@ -92,10 +90,10 @@ def main():
         except Exception as exc: print("Not sent:", exc)
         finally:
             recorded_path.unlink(missing_ok=True)
+            if attachment: attachment.unlink(missing_ok=True)
             busy.release()
     with keyboard.Listener(on_press=press, on_release=release) as listener:
         listener.join()
     stop.set()
 
 if __name__ == "__main__": main()
-
