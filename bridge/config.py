@@ -14,6 +14,9 @@ class Config:
     header_path: str = ""
     message_list_path: str = ""
     incoming_marker: str = ""
+    voice_play_marker: str = ""
+    voice_pause_marker: str = ""
+    max_voice_seconds: int = 300
 
     @classmethod
     def from_env(cls):
@@ -24,4 +27,6 @@ class Config:
                    language=os.getenv("BRIDGE_LANGUAGE", cls.language),
                    header_path=os.getenv("BRIDGE_HEADER_PATH", ""),
                    message_list_path=os.getenv("BRIDGE_MESSAGE_LIST_PATH", ""),
-                   incoming_marker=os.getenv("BRIDGE_INCOMING_MARKER", ""))
+                   incoming_marker=os.getenv("BRIDGE_INCOMING_MARKER", ""),
+                   voice_play_marker=os.getenv("BRIDGE_VOICE_PLAY_MARKER", ""),
+                   voice_pause_marker=os.getenv("BRIDGE_VOICE_PAUSE_MARKER", ""))
