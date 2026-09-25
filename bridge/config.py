@@ -17,6 +17,9 @@ class Config:
     voice_play_marker: str = ""
     voice_pause_marker: str = ""
     max_voice_seconds: int = 300
+    attach_label: str = ""
+    document_label: str = ""
+    attachment_send_label: str = ""
 
     @classmethod
     def from_env(cls):
@@ -29,4 +32,7 @@ class Config:
                    message_list_path=os.getenv("BRIDGE_MESSAGE_LIST_PATH", ""),
                    incoming_marker=os.getenv("BRIDGE_INCOMING_MARKER", ""),
                    voice_play_marker=os.getenv("BRIDGE_VOICE_PLAY_MARKER", ""),
-                   voice_pause_marker=os.getenv("BRIDGE_VOICE_PAUSE_MARKER", ""))
+                   voice_pause_marker=os.getenv("BRIDGE_VOICE_PAUSE_MARKER", ""),
+                   attach_label=os.getenv("BRIDGE_ATTACH_LABEL", ""),
+                   document_label=os.getenv("BRIDGE_DOCUMENT_LABEL", ""),
+                   attachment_send_label=os.getenv("BRIDGE_ATTACHMENT_SEND_LABEL", ""))
