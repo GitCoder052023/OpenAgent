@@ -1,14 +1,11 @@
-"""PTT runner. Never sends unless the WhatsApp header number is visible in AX.
-
-Reply capture needs local AX calibration and is intentionally not auto-enabled:
-wrongly attributing another chat's text would violate the chat-only rule.
-"""
+"""Push-to-talk runner with opt-in calibrated reply playback."""
 import argparse
 import signal
 import subprocess
 import tempfile
 import os
 import time
+import threading
 from pathlib import Path
 from pynput import keyboard
 from .audio import start_recording, transcribe, speak
@@ -37,9 +34,12 @@ def main():
     recording = None
     path = None
     last_send = 0.0
+    stop = threading.Event()
+    watcher = None
     def press(key):
         nonlocal recording, path
         if key == keyboard.Key.esc:
+            stop.set()
             if recording: recording.terminate()
             return False
         if key == keyboard.Key.f8 and recording is None:
@@ -53,7 +53,7 @@ def main():
                 print("Recording... release F8 to transcribe")
             except Exception as exc: print(f"Recording refused: {exc}")
     def release(key):
-        nonlocal recording, last_send, path
+        nonlocal recording, last_send, path, watcher
         if key != keyboard.Key.f8 or recording is None: return
         proc, recording = recording, None
         proc.send_signal(signal.SIGINT)
@@ -69,8 +69,14 @@ def main():
             last_send = time.monotonic()
             print("Sent. Watching this chat for new incoming messages if calibrated.")
             if cfg.message_list_path and cfg.incoming_marker:
-                try: watch(cfg, speak)
-                except Exception as exc: print("Reply watch stopped:", exc)
+                def hear():
+                    try: watch(cfg, speak, stop=stop)
+                    except Exception as exc: print("Reply watch stopped:", exc)
+                if watcher and watcher.is_alive():
+                    print("Previous reply watch still active; no second watcher started.")
+                else:
+                    watcher = threading.Thread(target=hear, daemon=True)
+                    watcher.start()
             else: print("Reply watch not configured; check WhatsApp manually.")
         except Exception as exc: print("Not sent:", exc)
         finally:
