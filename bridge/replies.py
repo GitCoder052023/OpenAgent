@@ -29,7 +29,7 @@ def incoming(rows, list_path, marker):
     return result
 
 
-def watch(cfg, speak, timeout=None):
+def watch(cfg, speak, timeout=None, stop=None):
     """Start from current visible messages, then speak newly appended incoming groups.
 
     Aborts on any chat mismatch. Snapshots must retain stable paths; changed layout
@@ -40,7 +40,8 @@ def watch(cfg, speak, timeout=None):
     verify_header(rows, cfg.number, cfg.header_path)
     previous = incoming(rows, cfg.message_list_path, cfg.incoming_marker)
     while time.monotonic() < deadline:
-        time.sleep(1)
+        if stop is not None and stop.wait(1): return
+        if stop is None: time.sleep(1)
         rows = snapshot()
         verify_header(rows, cfg.number, cfg.header_path)
         current = incoming(rows, cfg.message_list_path, cfg.incoming_marker)
