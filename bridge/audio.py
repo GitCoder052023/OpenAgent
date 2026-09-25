@@ -1,0 +1,23 @@
+import subprocess
+from pathlib import Path
+
+
+def transcribe(path, cfg):
+    cmd = [cfg.whisper_cli, "-m", cfg.model, "-f", str(path), "-nt"]
+    if cfg.language != "auto": cmd += ["-l", cfg.language]
+    out = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=90).stdout
+    # whisper-cli often prefixes timestamps; -nt requests no timestamps.
+    lines = [line.strip() for line in out.splitlines() if line.strip() and not line.startswith("whisper_")]
+    return " ".join(lines).strip()
+
+
+def speak(text, voice=None):
+    if not text.strip(): return
+    cmd = ["say"] + (["-v", voice] if voice else []) + [text[:1200]]
+    subprocess.run(cmd, check=True, timeout=90)
+
+
+def start_recording(path, cfg):
+    # SoX rec from default mic. No background streaming; kill on key release.
+    return subprocess.Popen([cfg.recorder, "-q", "-c", "1", "-r", "16000", "-b", "16", str(path), "trim", "0", str(cfg.max_record_seconds)],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
