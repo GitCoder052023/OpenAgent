@@ -12,3 +12,7 @@
 7. `jarvis-bridge speak --text 'Speaker check'` only tests the old manual TTS command, **not** incoming playback. Do not leave the watcher unattended. On-device AX labels and playback transitions are not verified by repository tests.
 
 See [limitations](limitations.md) before relying on it.
+
+## Audio-file attachment mode (second change)
+
+After the voice-playback change is calibrated, F8 records a WAV locally, encodes it as AAC/M4A using ffmpeg, then tries to attach the M4A file instead of transcribing text. It is a **file attachment**, not a native WhatsApp voice note. In an unsaved-number Instinct chat showing +16508702892, inspect the Attach button, Document menu item, and final attachment preview Send button; set their exact AX names/descriptions in `BRIDGE_ATTACH_LABEL`, `BRIDGE_DOCUMENT_LABEL`, `BRIDGE_ATTACHMENT_SEND_LABEL`. Leave blank if any selector is unclear. Test with a harmless short recording, watch the file picker and chat, and confirm Instinct receives an intelligible audio file. `attach.scpt` assumes the file picker is a sheet and supports Cmd+Shift+G; this is untested and may need local adaptation without weakening the chat lock. It deletes local recordings after each attempt, so stop and inspect the draft if an error occurs. Do not leave it unattended.
