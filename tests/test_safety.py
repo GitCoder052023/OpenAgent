@@ -57,3 +57,15 @@ def test_ambiguous_control_refused():
 def test_uncalibrated_voice_refused():
     with pytest.raises(RuntimeError, match="calibrated"):
         voice_groups(voice_fixture(), Config(message_list_path="/0/2", incoming_marker="Incoming message"))
+
+def test_audio_requires_calibrated_ui(tmp_path):
+    wav = tmp_path / "test.m4a"
+    wav.write_bytes(b"RIFF" + b"\x00" * 5000)
+    with pytest.raises(RuntimeError, match="not calibrated"):
+        Desktop(Config(header_path="/0/1")).send_audio(wav)
+
+def test_audio_rejects_wrong_file(tmp_path):
+    path = tmp_path / "text.txt"
+    path.write_bytes(b"x" * 5000)
+    with pytest.raises(ValueError):
+        Desktop(Config()).send_audio(path)
