@@ -1,0 +1,81 @@
+"""PTT runner. Never sends unless the WhatsApp header number is visible in AX.
+
+Reply capture needs local AX calibration and is intentionally not auto-enabled:
+wrongly attributing another chat's text would violate the chat-only rule.
+"""
+import argparse
+import signal
+import subprocess
+import tempfile
+import os
+import time
+from pathlib import Path
+from pynput import keyboard
+from .audio import start_recording, transcribe, speak
+from .ax import snapshot, dump
+from .config import Config
+from .desktop import Desktop
+from .replies import watch
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("command", choices=["inspect", "run", "speak"])
+    p.add_argument("--text", default="")
+    args = p.parse_args()
+    cfg = Config.from_env()
+    desk = Desktop(cfg)
+    if args.command == "inspect":
+        print(dump(snapshot()))
+        return
+    if args.command == "speak":
+        speak(args.text)
+        return
+    desk.assert_locked()
+    print(f"Locked to visible WhatsApp header {cfg.number}. Hold F8 to talk; press Esc to quit.")
+    print("Reply watcher is opt-in, requires calibrated incoming-message AX markers; read docs/limitations.md.")
+    recording = None
+    path = None
+    last_send = 0.0
+    def press(key):
+        nonlocal recording, path
+        if key == keyboard.Key.esc:
+            if recording: recording.terminate()
+            return False
+        if key == keyboard.Key.f8 and recording is None:
+            try:
+                desk.assert_locked()
+                fd, name = tempfile.mkstemp(suffix=".wav", prefix="jarvis-bridge-")
+                os.close(fd)
+                path = Path(name)
+                path.unlink()  # SoX creates its own WAV
+                recording = start_recording(path, cfg)
+                print("Recording... release F8 to transcribe")
+            except Exception as exc: print(f"Recording refused: {exc}")
+    def release(key):
+        nonlocal recording, last_send, path
+        if key != keyboard.Key.f8 or recording is None: return
+        proc, recording = recording, None
+        proc.send_signal(signal.SIGINT)
+        try: proc.wait(timeout=3)
+        except subprocess.TimeoutExpired: proc.kill(); proc.wait()
+        try:
+            if not path.exists() or path.stat().st_size < 4000: raise RuntimeError("No audio captured")
+            text = transcribe(path, cfg)
+            if not text: raise RuntimeError("No speech detected")
+            if time.monotonic() - last_send < cfg.min_send_interval: raise RuntimeError("Rate limit: wait before sending again")
+            print("Transcribed:", text)
+            desk.send(text)
+            last_send = time.monotonic()
+            print("Sent. Watching this chat for new incoming messages if calibrated.")
+            if cfg.message_list_path and cfg.incoming_marker:
+                try: watch(cfg, speak)
+                except Exception as exc: print("Reply watch stopped:", exc)
+            else: print("Reply watch not configured; check WhatsApp manually.")
+        except Exception as exc: print("Not sent:", exc)
+        finally:
+            if path: path.unlink(missing_ok=True)
+    with keyboard.Listener(on_press=press, on_release=release) as listener:
+        listener.join()
+
+if __name__ == "__main__": main()
