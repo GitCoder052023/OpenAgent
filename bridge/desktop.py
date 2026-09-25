@@ -17,13 +17,13 @@ class Desktop:
 
 
     def send_audio(self, path):
-        """Prepare a WAV as a document attachment, recheck chat, then send.
+        """Prepare an M4A as a document attachment, recheck chat, then send.
 
         This is NOT a native WhatsApp voice-note bubble. UI is locally calibrated.
         """
         path = Path(path).resolve()
-        if not path.is_file() or path.suffix.lower() != ".wav" or not 4000 <= path.stat().st_size <= 12_000_000:
-            raise ValueError("Audio must be a WAV file between 4 KB and 12 MB")
+        if not path.is_file() or path.suffix.lower() != ".m4a" or not 4000 <= path.stat().st_size <= 12_000_000:
+            raise ValueError("Audio must be an M4A file between 4 KB and 12 MB")
         if not all((self.cfg.attach_label, self.cfg.document_label, self.cfg.attachment_send_label)):
             raise RuntimeError("Attachment UI labels not calibrated; no send")
         self.assert_locked()
