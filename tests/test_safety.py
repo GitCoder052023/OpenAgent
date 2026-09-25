@@ -26,3 +26,34 @@ def test_reply_only_from_marked_group():
 
 def test_send_rejects_multiline():
     with pytest.raises(ValueError): Desktop(Config()).send("hello\nworld")
+
+
+from bridge.replies import voice_groups, watch
+
+def voice_fixture():
+    return [
+        {"path":"/0/2","role":"AXList","title":"","description":"","value":""},
+        {"path":"/0/2/0","role":"AXGroup","title":"Incoming message","description":"","value":""},
+        {"path":"/0/2/0/0","role":"AXStaticText","title":"","description":"","value":"A link https://example.com"},
+        {"path":"/0/2/1","role":"AXGroup","title":"Outgoing message","description":"","value":""},
+        {"path":"/0/2/1/0","role":"AXButton","title":"Play voice message","description":"","value":""},
+        {"path":"/0/2/2","role":"AXGroup","title":"Incoming message","description":"","value":""},
+        {"path":"/0/2/2/0","role":"AXButton","title":"Play voice message","description":"","value":""},
+    ]
+
+def test_voice_only_inbound_and_silent_text():
+    cfg = Config(message_list_path="/0/2", incoming_marker="Incoming message",
+                 voice_play_marker="Play voice message", voice_pause_marker="Pause voice message")
+    assert voice_groups(voice_fixture(), cfg) == [("/0/2/2", "/0/2/2/0")]
+
+def test_ambiguous_control_refused():
+    cfg = Config(message_list_path="/0/2", incoming_marker="Incoming message",
+                 voice_play_marker="Play voice message", voice_pause_marker="Pause voice message")
+    rows = voice_fixture()
+    rows.append({"path":"/0/2/2/1","role":"AXButton","title":"Play voice message","description":"","value":""})
+    with pytest.raises(RuntimeError, match="ambiguous"):
+        voice_groups(rows, cfg)
+
+def test_uncalibrated_voice_refused():
+    with pytest.raises(RuntimeError, match="calibrated"):
+        voice_groups(voice_fixture(), Config(message_list_path="/0/2", incoming_marker="Incoming message"))
