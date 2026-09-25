@@ -42,7 +42,7 @@ def main():
             stop.set()
             if recording: recording.terminate()
             return False
-        if key == keyboard.Key.f8 and recording is None:
+        if key == keyboard.Key.f8 and recording is None and not busy.locked():
             try:
                 desk.assert_locked()
                 fd, name = tempfile.mkstemp(suffix=".wav", prefix="jarvis-bridge-")
@@ -52,16 +52,27 @@ def main():
                 recording = start_recording(path, cfg)
                 print("Recording... release F8 to transcribe")
             except Exception as exc: print(f"Recording refused: {exc}")
+    busy = threading.Lock()
     def release(key):
-        nonlocal recording, last_send, path, watcher
+        nonlocal recording, path
         if key != keyboard.Key.f8 or recording is None: return
         proc, recording = recording, None
-        proc.send_signal(signal.SIGINT)
-        try: proc.wait(timeout=3)
-        except subprocess.TimeoutExpired: proc.kill(); proc.wait()
+        recorded_path = path
+        if not busy.acquire(blocking=False):
+            proc.terminate()
+            print("Previous request still running; dropped this recording.")
+            return
+        threading.Thread(target=process_recording, args=(proc, recorded_path), daemon=True).start()
+    def process_recording(proc, recorded_path):
+        nonlocal last_send, watcher
         try:
-            if not path.exists() or path.stat().st_size < 4000: raise RuntimeError("No audio captured")
-            text = transcribe(path, cfg)
+            proc.send_signal(signal.SIGINT)
+            try: proc.wait(timeout=3)
+            except subprocess.TimeoutExpired: proc.kill(); proc.wait()
+            if stop.is_set(): return
+            if not recorded_path.exists() or recorded_path.stat().st_size < 4000: raise RuntimeError("No audio captured")
+            text = transcribe(recorded_path, cfg)
+            if stop.is_set(): return
             if not text: raise RuntimeError("No speech detected")
             if time.monotonic() - last_send < cfg.min_send_interval: raise RuntimeError("Rate limit: wait before sending again")
             print("Transcribed:", text)
@@ -80,8 +91,10 @@ def main():
             else: print("Reply watch not configured; check WhatsApp manually.")
         except Exception as exc: print("Not sent:", exc)
         finally:
-            if path: path.unlink(missing_ok=True)
+            recorded_path.unlink(missing_ok=True)
+            busy.release()
     with keyboard.Listener(on_press=press, on_release=release) as listener:
         listener.join()
+    stop.set()
 
 if __name__ == "__main__": main()
