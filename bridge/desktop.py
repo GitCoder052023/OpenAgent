@@ -14,3 +14,22 @@ class Desktop:
         subprocess.run(["osascript", str(SCRIPTS / "send.scpt"), self.cfg.number, text], check=True)
         self.assert_locked()
         subprocess.run(["osascript", str(SCRIPTS / "commit.scpt")], check=True)
+
+
+    def send_audio(self, path):
+        """Prepare a WAV as a document attachment, recheck chat, then send.
+
+        This is NOT a native WhatsApp voice-note bubble. UI is locally calibrated.
+        """
+        path = Path(path).resolve()
+        if not path.is_file() or path.suffix.lower() != ".wav" or not 4000 <= path.stat().st_size <= 12_000_000:
+            raise ValueError("Audio must be a WAV file between 4 KB and 12 MB")
+        if not all((self.cfg.attach_label, self.cfg.document_label, self.cfg.attachment_send_label)):
+            raise RuntimeError("Attachment UI labels not calibrated; no send")
+        self.assert_locked()
+        subprocess.run(["osascript", str(SCRIPTS / "attach.scpt"), str(path),
+                        self.cfg.attach_label, self.cfg.document_label], check=True, timeout=25)
+        # If this raises, a draft may be left in WhatsApp; operator clears it.
+        self.assert_locked()
+        subprocess.run(["osascript", str(SCRIPTS / "commit-audio.scpt"),
+                        self.cfg.attachment_send_label], check=True, timeout=15)
