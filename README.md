@@ -12,7 +12,7 @@ macOS, WhatsApp Desktop, Python 3.11+, Homebrew, mic, Accessibility/Microphone/I
 
 ```sh
 xcode-select --install
-brew install python sox whisper-cpp
+brew install python sox whisper-cpp ffmpeg
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
@@ -30,3 +30,7 @@ The manual `jarvis-bridge speak --text 'Speaker check'` still tests the Mac's `s
 ## Safety
 
 This is a fail-closed prototype. The selected number is checked by a locally calibrated AX path; outgoing sending checks the header around paste/Enter. Incoming playback requires a calibrated message list, incoming direction marker, exact voice play and pause labels, and a stable append-only list; no general notifications, other chats, or text are spoken. GUI scripting cannot guarantee an atomic chat lock. If the path changes or playback state is unclear, it stops. Keep WhatsApp foreground and supervise. Native UI automation does not guarantee zero WhatsApp account risk. Clipboard and AX dumps can contain private data; do not dictate secrets or commit `ax-tree.json`. See [architecture](docs/architecture.md).
+
+## Audio attachment send mode
+
+F8 release now sends the recorded M4A as a WhatsApp **file attachment** instead of running Whisper transcription. This can avoid local transcription time, but is not a native WhatsApp voice-note bubble and does not guarantee the receiving service will process M4A attachments. Sending is disabled until `BRIDGE_ATTACH_LABEL`, `BRIDGE_DOCUMENT_LABEL`, and `BRIDGE_ATTACHMENT_SEND_LABEL` are locally calibrated. The file chooser and draft send need supervised testing on Hamdan's Mac. The incoming voice-note playback remains the opt-in watcher described above. See [setup](docs/setup.md).
