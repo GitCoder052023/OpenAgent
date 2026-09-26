@@ -3,19 +3,47 @@ import json
 import sys
 
 
+def get_whatsapp_pid():
+    if sys.platform != "darwin": return None
+    try:
+        from AppKit import NSWorkspace
+        running = [a for a in NSWorkspace.sharedWorkspace().runningApplications()
+                   if "whatsapp" in (a.localizedName() or "").lower() and "autofill" not in (a.localizedName() or "").lower()]
+        if running:
+            return running[0].processIdentifier()
+    except Exception:
+        pass
+    import Quartz
+    apps = [a for a in Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionAll, Quartz.kCGNullWindowID)
+            if str(a.get("kCGWindowOwnerName", "")).strip("\u200e").lower() == "whatsapp" and a.get("kCGWindowOwnerPID")]
+    return apps[0]["kCGWindowOwnerPID"] if apps else None
+
+
+def activate_whatsapp():
+    if sys.platform != "darwin": return False
+    try:
+        from AppKit import NSWorkspace, NSApplicationActivateIgnoringOtherApps
+        running = [a for a in NSWorkspace.sharedWorkspace().runningApplications()
+                   if "whatsapp" in (a.localizedName() or "").lower() and "autofill" not in (a.localizedName() or "").lower()]
+        if running:
+            running[0].activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def snapshot(safe_mode=True):
     if sys.platform != "darwin":
         raise RuntimeError("macOS required")
-    import Quartz
     from ApplicationServices import AXUIElementCreateApplication, AXUIElementCopyAttributeValue
-    apps = [a for a in Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID)
-            if str(a.get("kCGWindowOwnerName", "")).strip("\u200e").lower() == "whatsapp" and a.get("kCGWindowOwnerPID")]
-    if not apps:
+    pid = get_whatsapp_pid()
+    if not pid:
         if safe_mode:
-            raise RuntimeError("WhatsApp Desktop must be open and visible")
-        print("Warning: WhatsApp Desktop must be open and visible")
+            raise RuntimeError("WhatsApp Desktop must be open")
+        print("Warning: WhatsApp Desktop must be open")
         return []
-    root = AXUIElementCreateApplication(apps[0]["kCGWindowOwnerPID"])
+    root = AXUIElementCreateApplication(pid)
     rows = []
     def value(el, attr):
         err, val = AXUIElementCopyAttributeValue(el, attr, None)
@@ -77,14 +105,12 @@ def press_button(path, expected_label):
     """AXPress one calibrated button by path; refuse stale or changed controls."""
     if sys.platform != "darwin":
         raise RuntimeError("macOS required")
-    import Quartz
     from ApplicationServices import (AXUIElementCreateApplication, AXUIElementCopyAttributeValue,
                                      AXUIElementPerformAction)
-    apps = [a for a in Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID)
-            if str(a.get("kCGWindowOwnerName", "")).strip("\u200e").lower() == "whatsapp" and a.get("kCGWindowOwnerPID")]
-    if len({a["kCGWindowOwnerPID"] for a in apps}) != 1:
+    pid = get_whatsapp_pid()
+    if not pid:
         raise RuntimeError("WhatsApp application missing or ambiguous")
-    element = AXUIElementCreateApplication(apps[0]["kCGWindowOwnerPID"])
+    element = AXUIElementCreateApplication(pid)
     try:
         indexes = [int(part) for part in path.split("/")[1:]]
     except ValueError as exc:
@@ -105,15 +131,70 @@ def press_button(path, expected_label):
         raise RuntimeError("AX play action failed")
 
 
+def ensure_whatsapp_ready(target_name="Instinct"):
+    """Ensure WhatsApp window is open, activated, and the target chat is selected."""
+    if sys.platform != "darwin": return False
+    pid = get_whatsapp_pid()
+    if not pid: return False
+    activate_whatsapp()
+    from ApplicationServices import AXUIElementCreateApplication, AXUIElementCopyAttributeValue, AXUIElementPerformAction
+    root = AXUIElementCreateApplication(pid)
+    _, windows = AXUIElementCopyAttributeValue(root, "AXWindows", None)
+    if not windows:
+        # Reopen main window via menu
+        _, menu_bar = AXUIElementCopyAttributeValue(root, "AXMenuBar", None)
+        _, mb_items = AXUIElementCopyAttributeValue(menu_bar, "AXChildren", None)
+        for item in mb_items or []:
+            _, menus = AXUIElementCopyAttributeValue(item, "AXChildren", None)
+            for m in menus or []:
+                _, mis = AXUIElementCopyAttributeValue(m, "AXChildren", None)
+                for mi in mis or []:
+                    _, title = AXUIElementCopyAttributeValue(mi, "AXTitle", None)
+                    if "open main window" in (title or "").lower():
+                        AXUIElementPerformAction(mi, "AXPress")
+                        break
+        import time; time.sleep(0.4)
+    # Check if target chat is open
+    rows = snapshot(safe_mode=False)
+    header_found = any(target_name.lower() in (r.get("description") or "").lower() and r["path"] == "/0/0/0/1/2/0/0" for r in rows)
+    if not header_found:
+        items = [r for r in rows if r["role"] == "AXButton" and target_name.lower() in (r.get("title") or r.get("description") or "").lower() and r["path"].startswith("/0/0/0/1/0/1")]
+        if items:
+            path = items[0]["path"]
+            indexes = [int(p) for p in path.split("/")[1:]]
+            el = root
+            for idx in indexes:
+                _, ch = AXUIElementCopyAttributeValue(el, "AXChildren", None)
+                el = ch[idx]
+            AXUIElementPerformAction(el, "AXPress")
+            import time; time.sleep(0.3)
+    return True
+
+
+def click_element_by_description(target_substr, role="AXButton"):
+    pid = get_whatsapp_pid()
+    if not pid: return False
+    from ApplicationServices import AXUIElementCreateApplication, AXUIElementCopyAttributeValue, AXUIElementPerformAction
+    root = AXUIElementCreateApplication(pid)
+    rows = snapshot(safe_mode=False)
+    matches = [r for r in rows if r["role"] == role and target_substr.lower() in (r.get("description") or r.get("title") or "").lower()]
+    if not matches: return False
+    path = matches[0]["path"]
+    indexes = [int(p) for p in path.split("/")[1:]]
+    el = root
+    for idx in indexes:
+        _, ch = AXUIElementCopyAttributeValue(el, "AXChildren", None)
+        el = ch[idx]
+    return AXUIElementPerformAction(el, "AXPress") == 0
+
+
 def focus_composer():
     """Focus WhatsApp message input area using Accessibility API."""
     if sys.platform != "darwin": return False
-    import Quartz
     from ApplicationServices import AXUIElementCreateApplication, AXUIElementCopyAttributeValue, AXUIElementSetAttributeValue
-    apps = [a for a in Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID)
-            if str(a.get("kCGWindowOwnerName", "")).strip("\u200e").lower() == "whatsapp" and a.get("kCGWindowOwnerPID")]
-    if not apps: return False
-    root = AXUIElementCreateApplication(apps[0]["kCGWindowOwnerPID"])
+    pid = get_whatsapp_pid()
+    if not pid: return False
+    root = AXUIElementCreateApplication(pid)
     rows = snapshot(safe_mode=False)
     composers = [r for r in rows if r["role"] == "AXTextArea" and "compose message" in (r.get("description") or "").lower()]
     if not composers:
