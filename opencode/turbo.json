@@ -20,15 +20,7 @@
     "@opencode-ai/function#test": {
       "outputs": []
     },
-    "@opencode-ai/app#test": {
-      "dependsOn": ["^build"],
-      "outputs": []
-    },
     "@opencode-ai/ui#test": {
-      "dependsOn": ["^build"],
-      "outputs": []
-    },
-    "@opencode-ai/session-ui#test": {
       "dependsOn": ["^build"],
       "outputs": []
     }
