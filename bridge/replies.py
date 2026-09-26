@@ -133,7 +133,7 @@ def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot):
             time.sleep(0.5)
 
 
-def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None):
+def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None, pause=None):
     """Play new inbound notes sequentially through WhatsApp's own Mac output.
 
     WhatsApp remains completely hidden in the background while notes play.
@@ -169,7 +169,12 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
     queue = state.setdefault("queue", [])
     fail_counts = state.setdefault("fails", {})
 
+    warned_missing = state.get("warned_missing", False)
     while (time.monotonic() < deadline or queue) and (stop is None or not stop.is_set()):
+        if pause is not None and pause.is_set():
+            if stop is not None: stop.wait(0.5)
+            else: time.sleep(0.5)
+            continue
         if stop is not None and stop.wait(1):
             return
         if stop is None:
@@ -183,6 +188,8 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
             print(f"Snapshot check failed (unlocked mode): {exc}")
             continue
 
+        if pause is not None and pause.is_set():
+            continue
         row_map = {r["path"]: r for r in rows}
         try:
             current_groups = voice_groups(rows, cfg)
@@ -192,8 +199,16 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                 # not spin silently forever.
                 raise
             # WhatsApp might be temporarily displaying the file attachment sheet, preview dialog, or menu.
-            print(f"Voice scan paused (unlocked mode): {exc}")
+            if "Message list path missing or ambiguous" in str(exc):
+                if not warned_missing:
+                    print("Voice scan unavailable: calibrated BRIDGE_MESSAGE_LIST_PATH is not visible. Check jarvis-bridge inspect with the chat open; playback will resume if the list returns.")
+                    warned_missing = True
+                    state["warned_missing"] = True
+            else:
+                print(f"Voice scan paused (unlocked mode): {exc}")
             continue
+        warned_missing = False
+        state["warned_missing"] = False
         for grp_path, ctrl_path in current_groups:
             ctrl = row_map.get(ctrl_path)
             if not ctrl: continue
@@ -203,7 +218,7 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                 queue.append((sig, ctrl_path, dur))
                 print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Playing...")
 
-        while queue and (stop is None or not stop.is_set()):
+        while queue and (stop is None or not stop.is_set()) and (pause is None or not pause.is_set()):
             sig, button_path, dur = queue.pop(0)
             try:
                 press(button_path, expected_label=cfg.voice_play_marker)
@@ -220,4 +235,3 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
             fail_counts.pop(sig, None)
             _wait_for_completion(cfg, button_path, dur, stop, get_snapshot)
             print("[Voice note playback finished]")
-
