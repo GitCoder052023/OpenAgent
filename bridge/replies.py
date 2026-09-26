@@ -112,7 +112,10 @@ def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot):
         if not path_lost:
             ctrl = None
             try:
-                rows = get_snapshot()
+                try:
+                    rows = get_snapshot(safe_mode=cfg.safe_mode)
+                except TypeError:
+                    rows = get_snapshot()
                 ctrl = next((r for r in rows if r["path"] == button_path), None)
             except Exception:
                 ctrl = None
@@ -139,7 +142,10 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
     """
     deadline = time.monotonic() + (timeout or cfg.reply_timeout)
     def checked():
-        rows = get_snapshot()
+        try:
+            rows = get_snapshot(safe_mode=cfg.safe_mode)
+        except TypeError:
+            rows = get_snapshot()
         verify_header(rows, cfg.number, cfg.header_path, safe_mode=cfg.safe_mode)
         return rows
 

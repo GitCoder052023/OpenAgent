@@ -83,3 +83,42 @@ def test_unlocked_mode_from_env(monkeypatch):
     assert cfg.safe_mode is False
     assert cfg.send_mode == "text"
 
+
+def test_snapshot_auto_open_mock(monkeypatch):
+    from bridge import ax
+    monkeypatch.setattr(ax, "get_whatsapp_pid", lambda: None)
+    launched = []
+    monkeypatch.setattr(ax, "launch_whatsapp", lambda hide=True: launched.append(True) or 12345)
+    # Mock AX elements so snapshot returns []
+    monkeypatch.setattr(ax, "sys", type("MockSys", (), {"platform": "darwin"}))
+    from ApplicationServices import AXUIElementCreateApplication
+    monkeypatch.setattr("ApplicationServices.AXUIElementCreateApplication", lambda pid: None)
+    monkeypatch.setattr("ApplicationServices.AXUIElementCopyAttributeValue", lambda el, attr, val: (0, []))
+    rows = ax.snapshot(safe_mode=True, auto_open=True)
+    assert launched == [True]
+    assert len(rows) == 1 and rows[0]["path"] == ""
+
+
+def test_is_hotkey_supports_f8_and_digit_8():
+    from pynput import keyboard
+    from bridge.main import is_hotkey
+    # Test F8 Key
+    assert is_hotkey(keyboard.Key.f8, "f8")
+    assert is_hotkey(keyboard.Key.media_play_pause, "f8")
+    # Test Digit 8 char and keycode
+    assert is_hotkey(keyboard.KeyCode.from_char("8"), "f8")
+    assert is_hotkey(keyboard.KeyCode.from_vk(100), "f8")
+    assert is_hotkey(keyboard.KeyCode.from_vk(28), "f8")
+    # Test when name is "8"
+    assert is_hotkey(keyboard.KeyCode.from_char("8"), "8")
+    assert is_hotkey(keyboard.Key.f8, "8")
+    # Test right_shift
+    assert is_hotkey(keyboard.Key.shift_r, "right_shift")
+
+
+def test_verify_header_relaxed_instinct():
+    from bridge.ax import verify_header
+    rows = [{"path": "/0/1", "role": "AXButton", "title": "", "value": "", "description": "Instinct"}]
+    # In unlocked mode, if header contains "Instinct", it passes without warning spam
+    assert verify_header(rows, "+16508702892", "/0/1", safe_mode=False)
+

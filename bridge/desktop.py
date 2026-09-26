@@ -2,7 +2,7 @@ import subprocess
 import time
 from pathlib import Path
 from .ax import (snapshot, verify_header, focus_composer, ensure_whatsapp_ready,
-                 click_element_by_description, click_preview_send, hide_whatsapp)
+                 click_element_by_description, click_preview_send, hide_whatsapp, activate_whatsapp)
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 
@@ -48,11 +48,21 @@ class Desktop:
 
         ensure_whatsapp_ready(self.cfg.number)
         self.assert_locked()
+        activate_whatsapp()
+        time.sleep(0.15)
         # Open file picker using direct AX clicks; fail closed if they miss.
         if not click_element_by_description(attach):
             raise RuntimeError(f"Attach control '{attach}' not found; no send")
-        time.sleep(0.25)
-        if not click_element_by_description(doc):
+
+        # Poll briefly for the document menu item to appear in the popover
+        t0 = time.monotonic()
+        clicked_doc = False
+        while time.monotonic() - t0 < 3.0:
+            if click_element_by_description(doc):
+                clicked_doc = True
+                break
+            time.sleep(0.1)
+        if not clicked_doc:
             raise RuntimeError(f"Document menu item '{doc}' not found; no send")
         time.sleep(0.35)
         subprocess.run(["osascript", str(SCRIPTS / "attach.scpt"), str(path)], check=True, timeout=25)
