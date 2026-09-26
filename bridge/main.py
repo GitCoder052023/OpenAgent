@@ -16,28 +16,27 @@ from .desktop import Desktop
 from .replies import watch
 
 
-def set_terminal_echo(enable: bool):
-    try:
-        import sys, termios
-        if not sys.stdin.isatty(): return
-        fd = sys.stdin.fileno()
-        attr = termios.tcgetattr(fd)
-        if enable:
-            attr[3] |= termios.ECHO
-        else:
-            attr[3] &= ~termios.ECHO
-        termios.tcsetattr(fd, termios.TCSANOW, attr)
-    except Exception:
-        pass
-
-
-def get_target_key(name: str):
+def is_hotkey(key, name):
     name = (name or "f8").strip().lower()
-    if name in ("shift_r", "right_shift"): return keyboard.Key.shift_r
-    if name in ("ctrl_r", "right_ctrl"): return keyboard.Key.ctrl_r
-    if name in ("cmd_r", "right_cmd"): return keyboard.Key.cmd_r
-    if hasattr(keyboard.Key, name): return getattr(keyboard.Key, name)
-    return keyboard.Key.f8
+    if name == "f8":
+        if key in (keyboard.Key.f8, keyboard.Key.media_play_pause):
+            return True
+        if getattr(key, "vk", None) == 100:
+            return True
+        return False
+    elif name == "f6":
+        if key == keyboard.Key.f6 or getattr(key, "vk", None) == 97:
+            return True
+        return False
+    elif name in ("shift_r", "right_shift"):
+        return key == keyboard.Key.shift_r
+    elif name in ("ctrl_r", "right_ctrl"):
+        return key == keyboard.Key.ctrl_r
+    elif name in ("cmd_r", "right_cmd"):
+        return key == keyboard.Key.cmd_r
+    else:
+        target = getattr(keyboard.Key, name, None)
+        return key == target
 
 
 def main():
@@ -65,7 +64,6 @@ def main():
         return
     desk.assert_locked()
     status_str = "UNLOCKED (safe mode disabled)" if not cfg.safe_mode else "LOCKED (safe mode active)"
-    target_key = get_target_key(cfg.hotkey)
     hotkey_name = cfg.hotkey.upper()
     print(f"[{status_str}] Destination: {cfg.number} | Mode: {cfg.send_mode} | Hotkey: {hotkey_name}")
     print(f"Hold {hotkey_name} to talk; release to send; press Esc to quit.")
@@ -85,7 +83,7 @@ def main():
             stop.set()
             if recording: recording.terminate()
             return False
-        if key == target_key and recording is None and not busy.locked():
+        if is_hotkey(key, cfg.hotkey) and recording is None and not busy.locked():
             try:
                 desk.assert_locked()
                 fd, name = tempfile.mkstemp(suffix=".wav", prefix="jarvis-bridge-")
@@ -93,14 +91,15 @@ def main():
                 path = Path(name)
                 path.unlink()  # SoX creates its own WAV
                 recording = start_recording(path, cfg)
-                print(f"Recording... release {hotkey_name} to send ({cfg.send_mode})")
-            except Exception as exc: print(f"Recording refused: {exc}")
+                print(f"\n[Recording started] Speak now... (release {hotkey_name} to send)")
+            except Exception as exc: print(f"\nRecording refused: {exc}")
     busy = threading.Lock()
     def release(key):
         nonlocal recording, path
-        if key != target_key or recording is None: return
+        if not is_hotkey(key, cfg.hotkey) or recording is None: return
         proc, recording = recording, None
         recorded_path = path
+        print(f"\n[Recording stopped] Processing audio ({cfg.send_mode})...")
         if not busy.acquire(blocking=False):
             proc.terminate()
             print("Previous request still running; dropped this recording.")
@@ -147,12 +146,8 @@ def main():
             if attachment: attachment.unlink(missing_ok=True)
             busy.release()
 
-    set_terminal_echo(False)
-    try:
-        with keyboard.Listener(on_press=press, on_release=release) as listener:
-            listener.join()
-    finally:
-        set_terminal_echo(True)
+    with keyboard.Listener(on_press=press, on_release=release) as listener:
+        listener.join()
     stop.set()
 
 if __name__ == "__main__": main()
