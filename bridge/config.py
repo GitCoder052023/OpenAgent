@@ -38,10 +38,12 @@ class Config:
     attachment_send_label: str = ""
     safe_mode: bool = True
     send_mode: str = "text"
+    hotkey: str = "f8"
 
     @classmethod
     def from_env(cls):
         load_env_file()
+        hotkey = os.getenv("BRIDGE_HOTKEY", "f8").strip().lower()
         safe_mode_env = os.getenv("BRIDGE_SAFE_MODE", "").strip().lower()
         if safe_mode_env in ("false", "0", "no", "off"):
             safe_mode = False
@@ -68,4 +70,5 @@ class Config:
                    document_label=os.getenv("BRIDGE_DOCUMENT_LABEL", ""),
                    attachment_send_label=os.getenv("BRIDGE_ATTACHMENT_SEND_LABEL", ""),
                    safe_mode=safe_mode,
-                   send_mode=send_mode)
+                   send_mode=send_mode,
+                   hotkey=hotkey)
