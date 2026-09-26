@@ -39,6 +39,14 @@ def is_hotkey(key, name):
         return key == target
 
 
+def is_release_hotkey(key, name):
+    if is_hotkey(key, name):
+        return True
+    if getattr(key, "vk", None) == 63:  # Fn key release on macOS Darwin
+        return True
+    return False
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("command", choices=["inspect", "run", "speak"])
@@ -63,20 +71,30 @@ def main():
         speak(args.text)
         return
     desk.assert_locked()
+    from .ax import hide_whatsapp
+    hide_whatsapp()
+
     status_str = "UNLOCKED (safe mode disabled)" if not cfg.safe_mode else "LOCKED (safe mode active)"
     hotkey_name = cfg.hotkey.upper()
     print(f"[{status_str}] Destination: {cfg.number} | Mode: {cfg.send_mode} | Hotkey: {hotkey_name}")
+    print(f"WhatsApp: BACKGROUND / HIDDEN (screen remains clean and private).")
     print(f"Hold {hotkey_name} to talk; release to send; press Esc to quit.")
+
+    stop = threading.Event()
+    watcher = None
     if cfg.message_list_path and cfg.incoming_marker and cfg.voice_play_marker and cfg.voice_pause_marker:
         print("Voice reply watcher: ENABLED (incoming notes will play automatically).")
+        def hear():
+            try: watch(cfg, stop=stop)
+            except Exception as exc: print("Reply watch stopped:", exc)
+        watcher = threading.Thread(target=hear, daemon=True)
+        watcher.start()
     else:
         print("Voice reply watcher: DISABLED (calibration needed for inbound voice playback).")
 
     recording = None
     path = None
     last_send = 0.0
-    stop = threading.Event()
-    watcher = None
     def press(key):
         nonlocal recording, path
         if key == keyboard.Key.esc:
@@ -85,7 +103,6 @@ def main():
             return False
         if is_hotkey(key, cfg.hotkey) and recording is None and not busy.locked():
             try:
-                desk.assert_locked()
                 fd, name = tempfile.mkstemp(suffix=".wav", prefix="jarvis-bridge-")
                 os.close(fd)
                 path = Path(name)
@@ -96,7 +113,7 @@ def main():
     busy = threading.Lock()
     def release(key):
         nonlocal recording, path
-        if not is_hotkey(key, cfg.hotkey) or recording is None: return
+        if not is_release_hotkey(key, cfg.hotkey) or recording is None: return
         proc, recording = recording, None
         recorded_path = path
         print(f"\n[Recording stopped] Processing audio ({cfg.send_mode})...")
@@ -106,14 +123,14 @@ def main():
             return
         threading.Thread(target=process_recording, args=(proc, recorded_path), daemon=True).start()
     def process_recording(proc, recorded_path):
-        nonlocal last_send, watcher
+        nonlocal last_send
         attachment = None
         try:
             proc.send_signal(signal.SIGINT)
             try: proc.wait(timeout=3)
             except subprocess.TimeoutExpired: proc.kill(); proc.wait()
             if stop.is_set(): return
-            if not recorded_path.exists() or recorded_path.stat().st_size < 4000: raise RuntimeError("No audio captured")
+            if not recorded_path.exists() or recorded_path.stat().st_size < 1000: raise RuntimeError("No audio captured")
             if time.monotonic() - last_send < cfg.min_send_interval: raise RuntimeError("Rate limit: wait before sending again")
 
             if cfg.send_mode == "text":
@@ -126,20 +143,11 @@ def main():
                 print("Text message sent to WhatsApp.")
             else:
                 attachment = encode_attachment(recorded_path)
+                print(f"Sending audio file to {cfg.number}...")
                 desk.send_audio(attachment)
-                print("Audio attachment submitted.")
+                print("Audio attachment sent. WhatsApp backgrounded.")
 
             last_send = time.monotonic()
-            if cfg.message_list_path and cfg.incoming_marker and cfg.voice_play_marker and cfg.voice_pause_marker:
-                def hear():
-                    try: watch(cfg, stop=stop)
-                    except Exception as exc: print("Reply watch stopped:", exc)
-                if watcher and watcher.is_alive():
-                    print("Previous reply watch still active; no second watcher started.")
-                else:
-                    watcher = threading.Thread(target=hear, daemon=True)
-                    watcher.start()
-            else: print("Reply watch not configured; check WhatsApp manually.")
         except Exception as exc: print("Not sent:", exc)
         finally:
             recorded_path.unlink(missing_ok=True)

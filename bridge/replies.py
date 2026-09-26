@@ -73,63 +73,82 @@ def voice_groups(rows, cfg):
     return result
 
 
-def _state(rows, cfg, group_path):
-    descendants = [r for r in rows if r["role"] in ("AXButton", "AXStaticText") and (r["path"] == group_path or under(r["path"], group_path))]
-    playing = [r for r in descendants if cfg.voice_pause_marker.casefold() in _label(r)]
-    ready = [r for r in descendants if cfg.voice_play_marker.casefold() in _label(r)]
-    if len(playing) + len(ready) != 1:
-        raise RuntimeError("Voice control vanished or became ambiguous")
-    return ("playing", playing[0]["path"]) if playing else ("ready", ready[0]["path"])
+def parse_duration(desc):
+    import re
+    m_min = re.search(r"(\d+)\s*minute", desc, re.IGNORECASE)
+    m_sec = re.search(r"(\d+)\s*second", desc, re.IGNORECASE)
+    mins = int(m_min.group(1)) if m_min else 0
+    secs = int(m_sec.group(1)) if m_sec else 0
+    return mins * 60 + secs if (mins or secs) else 5
+
+
+def voice_signature(row):
+    import re
+    desc = " ".join(row.get(k, "") for k in ("title", "description", "value"))
+    cleaned = re.sub(r'[\u200e,\s]+(Listened|Unplayed|Delivered|Played)', '', desc, flags=re.IGNORECASE).strip()
+    return cleaned or row.get("path", "")
 
 
 def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button):
     """Play new inbound notes sequentially through WhatsApp's own Mac output.
 
-    Prefix validation deliberately stops on virtualized/reordered message lists.
-    If playback state cannot be observed, it stops rather than starting the
-    next note over an unknown current one.
+    WhatsApp remains completely hidden in the background while notes play.
     """
     deadline = time.monotonic() + (timeout or cfg.reply_timeout)
     def checked():
         rows = get_snapshot()
-        verify_header(rows, cfg.number, cfg.header_path)
+        verify_header(rows, cfg.number, cfg.header_path, safe_mode=cfg.safe_mode)
         return rows
-    previous = voice_groups(checked(), cfg)
+
+    # Index existing voice notes so old messages are not replayed
+    initial_rows = checked()
+    initial_groups = voice_groups(initial_rows, cfg)
+    row_map = {r["path"]: r for r in initial_rows}
+    played_signatures = set()
+    for grp_path, ctrl_path in initial_groups:
+        ctrl = row_map.get(ctrl_path)
+        if ctrl:
+            played_signatures.add(voice_signature(ctrl))
+
     queue = []
-    active = None
-    active_since = None
-    while time.monotonic() < deadline or active or queue:
+
+    while (time.monotonic() < deadline or queue) and (stop is None or not stop.is_set()):
         if stop is not None and stop.wait(1):
             return
         if stop is None:
             time.sleep(1)
-        rows = checked()
-        current = voice_groups(rows, cfg)
-        if len(current) < len(previous) or current[:len(previous)] != previous:
-            raise RuntimeError("Voice list changed/virtualized; stopping playback")
-        queue.extend(path for path, _ in current[len(previous):])
-        previous = current
-        if active:
-            if time.monotonic() - active_since > cfg.max_voice_seconds:
-                raise RuntimeError("Voice playback did not finish within limit; stopping")
-            state, _ = _state(rows, cfg, active)
-            if state == "ready":
-                active = None
-                active_since = None
-            else:
+
+        try:
+            rows = checked()
+        except Exception as exc:
+            if cfg.safe_mode:
+                raise
+            continue
+
+        row_map = {r["path"]: r for r in rows}
+        current_groups = voice_groups(rows, cfg)
+        for grp_path, ctrl_path in current_groups:
+            ctrl = row_map.get(ctrl_path)
+            if not ctrl: continue
+            sig = voice_signature(ctrl)
+            if sig not in played_signatures and not any(q[0] == sig for q in queue):
+                dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
+                queue.append((sig, ctrl_path, dur))
+                print(f"\n[Incoming voice note detected] Duration: {dur}s | Playing...")
+
+        while queue and (stop is None or not stop.is_set()):
+            sig, button_path, dur = queue.pop(0)
+            played_signatures.add(sig)
+            try:
+                press(button_path, expected_label=cfg.voice_play_marker)
+            except Exception as exc:
+                print(f"Playback trigger failed for {button_path}: {exc}")
                 continue
-        if queue:
-            group_path = queue.pop(0)
-            state, button_path = _state(rows, cfg, group_path)
-            if state != "ready":
-                raise RuntimeError("Voice note already playing; stopping")
-            # Verify selected chat and exact group/control in a fresh snapshot.
-            rows = checked()
-            if (group_path, button_path) not in voice_groups(rows, cfg) or _state(rows, cfg, group_path) != ("ready", button_path):
-                raise RuntimeError("Voice control changed before playback")
-            press(button_path, expected_label=cfg.voice_play_marker)
-            rows = checked()
-            if _state(rows, cfg, group_path)[0] != "playing":
-                raise RuntimeError("Cannot verify voice note started; stopping")
-            active = group_path
-            active_since = time.monotonic()
+
+            wait_end = time.monotonic() + dur + 1.0
+            while time.monotonic() < wait_end:
+                if stop is not None and stop.wait(0.5):
+                    return
+                if stop is None:
+                    time.sleep(0.5)
+            print("[Voice note playback finished]")

@@ -33,6 +33,21 @@ def activate_whatsapp():
     return False
 
 
+def hide_whatsapp():
+    """Hide WhatsApp application to keep user screen completely clean and private."""
+    if sys.platform != "darwin": return False
+    try:
+        from AppKit import NSWorkspace
+        running = [a for a in NSWorkspace.sharedWorkspace().runningApplications()
+                   if "whatsapp" in (a.localizedName() or "").lower() and "autofill" not in (a.localizedName() or "").lower()]
+        if running:
+            running[0].hide()
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def snapshot(safe_mode=True):
     if sys.platform != "darwin":
         raise RuntimeError("macOS required")
@@ -186,6 +201,39 @@ def click_element_by_description(target_substr, role="AXButton"):
         _, ch = AXUIElementCopyAttributeValue(el, "AXChildren", None)
         el = ch[idx]
     return AXUIElementPerformAction(el, "AXPress") == 0
+
+
+def click_preview_send(timeout=5.0):
+    """Wait for WhatsApp attachment preview and click the Send button (or press Enter)."""
+    if sys.platform != "darwin": return False
+    from ApplicationServices import AXUIElementCreateApplication, AXUIElementCopyAttributeValue, AXUIElementPerformAction
+    import time
+    pid = get_whatsapp_pid()
+    if not pid: return False
+    root = AXUIElementCreateApplication(pid)
+
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < timeout:
+        rows = snapshot(safe_mode=False)
+        send_btns = [r for r in rows if r["role"] == "AXButton" and "send" in (r.get("description") or r.get("title") or "").lower() and "voice" not in (r.get("description") or "").lower()]
+        if send_btns:
+            path = send_btns[0]["path"]
+            indexes = [int(p) for p in path.split("/")[1:]]
+            el = root
+            for idx in indexes:
+                _, ch = AXUIElementCopyAttributeValue(el, "AXChildren", None)
+                if not ch or idx >= len(ch):
+                    el = None
+                    break
+                el = ch[idx]
+            if el and AXUIElementPerformAction(el, "AXPress") == 0:
+                return True
+        time.sleep(0.1)
+
+    # Fallback: Send Enter via AppleScript
+    import subprocess
+    subprocess.run(["osascript", "-e", 'tell application "System Events" to tell process "WhatsApp" to key code 36'], check=False)
+    return True
 
 
 def focus_composer():

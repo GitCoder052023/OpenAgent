@@ -1,7 +1,8 @@
 import subprocess
 import time
 from pathlib import Path
-from .ax import snapshot, verify_header, focus_composer, ensure_whatsapp_ready, click_element_by_description
+from .ax import (snapshot, verify_header, focus_composer, ensure_whatsapp_ready,
+                 click_element_by_description, click_preview_send, hide_whatsapp)
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 
@@ -26,16 +27,14 @@ class Desktop:
         subprocess.run(["osascript", str(SCRIPTS / "send.scpt"), self.cfg.number, text], check=True)
         self.assert_locked()
         subprocess.run(["osascript", str(SCRIPTS / "commit.scpt")], check=True)
-
+        time.sleep(0.3)
+        hide_whatsapp()
 
     def send_audio(self, path):
-        """Prepare an M4A as a document attachment, recheck chat, then send.
-
-        This is NOT a native WhatsApp voice-note bubble. UI is locally calibrated.
-        """
+        """Prepare an M4A as a document attachment, dispatch it, then immediately hide WhatsApp."""
         path = Path(path).resolve()
-        if not path.is_file() or path.suffix.lower() != ".m4a" or not 4000 <= path.stat().st_size <= 12_000_000:
-            raise ValueError("Audio must be an M4A file between 4 KB and 12 MB")
+        if not path.is_file() or path.suffix.lower() != ".m4a" or not 1000 <= path.stat().st_size <= 12_000_000:
+            raise ValueError("Audio must be an M4A file between 1 KB and 12 MB")
         if not all((self.cfg.attach_label, self.cfg.document_label, self.cfg.attachment_send_label)):
             if self.cfg.safe_mode:
                 raise RuntimeError("Attachment UI labels not calibrated; no send")
@@ -51,14 +50,16 @@ class Desktop:
         self.assert_locked()
         # Open file picker using direct AX clicks
         click_element_by_description(attach)
-        time.sleep(0.3)
+        time.sleep(0.25)
         click_element_by_description(doc)
-        time.sleep(0.4)
+        time.sleep(0.35)
         subprocess.run(["osascript", str(SCRIPTS / "attach.scpt"), str(path),
                         attach, doc], check=True, timeout=25)
-        # If this raises, a draft may be left in WhatsApp; operator clears it.
-        self.assert_locked()
-        time.sleep(0.4)
-        if not click_element_by_description(send_btn):
+
+        # In preview, the chat header is replaced by the attachment preview window.
+        # Click the preview Send button or press Enter, then immediately hide WhatsApp.
+        if not click_preview_send(timeout=5.0):
             subprocess.run(["osascript", str(SCRIPTS / "commit-audio.scpt"),
                             send_btn], check=True, timeout=15)
+        time.sleep(0.4)
+        hide_whatsapp()
