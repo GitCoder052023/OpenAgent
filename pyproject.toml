@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 dependencies = ["pyobjc-framework-ApplicationServices>=10.0", "pynput>=1.7.7"]
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+voice = ["vosk>=0.3.45", "sounddevice>=0.4.6"]
 [project.scripts]
 jarvis-bridge = "bridge.main:main"
 [tool.pytest.ini_options]
