@@ -203,11 +203,13 @@ def click_element_by_description(target_substr, role="AXButton"):
     return AXUIElementPerformAction(el, "AXPress") == 0
 
 
-def click_preview_send(timeout=5.0):
-    """Wait for WhatsApp attachment preview and click the Send button (or press Enter)."""
+def click_preview_send(timeout=4.0):
+    """Wait for WhatsApp attachment preview, focus caption field, and press Enter to dispatch."""
     if sys.platform != "darwin": return False
-    from ApplicationServices import AXUIElementCreateApplication, AXUIElementCopyAttributeValue, AXUIElementPerformAction
-    import time
+    from ApplicationServices import (AXUIElementCreateApplication, AXUIElementCopyAttributeValue,
+                                     AXUIElementSetAttributeValue, AXValueGetValue,
+                                     kAXValueTypeCGPoint, kAXValueTypeCGSize)
+    import subprocess, time, Quartz
     pid = get_whatsapp_pid()
     if not pid: return False
     root = AXUIElementCreateApplication(pid)
@@ -215,24 +217,64 @@ def click_preview_send(timeout=5.0):
     t0 = time.monotonic()
     while time.monotonic() - t0 < timeout:
         rows = snapshot(safe_mode=False)
+        captions = [r for r in rows if r["role"] == "AXTextArea" and ("caption" in (r.get("description") or "").lower() or r["path"].startswith("/0/0/0"))]
         send_btns = [r for r in rows if r["role"] == "AXButton" and "send" in (r.get("description") or r.get("title") or "").lower() and "voice" not in (r.get("description") or "").lower()]
-        if send_btns:
-            path = send_btns[0]["path"]
-            indexes = [int(p) for p in path.split("/")[1:]]
-            el = root
-            for idx in indexes:
-                _, ch = AXUIElementCopyAttributeValue(el, "AXChildren", None)
-                if not ch or idx >= len(ch):
-                    el = None
-                    break
-                el = ch[idx]
-            if el and AXUIElementPerformAction(el, "AXPress") == 0:
+
+        if captions or send_btns:
+            # 1. Focus the caption text field
+            if captions:
+                path = captions[0]["path"]
+                indexes = [int(p) for p in path.split("/")[1:]]
+                el = root
+                for idx in indexes:
+                    _, ch = AXUIElementCopyAttributeValue(el, "AXChildren", None)
+                    if not ch or idx >= len(ch):
+                        el = None
+                        break
+                    el = ch[idx]
+                if el:
+                    AXUIElementSetAttributeValue(el, "AXFocused", True)
+                    time.sleep(0.05)
+
+            # 2. Press Enter (key code 36) in WhatsApp
+            subprocess.run(["osascript", "-e", 'tell application "System Events" to tell process "WhatsApp" to key code 36'], check=False)
+            time.sleep(0.2)
+
+            # Check if preview dismissed
+            rows_after = snapshot(safe_mode=False)
+            still_preview = any(r["role"] == "AXButton" and "cancel" in (r.get("description") or "").lower() for r in rows_after)
+            if not still_preview:
                 return True
+
+            # 3. Fallback: Click Send button by screen coordinates
+            if send_btns:
+                path = send_btns[0]["path"]
+                indexes = [int(p) for p in path.split("/")[1:]]
+                el = root
+                for idx in indexes:
+                    _, ch = AXUIElementCopyAttributeValue(el, "AXChildren", None)
+                    if not ch or idx >= len(ch):
+                        el = None
+                        break
+                    el = ch[idx]
+                if el:
+                    _, pos_val = AXUIElementCopyAttributeValue(el, "AXPosition", None)
+                    _, size_val = AXUIElementCopyAttributeValue(el, "AXSize", None)
+                    if pos_val and size_val:
+                        ok1, point = AXValueGetValue(pos_val, kAXValueTypeCGPoint, None)
+                        ok2, size = AXValueGetValue(size_val, kAXValueTypeCGSize, None)
+                        if ok1 and ok2:
+                            x = point.x + size.width / 2.0
+                            y = point.y + size.height / 2.0
+                            down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, Quartz.CGPoint(x, y), Quartz.kCGMouseButtonLeft)
+                            up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, Quartz.CGPoint(x, y), Quartz.kCGMouseButtonLeft)
+                            Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+                            time.sleep(0.05)
+                            Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+                            time.sleep(0.2)
+                            return True
         time.sleep(0.1)
 
-    # Fallback: Send Enter via AppleScript
-    import subprocess
-    subprocess.run(["osascript", "-e", 'tell application "System Events" to tell process "WhatsApp" to key code 36'], check=False)
     return True
 
 

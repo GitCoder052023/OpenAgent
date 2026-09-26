@@ -85,8 +85,12 @@ def main():
     if cfg.message_list_path and cfg.incoming_marker and cfg.voice_play_marker and cfg.voice_pause_marker:
         print("Voice reply watcher: ENABLED (incoming notes will play automatically).")
         def hear():
-            try: watch(cfg, stop=stop)
-            except Exception as exc: print("Reply watch stopped:", exc)
+            while not stop.is_set():
+                try:
+                    watch(cfg, stop=stop)
+                except Exception as exc:
+                    if stop.is_set(): break
+                    time.sleep(1)
         watcher = threading.Thread(target=hear, daemon=True)
         watcher.start()
     else:

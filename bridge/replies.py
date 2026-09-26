@@ -101,14 +101,17 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
         return rows
 
     # Index existing voice notes so old messages are not replayed
-    initial_rows = checked()
-    initial_groups = voice_groups(initial_rows, cfg)
-    row_map = {r["path"]: r for r in initial_rows}
     played_signatures = set()
-    for grp_path, ctrl_path in initial_groups:
-        ctrl = row_map.get(ctrl_path)
-        if ctrl:
-            played_signatures.add(voice_signature(ctrl))
+    try:
+        initial_rows = checked()
+        initial_groups = voice_groups(initial_rows, cfg)
+        row_map = {r["path"]: r for r in initial_rows}
+        for grp_path, ctrl_path in initial_groups:
+            ctrl = row_map.get(ctrl_path)
+            if ctrl:
+                played_signatures.add(voice_signature(ctrl))
+    except Exception:
+        pass
 
     queue = []
 
@@ -126,7 +129,11 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
             continue
 
         row_map = {r["path"]: r for r in rows}
-        current_groups = voice_groups(rows, cfg)
+        try:
+            current_groups = voice_groups(rows, cfg)
+        except Exception:
+            # WhatsApp might be temporarily displaying the file attachment sheet, preview dialog, or menu.
+            continue
         for grp_path, ctrl_path in current_groups:
             ctrl = row_map.get(ctrl_path)
             if not ctrl: continue
