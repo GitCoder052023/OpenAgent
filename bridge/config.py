@@ -39,6 +39,7 @@ class Config:
     safe_mode: bool = True
     send_mode: str = "text"
     hotkey: str = "f8"
+    voice_model: str = "models/vosk-model-small-en-us-0.15"
 
     @classmethod
     def from_env(cls):
@@ -71,4 +72,5 @@ class Config:
                    attachment_send_label=os.getenv("BRIDGE_ATTACHMENT_SEND_LABEL", ""),
                    safe_mode=safe_mode,
                    send_mode=send_mode,
-                   hotkey=hotkey)
+                   hotkey=hotkey,
+                   voice_model=os.getenv("BRIDGE_VOICE_MODEL", cls.voice_model))
