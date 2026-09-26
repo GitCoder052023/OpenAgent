@@ -1,6 +1,0 @@
-
-## Phase 2 voice-mode trial
-
-Install `pip install -e '.[voice]'` and put an extracted Vosk model at the `BRIDGE_VOICE_MODEL` path (see README). Run `jarvis-bridge run --voice --send-mode audio` with a headset and the right default input device. First test without other people or a call: say "Wakeup Jarvis" alone, pause, dictate a harmless short message, pause, then say "Jarvis stand by", pause, and "confirm stand by Jarvis" within 8 seconds. Check the WhatsApp destination and playback. Then test unrelated speech about sleep cycles: it should not change state. Esc closes the listener. Vosk English recognition of Hinglish is unverified, and phone/call leakage cannot be completely prevented by speech recognition. Keep mode off if either test fails.
-
-If you see `Voice scan unavailable`, the reply watcher cannot find `BRIDGE_MESSAGE_LIST_PATH` in the current WhatsApp AX snapshot. During an attachment picker or preview this is expected and scanning resumes after it closes. If it persists when the right chat is visible, run `jarvis-bridge inspect > ax-tree.json`, inspect locally for a single `AXList`/`AXScrollArea`/`AXGroup` containing message bubbles, then update `.env` with its exact path. Do not send or commit the AX dump; it can contain private chat text. The watcher stays fail-closed until calibrated.
