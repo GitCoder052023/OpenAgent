@@ -4,9 +4,12 @@ Requires local calibration of the selected chat, incoming direction, and the
 voice-note play/pause control. Never speaks text or reads notifications.
 """
 import hashlib
+import json
+import os
 import re
 import time
 import logging
+from pathlib import Path
 from .diagnostics import event
 from .ax import snapshot, verify_header, press_button
 from .dispatcher import parse_tool_calls, execute_tool_call, format_tool_responses
@@ -14,11 +17,18 @@ from .dispatcher import parse_tool_calls, execute_tool_call, format_tool_respons
 # Invisible characters WhatsApp rendering inserts (LRM/RLM, zero-width, BOM).
 _INVISIBLE_CHARS = ("\u200b", "\u200c", "\u200d", "\u200e", "\u200f", "\u2060", "\ufeff")
 
-# Timestamp + direction suffix in AXDescription, e.g.:
-#   ", 10:50 AM, Received from ..."  or  ", 3:05 PM, Sent to ..."
-# \u202f (narrow no-break space) appears between time and AM/PM in some locales.
-_DESC_TIMESTAMP_RE = re.compile(
-    r",\s*\d{1,2}:\d{2}\s*[AP]M\s*(?:,\s*(?:Received from|Sent to|Read|Delivered)\b.*)?$",
+# Suffix in AXDescription matching timestamp and/or direction metadata:
+# Examples:
+#   ", 10:50 AM, Received from + 1,6 5 0,8 7 0,2 8 9 2"
+#   ", 14:35, Received from + 1,6 5 0,8 7 0,2 8 9 2"
+#   ", yesterday at 10:50 AM, Received from ..."
+#   ", 10:50 AM" (truncated description without sender info)
+_DESC_TIMESTAMP_METADATA_RE = re.compile(
+    r",\s*([^,]+?)\s*,\s*(?:\u200e)?(?:Received from|Sent to|Read|Delivered)\b.*$",
+    re.IGNORECASE,
+)
+_DESC_TIMESTAMP_FALLBACK_RE = re.compile(
+    r",\s*(\d{1,2}:\d{2}(?:\s*[AP]M)?)\s*$",
     re.IGNORECASE,
 )
 
@@ -58,7 +68,9 @@ def _body_from_description(desc):
 
     rest = clean[len(prefix):]
     # Strip trailing timestamp + direction suffix
-    m = _DESC_TIMESTAMP_RE.search(rest)
+    m = _DESC_TIMESTAMP_METADATA_RE.search(rest)
+    if not m:
+        m = _DESC_TIMESTAMP_FALLBACK_RE.search(rest)
     if m:
         body = rest[:m.start()].strip()
     else:
@@ -66,6 +78,102 @@ def _body_from_description(desc):
         # This is safe because we already confirmed it's an incoming text message.
         body = rest.strip()
     return body
+
+
+def _timestamp_from_description(desc):
+    """Extract the message timestamp from an AXDescription string.
+
+    Returns a normalised time string like '10:50 AM' or '14:35', or '' if none found.
+    """
+    clean = _strip_invisible(desc).strip()
+    m = _DESC_TIMESTAMP_METADATA_RE.search(clean)
+    if m:
+        return re.sub(r"\s+", " ", m.group(1)).strip()
+    m2 = _DESC_TIMESTAMP_FALLBACK_RE.search(clean)
+    if m2:
+        return re.sub(r"\s+", " ", m2.group(1)).strip()
+    return ""
+
+
+def _text_signature(body_text, desc, occurrence=0):
+    """Build a position-independent, status-independent message signature.
+
+    Combines the body content hash with the message timestamp extracted from
+    the AXDescription, plus an occurrence index within the scan.
+    - Two different messages with identical text sent at different times
+      produce distinct signatures (different timestamps).
+    - Two different messages with identical text sent at the same minute
+      produce distinct signatures (different occurrence indices).
+    - A message moving in the AX tree (due to scrolling or new bubbles)
+      retains the exact same signature.
+    """
+    text_hash = hashlib.sha256(body_text.encode("utf-8")).hexdigest()[:16]
+    ts = _timestamp_from_description(desc)
+    return f"txt:{text_hash}:{ts}:{occurrence}"
+
+
+# ---------------------------------------------------------------------------
+# Persistent ledger: remember processed tool-call hashes across restarts
+# ---------------------------------------------------------------------------
+_DEFAULT_LEDGER_PATH = Path(
+    os.getenv("BRIDGE_LEDGER_FILE",
+              os.path.expanduser("~/Library/Logs/jarvis-bridge/processed.jsonl"))
+)
+
+
+class ProcessedLedger:
+    """Append-only set of processed text signatures, backed by a JSONL file.
+
+    Each line is a JSON object: {"sig": "<signature>", "time": "<ISO timestamp>"}.
+    On load, all existing signatures are read into an in-memory set.
+    On add, a new line is appended immediately and the set is updated.
+    Pass path=":memory:" to disable disk persistence (useful in tests).
+    """
+
+    def __init__(self, path=None):
+        self._path = None if path == ":memory:" else (Path(path) if path else _DEFAULT_LEDGER_PATH)
+        self._sigs: set[str] = set()
+        self._load()
+
+    def _load(self):
+        if not self._path or not self._path.exists():
+            return
+        try:
+            with open(self._path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                        sig = obj.get("sig", "")
+                        if sig:
+                            self._sigs.add(sig)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+        except OSError:
+            pass
+
+    def __contains__(self, sig: str) -> bool:
+        return sig in self._sigs
+
+    def add(self, sig: str):
+        if sig in self._sigs:
+            return
+        self._sigs.add(sig)
+        if not self._path:
+            return
+        try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            from datetime import datetime, timezone
+            entry = json.dumps({"sig": sig, "time": datetime.now(timezone.utc).isoformat()})
+            with open(self._path, "a", encoding="utf-8") as f:
+                f.write(entry + "\n")
+        except OSError as exc:
+            logging.getLogger("jarvis.watcher").warning("Ledger write failed: %s", exc)
+
+    def __len__(self):
+        return len(self._sigs)
 
 
 def _group_sample(descendants, group, limit=120):
@@ -131,6 +239,7 @@ def incoming_texts(rows, cfg):
     skipped = []
     target_num = "".join(c for c in (cfg.number or "") if c.isdigit())
     marker = (cfg.incoming_marker or "").strip().lower()
+    sig_counts = {}
 
     for group in groups:
         grp_path = group.get("path", "")
@@ -212,9 +321,12 @@ def incoming_texts(rows, cfg):
             skipped.append(("echo_guard", repr(full_text[:100])))
             continue
 
-        group_meta = " ".join(group.get(k, "") for k in ("title", "description")).strip()
+        group_desc = group.get("description", "")
+        ts = _timestamp_from_description(group_desc)
         text_hash = hashlib.sha256(full_text.encode("utf-8")).hexdigest()[:16]
-        sig = f"{grp_path}:{group_meta}:{text_hash}"
+        occ = sig_counts.get((text_hash, ts), 0)
+        sig_counts[(text_hash, ts)] = occ + 1
+        sig = f"txt:{text_hash}:{ts}:{occ}"
         result.append((grp_path, full_text, sig))
 
     if not result and skipped:
@@ -324,7 +436,7 @@ def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot):
     event("echo_guard", state="playback_wait_expired", level="warning", elapsed_s=round(time.monotonic() - started, 2), duration_s=dur, saw_pause=saw_pause)
 
 
-def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None, pause=None, desk=None, harness=None, playing=None):
+def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None, pause=None, desk=None, harness=None, playing=None, ledger_path=None):
     """Play new inbound notes and/or dispatch incoming tool calls over WhatsApp.
 
     WhatsApp remains completely hidden in the background while running.
@@ -340,6 +452,13 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
         verify_header(rows, cfg.number, cfg.header_path, safe_mode=cfg.safe_mode)
         return rows
 
+    initial_rows = None
+    def get_initial():
+        nonlocal initial_rows
+        if initial_rows is None:
+            initial_rows = checked()
+        return initial_rows
+
     if state is None:
         state = {}
     played_signatures = state.get("played")
@@ -347,9 +466,9 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
         # First window only: index existing voice notes so old messages are not replayed
         played_signatures = set()
         try:
-            initial_rows = checked()
-            initial_groups = voice_groups(initial_rows, cfg)
-            row_map = {r["path"]: r for r in initial_rows}
+            init = get_initial()
+            initial_groups = voice_groups(init, cfg)
+            row_map = {r["path"]: r for r in init}
             for grp_path, ctrl_path in initial_groups:
                 ctrl = row_map.get(ctrl_path)
                 if ctrl:
@@ -360,13 +479,17 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
 
     processed_texts = state.get("processed_texts")
     if processed_texts is None:
-        # First window only: baseline existing incoming text messages so chat history is not re-executed
-        processed_texts = set()
+        # First window: load persistent ledger (survives restarts) and baseline
+        # any visible incoming text messages so chat history is never re-executed.
+        target_path = ledger_path or getattr(cfg, "ledger_path", None)
+        processed_texts = ProcessedLedger(path=target_path)
         try:
-            initial_rows = checked()
-            for grp_path, text, sig in incoming_texts(initial_rows, cfg):
+            init = get_initial()
+            baselined = 0
+            for grp_path, text, sig in incoming_texts(init, cfg):
                 processed_texts.add(sig)
-            event("text_baseline", count=len(processed_texts))
+                baselined += 1
+            event("text_baseline", count=baselined, ledger_total=len(processed_texts))
         except Exception:
             logging.getLogger("jarvis.watcher").exception("Text baseline failed; watcher must not replay history")
             raise
@@ -434,10 +557,14 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                 for grp_path, msg_text, sig in current_texts:
                     if sig in processed_texts:
                         continue
-                    # Mark only after a response has been sent; failed sends are retryable.
+                    # Mark BEFORE execution to prevent the next scan cycle from
+                    # picking up the same message while this one is still running.
+                    # Tool calls may have side effects; replaying is worse than
+                    # dropping a retryable send failure.
+                    processed_texts.add(sig)
+
                     tool_calls = parse_tool_calls(msg_text)
                     if not tool_calls:
-                        processed_texts.add(sig)
                         event("text_ignored", level="debug", reason="no_call", text=repr(msg_text[:200]))
                         continue
                     event("tool_dispatch", calls=len(tool_calls), tools=[c.get("tool") for c in tool_calls])
@@ -450,7 +577,6 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                         res = execute_tool_call(harness, call)
                         responses.append(res)
 
-                    processed_texts.add(sig)  # Execution may have side effects; never replay on send failure.
                     reply_text = format_tool_responses(responses)
                     print(f"Sending tool response back to WhatsApp...")
                     desk.send_tool_response(reply_text)

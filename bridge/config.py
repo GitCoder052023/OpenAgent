@@ -42,6 +42,7 @@ class Config:
     hotkey: str = "f8"
     voice_model: str = "models/vosk-model-small-en-us-0.15"
     voice_silence_seconds: float = 2.0
+    ledger_path: str = ""
 
     @classmethod
     def from_env(cls):
@@ -63,6 +64,8 @@ class Config:
         if send_route not in ("auto", "clipboard", "picker"):
             send_route = "picker"
 
+        ledger_path = os.getenv("BRIDGE_LEDGER_FILE", "").strip()
+
         return cls(number=os.getenv("BRIDGE_WHATSAPP_NUMBER", cls.number),
                    model=os.getenv("BRIDGE_WHISPER_MODEL", cls.model),
                    whisper_cli=os.getenv("BRIDGE_WHISPER_CLI", cls.whisper_cli),
@@ -81,5 +84,6 @@ class Config:
                    send_route=send_route,
                    hotkey=hotkey,
                    voice_model=os.getenv("BRIDGE_VOICE_MODEL", cls.voice_model),
-                   voice_silence_seconds=float(os.getenv("BRIDGE_VOICE_SILENCE_SECONDS", cls.voice_silence_seconds)))
+                   voice_silence_seconds=float(os.getenv("BRIDGE_VOICE_SILENCE_SECONDS", cls.voice_silence_seconds)),
+                   ledger_path=ledger_path)
 
