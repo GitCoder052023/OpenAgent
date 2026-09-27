@@ -1,6 +1,9 @@
+import re
+
 import pytest
 from unittest.mock import MagicMock
 from bridge.dispatcher import (
+    encode_tool_call,
     parse_tool_call,
     parse_tool_calls,
     execute_tool_call,
@@ -216,3 +219,99 @@ def test_format_tool_responses_multiple():
     formatted = format_tool_responses(responses)
     assert "[Jarvis Tool Response 1/2: bash" in formatted
     assert "[Jarvis Tool Response 2/2: read" in formatted
+
+
+
+# ---------------------------------------------------------------------------
+# JARVIS_CALL envelope (primary transport) + WhatsApp-rendered text fallbacks
+# ---------------------------------------------------------------------------
+
+
+def test_parse_envelope_single_call():
+    env = encode_tool_call({"tool": "bash", "args": {"command": "git status"}})
+    call = parse_tool_call(env)
+    assert call == {"tool": "bash", "args": {"command": "git status"}}
+
+
+def test_parse_envelope_with_surrounding_text():
+    env = encode_tool_call({"tool": "read", "args": {"path": "README.md"}})
+    msg = f"On it, sir.\n{env}\nReport incoming."
+    call = parse_tool_call(msg)
+    assert call["tool"] == "read"
+    assert call["args"] == {"path": "README.md"}
+
+
+def test_parse_envelope_array_multiple_calls():
+    env = encode_tool_call([
+        {"tool": "bash", "args": {"command": "pwd"}},
+        {"tool": "read", "args": {"path": "config.py"}},
+    ])
+    calls = parse_tool_calls(env)
+    assert [c["tool"] for c in calls] == ["bash", "read"]
+
+
+def test_parse_multiple_envelopes_in_one_message():
+    env1 = encode_tool_call({"tool": "glob", "args": {"pattern": "*.py"}})
+    env2 = encode_tool_call({"tool": "bash", "args": {"command": "ls"}})
+    calls = parse_tool_calls(f"{env1}\nand then\n{env2}")
+    assert [c["tool"] for c in calls] == ["glob", "bash"]
+
+
+def test_parse_envelope_tolerates_wrapped_base64():
+    env = encode_tool_call({"tool": "bash", "args": {"command": "echo hi"}})
+    payload = env[len("JARVIS_CALL:"):-len(":END")]
+    wrapped = "JARVIS_CALL:" + "\n".join(
+        payload[i:i + 24] for i in range(0, len(payload), 24)
+    ) + ":END"
+    call = parse_tool_call(wrapped)
+    assert call == {"tool": "bash", "args": {"command": "echo hi"}}
+
+
+def test_parse_envelope_preserves_whatsapp_formatting_chars_in_json():
+    # _, *, ~ inside raw JSON would be eaten by WhatsApp rendering; the base64
+    # envelope carries them losslessly.
+    env = encode_tool_call({"tool": "bash", "args": {"command": "rm -rf *_tmp* ~"}})
+    call = parse_tool_call(env)
+    assert call["args"]["command"] == "rm -rf *_tmp* ~"
+
+
+def test_parse_envelope_undecodable_is_ignored():
+    assert parse_tool_calls("JARVIS_CALL:a:END") == []
+    assert parse_tool_calls("JARVIS_CALL:!!!:END") == []
+
+
+def test_parse_envelope_skips_legacy_fences_in_same_message():
+    # When an envelope decodes, it is authoritative; fenced example blocks
+    # around it must not spawn extra calls.
+    env = encode_tool_call({"tool": "bash", "args": {"command": "ls"}})
+    msg = 'Example:\n```json\n{"tool": "read", "args": {"path": "x"}}\n```\n' + env
+    calls = parse_tool_calls(msg)
+    assert [c["tool"] for c in calls] == ["bash"]
+
+
+def test_parse_smart_quotes_normalized_fallback():
+    q = "\u201c"
+    msg = f"```json\n{{{q}tool{q}: {q}bash{q}, {q}args{q}: {{{q}command{q}: {q}ls{q}}}}}\n```"
+    call = parse_tool_call(msg)
+    assert call == {"tool": "bash", "args": {"command": "ls"}}
+
+
+def test_parse_zero_width_chars_stripped_fallback():
+    msg = '{"tool":\u200b "bash", "args": {"command": "ls"}}'
+    call = parse_tool_call(msg)
+    assert call == {"tool": "bash", "args": {"command": "ls"}}
+
+
+def test_encode_tool_call_roundtrip_uses_safe_alphabet():
+    env = encode_tool_call({"tool": "write", "args": {"path": "a_b*c~.txt", "content": "x_*\u201c~"}})
+    payload = env[len("JARVIS_CALL:"):-len(":END")]
+    assert re.fullmatch(r"[A-Za-z0-9+/=]+", payload)
+    call = parse_tool_call(env)
+    assert call["args"]["path"] == "a_b*c~.txt"
+    assert call["args"]["content"] == "x_*\u201c~"
+
+
+def test_legacy_fenced_json_still_works_without_envelope():
+    msg = '```json\n{"tool": "bash", "args": {"command": "git status"}}\n```'
+    call = parse_tool_call(msg)
+    assert call == {"tool": "bash", "args": {"command": "git status"}}
