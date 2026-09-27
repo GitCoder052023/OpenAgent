@@ -130,3 +130,27 @@ def test_audioop_fallback_rms():
     assert audioop.rms(b"", 2) == 0
 
 
+def test_voice_state_wake_and_sleep():
+    from bridge.voice import VoiceState
+    vs = VoiceState()
+    assert not vs.awake
+    assert vs.accept("hello world") == "ignore"
+    assert not vs.awake
+
+    # Wake with standard phrase
+    assert vs.accept("Wakeup Jarvis!") == "wake"
+    assert vs.awake
+
+    # Normal speech while awake
+    assert vs.accept("check the git status please") == "send"
+
+    # Sleep request
+    assert vs.accept("jarvis stand by") == "sleep_prompt"
+    assert vs.accept("confirm stand by jarvis") == "sleep"
+    assert not vs.awake
+
+    # Wake with phonetic match
+    assert vs.accept("wake up service") == "wake"
+    assert vs.awake
+
+
