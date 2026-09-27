@@ -38,7 +38,7 @@ class Config:
     attachment_send_label: str = ""
     safe_mode: bool = True
     send_mode: str = "text"
-    send_route: str = "auto"
+    send_route: str = "picker"
     hotkey: str = "f8"
     voice_model: str = "models/vosk-model-small-en-us-0.15"
     voice_silence_seconds: float = 1
@@ -59,9 +59,9 @@ class Config:
         if send_mode not in ("text", "audio"):
             send_mode = "text"
 
-        send_route = os.getenv("BRIDGE_SEND_ROUTE", "auto").strip().lower()
+        send_route = os.getenv("BRIDGE_SEND_ROUTE", "picker").strip().lower()
         if send_route not in ("auto", "clipboard", "picker"):
-            send_route = "auto"
+            send_route = "picker"
 
         return cls(number=os.getenv("BRIDGE_WHATSAPP_NUMBER", cls.number),
                    model=os.getenv("BRIDGE_WHISPER_MODEL", cls.model),
@@ -82,3 +82,4 @@ class Config:
                    hotkey=hotkey,
                    voice_model=os.getenv("BRIDGE_VOICE_MODEL", cls.voice_model),
                    voice_silence_seconds=float(os.getenv("BRIDGE_VOICE_SILENCE_SECONDS", cls.voice_silence_seconds)))
+
