@@ -143,7 +143,7 @@ def launch_whatsapp(hide=True, timeout=10.0):
     return get_whatsapp_pid()
 
 
-def snapshot(safe_mode=True, auto_open=True, row_cap=2500):
+def snapshot(safe_mode=True, auto_open=True):
     if sys.platform != "darwin":
         raise RuntimeError("macOS required")
     from ApplicationServices import AXUIElementCreateApplication, AXUIElementCopyAttributeValue
@@ -161,23 +161,14 @@ def snapshot(safe_mode=True, auto_open=True, row_cap=2500):
         err, val = AXUIElementCopyAttributeValue(el, attr, None)
         return val if err == 0 else None
     def walk(el, path="", depth=0):
-        if depth > 24 or len(rows) > row_cap: return
+        if depth > 24 or len(rows) > 2500: return
         row = {"path": path, "depth": depth}
         for attr in ("Role", "Title", "Value", "Description"):
             raw = value(el, "AX" + attr)
             row[attr.lower()] = str(raw or "")[:1500] if isinstance(raw, str) else ""
         rows.append(row)
-        children = list(value(el, "AXChildren") or [])[:300]
-        order = list(range(len(children)))
-        if path == "":
-            # New windows (attach popover, file chooser) append after the huge
-            # main window; walk them first so the row cap cannot starve them.
-            win, other = [], []
-            for i, child in enumerate(children):
-                (win if str(value(child, "AXRole") or "") == "AXWindow" else other).append(i)
-            order = other + win[::-1]
-        for i in order:
-            walk(children[i], f"{path}/{i}", depth + 1)
+        for i, child in enumerate(list(value(el, "AXChildren") or [])[:300]):
+            walk(child, f"{path}/{i}", depth + 1)
     walk(root)
     return rows
 
