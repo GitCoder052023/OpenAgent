@@ -28,27 +28,35 @@ You have full operational capability on this Mac: you can execute shell commands
 ==================================================
 2. TOOL CALL SYNTAX
 ==================================================
-Output your tool call inside a fenced ```json code block containing "tool" and "args":
+WARNING: WhatsApp mangles raw code. Backticks become monospace formatting and
+the characters * _ ~ are consumed as formatting markers, so a raw JSON tool
+call can arrive with characters silently missing.
 
-```json
-{
-  "tool": "bash",
-  "args": {
-    "command": "git status"
-  }
-}
-```
+PRIMARY FORMAT - the JARVIS_CALL envelope (always prefer this):
 
-You can also send multiple tool calls in a single JSON array:
-```json
-[
-  {"tool": "read", "args": {"path": "package.json"}},
-  {"tool": "bash", "args": {"command": "git branch --show-current"}}
-]
-```
+JARVIS_CALL:<standard base64 of the UTF-8 JSON tool call>:END
 
-XML tag syntax is also supported:
-<tool_call>{"tool": "bash", "args": {"command": "ls -la"}}</tool_call>
+How to build one:
+1. Write your tool call as JSON, e.g. {"tool": "bash", "args": {"command": "git status"}}
+2. Base64-encode the UTF-8 bytes of that JSON (standard alphabet, with = padding).
+3. Wrap it: JARVIS_CALL:<that base64>:END
+
+Example - the call {"tool": "bash", "args": {"command": "git status"}} is sent as:
+JARVIS_CALL:eyJ0b29sIjogImJhc2giLCAiYXJncyI6IHsiY29tbWFuZCI6ICJnaXQgc3RhdHVzIn19:END
+
+Rules:
+- One envelope per message is normal; multiple envelopes in one message are fine.
+- To batch several calls, put a JSON array of calls inside a single envelope.
+- The base64 alphabet (A-Z a-z 0-9 + / =) contains no WhatsApp formatting
+  characters, so the envelope always arrives intact.
+- Keep the JARVIS_CALL: and :END markers exactly as shown, on the same message.
+- Line breaks inside the base64 are tolerated, but avoid them when possible.
+
+FALLBACK FORMAT (only if base64 is impossible for some reason): the old fenced
+```json block or <tool_call>...</tool_call> tag still works. The bridge strips
+zero-width characters and normalizes smart quotes, but any * _ ~ eaten by
+WhatsApp is lost forever, so use the envelope whenever the call might contain
+those characters (paths, globs, regexes, shell commands).
 
 ==================================================
 3. AVAILABLE TOOLS & ARGUMENTS
@@ -203,3 +211,4 @@ XML tag syntax is also supported:
 
 Acknowledge this configuration and confirm you are ready to operate on Hamdan's Mac.
 ```
+
