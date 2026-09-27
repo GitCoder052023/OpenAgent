@@ -3,9 +3,11 @@
 Requires local calibration of the selected chat, incoming direction, and the
 voice-note play/pause control. Never speaks text or reads notifications.
 """
+import hashlib
 import re
 import time
 from .ax import snapshot, verify_header, press_button
+from .dispatcher import parse_tool_calls, execute_tool_call, format_tool_responses
 
 
 def under(path, parent):
@@ -33,6 +35,78 @@ def incoming(rows, list_path, marker):
         texts = [r["value"].strip() for r in descendants if r["role"] == "AXStaticText" and r["value"].strip()]
         if texts:
             result.append((group["path"], " ".join(texts)[:1200]))
+    return result
+
+
+def incoming_texts(rows, cfg):
+    """Extract incoming text messages from the calibrated chat message list.
+
+    Returns a list of tuples: (group_path, message_text, signature)
+    Only considers groups matching incoming direction and not containing 'your message' or 'outgoing' in metadata.
+    Ignores messages starting with '[Jarvis Tool Response:' to avoid echo loops.
+    """
+    if not cfg.message_list_path:
+        return []
+    parents = [r for r in rows if r.get("path") == cfg.message_list_path and r.get("role") in ("AXList", "AXScrollArea", "AXGroup")]
+    if len(parents) != 1:
+        return []
+    children = [r for r in rows if under(r.get("path", ""), cfg.message_list_path)]
+    groups = [r for r in children if r.get("path", "").count("/") == cfg.message_list_path.count("/") + 1]
+    result = []
+    target_num = "".join(c for c in (cfg.number or "") if c.isdigit())
+    marker = (cfg.incoming_marker or "").strip().lower()
+
+    for group in groups:
+        grp_path = group.get("path", "")
+        descendants = [r for r in children if under(r.get("path", ""), grp_path) or r.get("path") == grp_path]
+        metadata = [r for r in descendants if r.get("role") != "AXStaticText"]
+        if not metadata:
+            metadata = descendants
+        meta_label = " ".join((r.get("title", "") + " " + r.get("description", "")).lower() for r in metadata)
+
+        # Skip outgoing messages
+        if any(out in meta_label for out in ("your message", "outgoing", "you:")):
+            continue
+
+        # Check for incoming direction
+        is_incoming = False
+        if marker and marker in meta_label:
+            is_incoming = True
+        elif "incoming" in meta_label:
+            is_incoming = True
+        elif target_num and target_num in "".join(c for c in meta_label if c.isdigit()):
+            is_incoming = True
+        elif not cfg.safe_mode:
+            is_incoming = True
+
+        if not is_incoming:
+            continue
+
+        text_nodes = [r for r in descendants if r.get("role") == "AXStaticText"]
+        body_parts = []
+        for r in text_nodes:
+            val = (r.get("value") or "").strip()
+            title = (r.get("title") or "").strip()
+            chunk = val or title
+            if chunk:
+                body_parts.append(chunk)
+
+        if not body_parts:
+            continue
+
+        full_text = "\n".join(body_parts).strip()
+        if not full_text:
+            continue
+
+        # Prevent loop: never process our own tool response
+        if full_text.startswith("[Jarvis Tool Response:"):
+            continue
+
+        group_meta = " ".join(group.get(k, "") for k in ("title", "description")).strip()
+        text_hash = hashlib.sha256(full_text.encode("utf-8")).hexdigest()[:16]
+        sig = f"{grp_path}:{group_meta}:{text_hash}"
+        result.append((grp_path, full_text, sig))
+
     return result
 
 
@@ -133,12 +207,12 @@ def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot):
             time.sleep(0.5)
 
 
-def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None, pause=None):
-    """Play new inbound notes sequentially through WhatsApp's own Mac output.
+def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None, pause=None, desk=None, harness=None):
+    """Play new inbound notes and/or dispatch incoming tool calls over WhatsApp.
 
-    WhatsApp remains completely hidden in the background while notes play.
-    Pass a shared state dict across calls so played signatures and the queue
-    survive between watch windows and notes are not re-baselined away.
+    WhatsApp remains completely hidden in the background while running.
+    Pass a shared state dict across calls so processed signatures and the queue
+    survive between watch windows and messages are not re-baselined away.
     """
     deadline = time.monotonic() + (timeout or cfg.reply_timeout)
     def checked():
@@ -166,6 +240,19 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
         except Exception:
             pass
         state["played"] = played_signatures
+
+    processed_texts = state.get("processed_texts")
+    if processed_texts is None:
+        # First window only: baseline existing incoming text messages so chat history is not re-executed
+        processed_texts = set()
+        try:
+            initial_rows = checked()
+            for grp_path, text, sig in incoming_texts(initial_rows, cfg):
+                processed_texts.add(sig)
+        except Exception:
+            pass
+        state["processed_texts"] = processed_texts
+
     queue = state.setdefault("queue", [])
     fail_counts = state.setdefault("fails", {})
 
@@ -191,33 +278,61 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
         if pause is not None and pause.is_set():
             continue
         row_map = {r["path"]: r for r in rows}
-        try:
-            current_groups = voice_groups(rows, cfg)
-        except Exception as exc:
-            if cfg.safe_mode:
-                # Calibration/ambiguity errors must stop the watcher loudly,
-                # not spin silently forever.
-                raise
-            # WhatsApp might be temporarily displaying the file attachment sheet, preview dialog, or menu.
-            if "Message list path missing or ambiguous" in str(exc):
-                if not warned_missing:
-                    print("Voice scan unavailable: calibrated BRIDGE_MESSAGE_LIST_PATH is not visible. Check jarvis-bridge inspect with the chat open; playback will resume if the list returns.")
-                    warned_missing = True
-                    state["warned_missing"] = True
-            else:
-                print(f"Voice scan paused (unlocked mode): {exc}")
-            continue
-        warned_missing = False
-        state["warned_missing"] = False
-        for grp_path, ctrl_path in current_groups:
-            ctrl = row_map.get(ctrl_path)
-            if not ctrl: continue
-            sig = voice_signature(ctrl)
-            if sig not in played_signatures and not any(q[0] == sig for q in queue):
-                dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
-                queue.append((sig, ctrl_path, dur))
-                print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Playing...")
 
+        # 1. Voice reply check (if voice markers calibrated)
+        if cfg.voice_play_marker and cfg.voice_pause_marker:
+            try:
+                current_groups = voice_groups(rows, cfg)
+                warned_missing = False
+                state["warned_missing"] = False
+                for grp_path, ctrl_path in current_groups:
+                    ctrl = row_map.get(ctrl_path)
+                    if not ctrl: continue
+                    sig = voice_signature(ctrl)
+                    if sig not in played_signatures and not any(q[0] == sig for q in queue):
+                        dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
+                        queue.append((sig, ctrl_path, dur))
+                        print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Playing...")
+            except Exception as exc:
+                if cfg.safe_mode:
+                    raise
+                if "Message list path missing or ambiguous" in str(exc):
+                    if not warned_missing:
+                        print("Voice scan unavailable: calibrated BRIDGE_MESSAGE_LIST_PATH is not visible.")
+                        warned_missing = True
+                        state["warned_missing"] = True
+                else:
+                    print(f"Voice scan paused (unlocked mode): {exc}")
+
+        # 2. Text tool call check (if desk and harness connected)
+        if desk is not None and harness is not None:
+            try:
+                current_texts = incoming_texts(rows, cfg)
+                for grp_path, msg_text, sig in current_texts:
+                    if sig in processed_texts:
+                        continue
+                    processed_texts.add(sig)
+
+                    tool_calls = parse_tool_calls(msg_text)
+                    if not tool_calls:
+                        continue
+
+                    print(f"\n[Incoming tool call detected from Jarvis ({len(tool_calls)} call{'s' if len(tool_calls) > 1 else ''})]")
+                    responses = []
+                    for call in tool_calls:
+                        t_name = call.get("tool", "unknown")
+                        print(f"Executing tool '{t_name}' via harness...")
+                        res = execute_tool_call(harness, call)
+                        responses.append(res)
+
+                    reply_text = format_tool_responses(responses)
+                    print(f"Sending tool response back to WhatsApp...")
+                    desk.send_tool_response(reply_text)
+                    print("[Tool response sent successfully]")
+            except Exception as exc:
+                print(f"[Tool dispatch error] {exc}")
+
+        # 3. Process voice playback queue
         while queue and (stop is None or not stop.is_set()) and (pause is None or not pause.is_set()):
             sig, button_path, dur = queue.pop(0)
             try:
@@ -226,11 +341,9 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                 fail_counts[sig] = fail_counts.get(sig, 0) + 1
                 print(f"Playback trigger failed for {button_path} (attempt {fail_counts[sig]}/3): {exc}")
                 if fail_counts[sig] >= 3:
-                    # Give up loudly; never silently drop a note.
                     played_signatures.add(sig)
                     print(f"Skipping voice note after 3 failed play attempts: {sig[:80]}")
                 continue
-            # Only mark as played after the press actually landed.
             played_signatures.add(sig)
             fail_counts.pop(sig, None)
             _wait_for_completion(cfg, button_path, dur, stop, get_snapshot)

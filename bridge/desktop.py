@@ -1,4 +1,5 @@
 import subprocess
+import threading
 import time
 from pathlib import Path
 from .ax import (snapshot, verify_header, focus_composer, ensure_whatsapp_ready,
@@ -7,7 +8,10 @@ from .ax import (snapshot, verify_header, focus_composer, ensure_whatsapp_ready,
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 
 class Desktop:
-    def __init__(self, cfg): self.cfg = cfg
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self._lock = threading.Lock()
+
     def assert_locked(self):
         ensure_whatsapp_ready(self.cfg.number)
         try:
@@ -21,14 +25,31 @@ class Desktop:
     def send(self, text):
         if not text.strip() or len(text) > 1000 or "\n" in text:
             raise ValueError("Message must be nonempty, under 1000 chars, single line")
-        ensure_whatsapp_ready(self.cfg.number)
-        self.assert_locked()
-        focus_composer()
-        subprocess.run(["osascript", str(SCRIPTS / "send.scpt"), self.cfg.number, text], check=True)
-        self.assert_locked()
-        subprocess.run(["osascript", str(SCRIPTS / "commit.scpt")], check=True)
-        time.sleep(0.3)
-        hide_whatsapp()
+        with self._lock:
+            ensure_whatsapp_ready(self.cfg.number)
+            self.assert_locked()
+            focus_composer()
+            subprocess.run(["osascript", str(SCRIPTS / "send.scpt"), self.cfg.number, text], check=True)
+            self.assert_locked()
+            subprocess.run(["osascript", str(SCRIPTS / "commit.scpt")], check=True)
+            time.sleep(0.3)
+            hide_whatsapp()
+
+    def send_tool_response(self, text: str):
+        """Send a multiline tool execution response back to Jarvis on WhatsApp."""
+        if not text or not text.strip():
+            raise ValueError("Tool response text must be nonempty")
+        if len(text) > 4000:
+            text = text[:3900] + "\n... [Truncated for WhatsApp]"
+        with self._lock:
+            ensure_whatsapp_ready(self.cfg.number)
+            self.assert_locked()
+            focus_composer()
+            subprocess.run(["osascript", str(SCRIPTS / "send.scpt"), self.cfg.number, text], check=True)
+            self.assert_locked()
+            subprocess.run(["osascript", str(SCRIPTS / "commit.scpt")], check=True)
+            time.sleep(0.3)
+            hide_whatsapp()
 
     def send_audio(self, path):
         """Prepare an M4A as a document attachment, dispatch it, then immediately hide WhatsApp."""
@@ -46,32 +67,33 @@ class Desktop:
             doc = self.cfg.document_label
             send_btn = self.cfg.attachment_send_label
 
-        ensure_whatsapp_ready(self.cfg.number)
-        self.assert_locked()
-        activate_whatsapp()
-        time.sleep(0.15)
-        # Open file picker using direct AX clicks; fail closed if they miss.
-        if not click_element_by_description(attach):
-            raise RuntimeError(f"Attach control '{attach}' not found; no send")
+        with self._lock:
+            ensure_whatsapp_ready(self.cfg.number)
+            self.assert_locked()
+            activate_whatsapp()
+            time.sleep(0.15)
+            # Open file picker using direct AX clicks; fail closed if they miss.
+            if not click_element_by_description(attach):
+                raise RuntimeError(f"Attach control '{attach}' not found; no send")
 
-        # Poll briefly for the document menu item to appear in the popover
-        t0 = time.monotonic()
-        clicked_doc = False
-        while time.monotonic() - t0 < 3.0:
-            if click_element_by_description(doc):
-                clicked_doc = True
-                break
-            time.sleep(0.1)
-        if not clicked_doc:
-            raise RuntimeError(f"Document menu item '{doc}' not found; no send")
-        time.sleep(0.35)
-        subprocess.run(["osascript", str(SCRIPTS / "attach.scpt"), str(path)], check=True, timeout=25)
+            # Poll briefly for the document menu item to appear in the popover
+            t0 = time.monotonic()
+            clicked_doc = False
+            while time.monotonic() - t0 < 3.0:
+                if click_element_by_description(doc):
+                    clicked_doc = True
+                    break
+                time.sleep(0.1)
+            if not clicked_doc:
+                raise RuntimeError(f"Document menu item '{doc}' not found; no send")
+            time.sleep(0.35)
+            subprocess.run(["osascript", str(SCRIPTS / "attach.scpt"), str(path)], check=True, timeout=25)
 
-        # In preview, the chat header is replaced by the attachment preview window.
-        # Click the preview Send button or press Enter, then immediately hide WhatsApp.
-        if not click_preview_send(timeout=5.0):
-            subprocess.run(["osascript", str(SCRIPTS / "commit-audio.scpt"),
-                            send_btn], check=True, timeout=15)
-        time.sleep(0.4)
-        hide_whatsapp()
+            # In preview, the chat header is replaced by the attachment preview window.
+            # Click the preview Send button or press Enter, then immediately hide WhatsApp.
+            if not click_preview_send(timeout=5.0):
+                subprocess.run(["osascript", str(SCRIPTS / "commit-audio.scpt"),
+                                send_btn], check=True, timeout=15)
+            time.sleep(0.4)
+            hide_whatsapp()
 

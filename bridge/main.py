@@ -97,13 +97,28 @@ def main():
     stop = threading.Event()
     watcher = None
     sending = threading.Event()
-    if cfg.message_list_path and cfg.incoming_marker and cfg.voice_play_marker and cfg.voice_pause_marker:
-        print("Voice reply watcher: ENABLED (incoming notes will play automatically).")
+
+    harness = None
+    try:
+        from .harness import OpenCodeHarness
+        harness = OpenCodeHarness()
+        print("Harness bridge: ENABLED (headless Mac execution harness online).")
+    except Exception as exc:
+        print(f"Harness bridge: DISABLED ({exc}).")
+
+    has_voice = bool(cfg.message_list_path and cfg.incoming_marker and cfg.voice_play_marker and cfg.voice_pause_marker)
+    has_tools = bool(cfg.message_list_path and (cfg.incoming_marker or not cfg.safe_mode) and harness is not None)
+
+    if has_voice or has_tools:
+        if has_voice:
+            print("Voice reply watcher: ENABLED (incoming notes will play automatically).")
+        if has_tools:
+            print("Tool call watcher: ENABLED (incoming Jarvis tool calls will execute locally).")
         watcher_state = {}  # played signatures + queue persist across watch windows
         def hear():
             while not stop.is_set():
                 try:
-                    watch(cfg, stop=stop, state=watcher_state, pause=sending)
+                    watch(cfg, stop=stop, state=watcher_state, pause=sending, desk=desk, harness=harness)
                 except Exception as exc:
                     if stop.is_set(): break
                     print(f"\n[Watcher error] {exc} (restarting)")
@@ -111,7 +126,7 @@ def main():
         watcher = threading.Thread(target=hear, daemon=True)
         watcher.start()
     else:
-        print("Voice reply watcher: DISABLED (calibration needed for inbound voice playback).")
+        print("Reply watcher: DISABLED (calibration needed for inbound replies).")
 
     recording = None
     path = None
@@ -207,11 +222,19 @@ def main():
                 listen(cfg, on_voice_audio, stop)
         finally:
             stop.set()
+            if harness:
+                try: harness.close()
+                except Exception: pass
         return
 
-    with keyboard.Listener(on_press=press, on_release=release) as listener:
-        listener.join()
-    stop.set()
+    try:
+        with keyboard.Listener(on_press=press, on_release=release) as listener:
+            listener.join()
+    finally:
+        stop.set()
+        if harness:
+            try: harness.close()
+            except Exception: pass
 
 if __name__ == "__main__": main()
 
