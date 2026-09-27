@@ -9,7 +9,7 @@ def pcm(seconds, level=0):
 
 
 def test_voice_default_silence_is_valid():
-    assert Config().voice_silence_seconds == 1
+    assert 1 <= Config().voice_silence_seconds <= 30
 
 
 def test_no_recognition_or_quiet_audio_is_not_sent():

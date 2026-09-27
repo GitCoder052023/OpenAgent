@@ -1,5 +1,6 @@
 import pytest
 import threading
+import time
 from unittest.mock import MagicMock
 from bridge.config import Config
 from bridge.replies import incoming_texts, watch
@@ -423,5 +424,225 @@ def test_cross_restart_persistence(tmp_path):
     # (so it was baselined). Therefore harness should not run msg_a again!
     assert mock_harness2.system_info.call_count == 0
     assert mock_desk2.send_tool_response.call_count == 0
+
+
+def test_voice_note_held_while_user_recording_and_played_after():
+    """Incoming voice note must be held while user is recording, and played only after user finishes."""
+    from bridge.replies import resolve_voice_control
+
+    cfg = Config(
+        number="+16508702892",
+        header_path="/0/1",
+        message_list_path="/0/2",
+        incoming_marker="Incoming message",
+        voice_play_marker="Play voice message",
+        voice_pause_marker="Pause voice message",
+        safe_mode=False,
+    )
+
+    base_rows = [
+        {"path": "/0/1", "role": "AXButton", "title": "+1 (650) 870-2892", "description": "", "value": ""},
+        {"path": "/0/2", "role": "AXList", "title": "", "description": "", "value": ""},
+    ]
+
+    incoming_rows = base_rows + [
+        {"path": "/0/2/0", "role": "AXGroup", "title": "Incoming message", "description": "", "value": ""},
+        {"path": "/0/2/0/0", "role": "AXButton", "title": "Play voice message", "description": "0:05", "value": ""},
+    ]
+
+    mock_press = MagicMock()
+    user_recording = threading.Event()
+    user_recording.set()  # User is currently recording voice!
+    stop = threading.Event()
+    playing = threading.Event()
+    state = {}
+
+    ticks = [0]
+    def snapshot_provider(**kw):
+        ticks[0] += 1
+        # Tick 1: Initial baseline (no messages)
+        if ticks[0] == 1:
+            return base_rows
+        # Tick 2: Voice note arrives while user is recording; must be queued but NOT played!
+        elif ticks[0] == 2:
+            assert user_recording.is_set()
+            return incoming_rows
+        # Tick 3: User finishes recording and send completes. Now playback can proceed!
+        elif ticks[0] == 3:
+            user_recording.clear()
+            return incoming_rows
+        # Tick 4+: Stop
+        elif ticks[0] >= 4:
+            stop.set()
+            return incoming_rows
+        return incoming_rows
+
+    watch(
+        cfg,
+        timeout=4,
+        stop=stop,
+        get_snapshot=snapshot_provider,
+        press=mock_press,
+        state=state,
+        playing=playing,
+        user_recording=user_recording,
+    )
+
+    # When user was recording, press was not called.
+    # After user cleared recording, press was called to play the held note!
+    assert mock_press.call_count >= 1
+    assert mock_press.call_args[0][0] == "/0/2/0/0"
+
+
+def test_dynamic_voice_path_resolution():
+    """Verify resolve_voice_control locates play button by signature even when paths shift."""
+    from bridge.replies import resolve_voice_control
+
+    cfg = Config(
+        message_list_path="/0/2",
+        incoming_marker="Incoming message",
+        voice_play_marker="Play voice message",
+        voice_pause_marker="Pause voice message",
+    )
+
+    # Snapshot 1: button is at /0/2/0/0
+    rows1 = [
+        {"path": "/0/2", "role": "AXList", "title": "", "description": "", "value": ""},
+        {"path": "/0/2/0", "role": "AXGroup", "title": "Incoming message", "description": "", "value": ""},
+        {"path": "/0/2/0/0", "role": "AXButton", "title": "Play voice message", "description": "0:09", "value": ""},
+    ]
+    target_sig = "Play voice message 0:09"
+
+    # Snapshot 2: two new message bubbles inserted before it, shifting it to /0/2/2/0
+    rows2 = [
+        {"path": "/0/2", "role": "AXList", "title": "", "description": "", "value": ""},
+        {"path": "/0/2/0", "role": "AXGroup", "title": "Your message", "description": "", "value": ""},
+        {"path": "/0/2/0/0", "role": "AXStaticText", "title": "", "description": "", "value": "hello"},
+        {"path": "/0/2/1", "role": "AXGroup", "title": "Your message", "description": "", "value": ""},
+        {"path": "/0/2/1/0", "role": "AXStaticText", "title": "", "description": "", "value": "response"},
+        {"path": "/0/2/2", "role": "AXGroup", "title": "Incoming message", "description": "", "value": ""},
+        {"path": "/0/2/2/0", "role": "AXButton", "title": "Play voice message", "description": "0:09", "value": ""},
+    ]
+
+    # Stale path would have been /0/2/0/0, but resolve_voice_control finds the shifted /0/2/2/0!
+    resolved = resolve_voice_control(rows2, cfg, target_sig, fallback_path="/0/2/0/0")
+    assert resolved == "/0/2/2/0"
+
+
+def test_pause_active_playback_helper():
+    """Verify pause_active_playback locates active pause button and clicks it."""
+    from bridge.replies import pause_active_playback
+
+    cfg = Config(
+        message_list_path="/0/2",
+        voice_pause_marker="Pause voice message",
+    )
+
+    rows = [
+        {"path": "/0/2", "role": "AXList", "title": "", "description": "", "value": ""},
+        {"path": "/0/2/0", "role": "AXGroup", "title": "Incoming message", "description": "", "value": ""},
+        {"path": "/0/2/0/0", "role": "AXButton", "title": "Pause voice message", "description": "0:05", "value": ""},
+    ]
+
+    mock_press = MagicMock()
+    paused = pause_active_playback(rows, cfg, press=mock_press)
+    assert paused is True
+    mock_press.assert_called_once_with("/0/2/0/0", expected_label="Pause voice message")
+
+
+def test_wait_for_completion_interrupted_by_user_recording():
+    """Playback wait must exit early and pause audio when user starts recording."""
+    from bridge.replies import _wait_for_completion
+
+    cfg = Config(
+        voice_play_marker="Play",
+        voice_pause_marker="Pause",
+        max_voice_seconds=30,
+        message_list_path="/0/2",
+    )
+
+    rows = [
+        {"path": "/0/2", "role": "AXList", "title": "", "description": "", "value": ""},
+        {"path": "/0/2/0", "role": "AXButton", "title": "Pause", "description": "", "value": ""},
+    ]
+
+    mock_press = MagicMock()
+    user_recording = threading.Event()
+    user_recording.set()  # User starts recording!
+
+    t0 = time.monotonic()
+    _wait_for_completion(
+        cfg=cfg,
+        button_path="/0/2/0",
+        dur=20,
+        stop=None,
+        get_snapshot=lambda **kw: rows,
+        user_recording=user_recording,
+        press=mock_press,
+    )
+    elapsed = time.monotonic() - t0
+
+    # Must have exited almost immediately (< 1s) instead of waiting for 20s!
+    assert elapsed < 2.0
+    mock_press.assert_called_once_with("/0/2/0", expected_label="Pause")
+
+
+def test_tool_response_waits_for_user_recording_to_complete():
+    """Tool response must not be sent until user finishes recording."""
+    cfg = Config(
+        number="+16508702892",
+        header_path="/0/1",
+        message_list_path="/0/2",
+        incoming_marker="Incoming message",
+        safe_mode=False,
+        ledger_path=":memory:",
+    )
+
+    base_rows = [
+        {"path": "/0/1", "role": "AXButton", "title": "+1 (650) 870-2892", "description": "", "value": ""},
+        {"path": "/0/2", "role": "AXList", "title": "", "description": "", "value": ""},
+    ]
+
+    new_rows = base_rows + [
+        {"path": "/0/2/0", "role": "AXGroup", "title": "Incoming message", "description": "", "value": ""},
+        {"path": "/0/2/0/0", "role": "AXStaticText", "title": "", "description": "", "value": '```json\n{"tool": "bash", "args": {"command": "echo unique_test_123"}}\n```'},
+    ]
+
+    mock_desk = MagicMock(spec=Desktop)
+    mock_harness = MagicMock(spec=Harness)
+    mock_harness.bash.return_value = {"exit_code": 0, "output": "hi", "timed_out": False}
+
+    user_recording = threading.Event()
+    user_recording.set()  # User is currently recording!
+    stop = threading.Event()
+    state = {"processed_texts": set()}
+
+    ticks = [0]
+    def snapshot_provider(**kw):
+        ticks[0] += 1
+        if ticks[0] == 1:
+            return base_rows
+        elif ticks[0] == 2:
+            # User is recording when tool arrives; user finishes recording after 200ms
+            threading.Timer(0.2, user_recording.clear).start()
+            return new_rows
+        elif ticks[0] >= 3:
+            stop.set()
+            return new_rows
+        return new_rows
+
+    watch(
+        cfg,
+        timeout=3,
+        stop=stop,
+        get_snapshot=snapshot_provider,
+        desk=mock_desk,
+        harness=mock_harness,
+        state=state,
+        user_recording=user_recording,
+    )
+
+    assert mock_harness.bash.call_count == 1
+    assert mock_desk.send_tool_response.call_count == 1
 
 

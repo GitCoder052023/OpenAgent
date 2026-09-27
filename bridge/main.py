@@ -103,6 +103,7 @@ def main():
     stop = threading.Event()
     watcher = None
     sending = threading.Event()
+    user_recording = threading.Event()
     playing = threading.Event()  # Shared by reply playback and the microphone.
 
     harness = None
@@ -126,7 +127,7 @@ def main():
         def hear():
             while not stop.is_set():
                 try:
-                    watch(cfg, stop=stop, state=watcher_state, pause=sending, desk=desk, harness=harness, playing=playing)
+                    watch(cfg, stop=stop, state=watcher_state, pause=sending, desk=desk, harness=harness, playing=playing, user_recording=user_recording)
                 except Exception as exc:
                     if stop.is_set(): break
                     print(f"\n[Watcher error] {exc} (restarting)")
@@ -149,13 +150,26 @@ def main():
             return False
         if is_hotkey(key, cfg.hotkey) and recording is None and not busy.locked():
             try:
+                # If a voice note is currently playing over speakers, interrupt it immediately!
+                if playing.is_set():
+                    playing.clear()
+                    try:
+                        from .replies import pause_active_playback
+                        pause_active_playback(snapshot(safe_mode=cfg.safe_mode), cfg)
+                    except Exception:
+                        pass
+                    print("\n[Playback interrupted: user speaking...]")
+
+                user_recording.set()
                 fd, name = tempfile.mkstemp(suffix=".wav", prefix="jarvis-bridge-")
                 os.close(fd)
                 path = Path(name)
                 path.unlink()  # SoX creates its own WAV
                 recording = start_recording(path, cfg)
                 print(f"\n[Recording started] Speak now... (release {trigger_hint} to send)")
-            except Exception as exc: print(f"\nRecording refused: {exc}")
+            except Exception as exc:
+                user_recording.clear()
+                print(f"\nRecording refused: {exc}")
     busy = threading.Lock()
     def release(key):
         nonlocal recording, path
@@ -165,6 +179,7 @@ def main():
         print(f"\n[Recording stopped] Processing audio ({cfg.send_mode})...")
         if not busy.acquire(blocking=False):
             proc.terminate()
+            user_recording.clear()
             print("Previous request still running; dropped this recording.")
             return
         threading.Thread(target=process_recording, args=(proc, recorded_path), daemon=True).start()
@@ -186,9 +201,9 @@ def main():
             if not gate_pcm(pcm, source="voice" if recorded_path.name.startswith("jarvis-voice-") else "hotkey"):
                 raise RuntimeError("Audio gate rejected silent or mostly quiet clip; not sending")
 
+            # Clear playing so send proceeds cleanly
             if playing.is_set():
-                event("capture_drop", reason="playback_before_send")
-                raise RuntimeError("Playback began before send; dropped possible echo")
+                playing.clear()
             sending.set()
             event("send_begin", mode=cfg.send_mode, source="voice" if recorded_path.name.startswith("jarvis-voice-") else "hotkey", duration_s=round(len(pcm)/32000, 2))
             if cfg.send_mode == "text":
@@ -214,6 +229,7 @@ def main():
             recorded_path.unlink(missing_ok=True)
             if attachment: attachment.unlink(missing_ok=True)
             sending.clear()
+            user_recording.clear()
             busy.release()
 
     if args.voice:
@@ -226,6 +242,7 @@ def main():
             if busy.locked():
                 print("[Busy] Utterance dropped; retry after the previous send.")
                 return
+            user_recording.set()
             fd, name = tempfile.mkstemp(suffix=".wav", prefix="jarvis-voice-")
             os.close(fd)
             recorded_path = Path(name)
@@ -235,6 +252,7 @@ def main():
                 wav.setframerate(16000)
                 wav.writeframes(pcm)
             if not busy.acquire(blocking=False):
+                user_recording.clear()
                 recorded_path.unlink(missing_ok=True)
                 return
             class FinishedRecording:
@@ -245,7 +263,7 @@ def main():
         from .voice import listen
         try:
             with keyboard.Listener(on_press=lambda key: (stop.set(), False)[1] if key == keyboard.Key.esc else None):
-                listen(cfg, on_voice_audio, stop, playing=playing)
+                listen(cfg, on_voice_audio, stop, playing=playing, user_recording=user_recording)
         finally:
             stop.set()
             if harness:

@@ -208,7 +208,7 @@ class VoiceState:
         return "send"
 
 
-def listen(cfg, on_audio, stop, playing=None):
+def listen(cfg, on_audio, stop, playing=None, user_recording=None):
     """Listen continuously; group recognized speech until a sustained quiet gap."""
     try:
         import sounddevice as sd
@@ -265,8 +265,11 @@ def listen(cfg, on_audio, stop, playing=None):
         pcm = prepare_clip(raw, recognized)
         if pcm is not None:
             on_audio(pcm)
-        elif clip_frames:
-            print("[Voice mode] Dropped quiet or unrecognized audio.")
+        else:
+            if user_recording is not None:
+                user_recording.clear()
+            if clip_frames:
+                print("[Voice mode] Dropped quiet or unrecognized audio.")
         clip, clip_frames, recognized = [], 0, []
 
     def finish(text, now):
@@ -279,11 +282,17 @@ def listen(cfg, on_audio, stop, playing=None):
             print(f"\n[⚡ Jarvis awake] Listening to your request... ({silence_seconds:g}s of quiet sends audio)")
         elif action == "sleep_prompt":
             flush()
+            if user_recording is not None:
+                user_recording.clear()
             print("\n[Sleep requested] Say 'confirm stand by Jarvis' within 8 seconds; anything else cancels it.")
         elif action == "sleep":
             flush()
+            if user_recording is not None:
+                user_recording.clear()
             print("\n[💤 Jarvis sleeping] Listening for 'Wakeup Jarvis' or 'Hey Jarvis'.")
         elif action == "send":
+            if user_recording is not None:
+                user_recording.set()
             clip.extend(phrase)
             clip_frames += phrase_frames
             recognized.append(text)

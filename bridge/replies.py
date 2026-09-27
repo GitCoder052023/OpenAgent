@@ -395,13 +395,47 @@ def voice_signature(row):
     return cleaned or row.get("path", "")
 
 
-def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot):
+def resolve_voice_control(rows, cfg, target_sig, fallback_path=None):
+    """Dynamically resolve the current play button path for a voice note signature from fresh rows.
+
+    Prevents stale AX path errors when new message bubbles shift list indices.
+    """
+    try:
+        groups = voice_groups(rows, cfg)
+        row_map = {r["path"]: r for r in rows}
+        for grp_path, ctrl_path in groups:
+            ctrl = row_map.get(ctrl_path)
+            if ctrl and voice_signature(ctrl) == target_sig:
+                return ctrl_path
+    except Exception:
+        pass
+    return fallback_path
+
+
+def pause_active_playback(rows, cfg, press=press_button):
+    """Find any actively playing voice control (Pause state) and press it to stop playback immediately."""
+    if not cfg.voice_pause_marker or not cfg.message_list_path:
+        return False
+    pause_marker = cfg.voice_pause_marker.casefold()
+    for r in rows:
+        if under(r.get("path", ""), cfg.message_list_path) and r.get("role") in ("AXButton", "AXStaticText"):
+            if pause_marker in _label(r):
+                try:
+                    press(r["path"], expected_label=cfg.voice_pause_marker)
+                    event("echo_guard", state="playback_paused_by_signal")
+                    return True
+                except Exception:
+                    pass
+    return False
+
+
+def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot, user_recording=None, press=press_button):
     """Hold the mic guard until playback ends, never on a stale Play label.
 
     AX may lag and show Play while the note is audible. If duration is known,
     preserve the guard for at least that long; if the path disappears, wait
-    out the duration. An unknown duration without a pause transition holds
-    to the configured cap instead of releasing after three seconds.
+    out the duration. If user_recording becomes active, immediately pauses playback
+    and exits wait so user speech is never contaminated or dropped.
     """
     play = cfg.voice_play_marker.casefold()
     pause = cfg.voice_pause_marker.casefold()
@@ -412,6 +446,17 @@ def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot):
     saw_pause = False
     while time.monotonic() < wait_end:
         if stop is not None and stop.is_set():
+            return
+        if user_recording is not None and user_recording.is_set():
+            event("echo_guard", state="interrupted_by_user_recording", elapsed_s=round(time.monotonic() - started, 2))
+            try:
+                try:
+                    rows = get_snapshot(safe_mode=cfg.safe_mode)
+                except TypeError:
+                    rows = get_snapshot()
+                pause_active_playback(rows, cfg, press=press)
+            except Exception:
+                pass
             return
         ctrl = None
         try:
@@ -436,7 +481,7 @@ def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot):
     event("echo_guard", state="playback_wait_expired", level="warning", elapsed_s=round(time.monotonic() - started, 2), duration_s=dur, saw_pause=saw_pause)
 
 
-def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None, pause=None, desk=None, harness=None, playing=None, ledger_path=None):
+def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None, pause=None, desk=None, harness=None, playing=None, ledger_path=None, user_recording=None):
     """Play new inbound notes and/or dispatch incoming tool calls over WhatsApp.
 
     WhatsApp remains completely hidden in the background while running.
@@ -534,10 +579,13 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                     if sig not in played_signatures and not any(q[0] == sig for q in queue):
                         dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
                         queue.append((sig, ctrl_path, dur))
-                        if playing is not None:
-                            playing.set()  # Block capture as soon as reply is queued.
+                        # NOTE: Do NOT set playing here! playing is only active while audio is physically outputting.
                         event("voice_note_queued", duration_s=dur)
-                        print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Playing...")
+                        is_user_busy = (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set())
+                        if is_user_busy:
+                            print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Held (waiting for your voice message to send)...")
+                        else:
+                            print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Queued for playback...")
             except Exception as exc:
                 if cfg.safe_mode:
                     raise
@@ -578,6 +626,16 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                         responses.append(res)
 
                     reply_text = format_tool_responses(responses)
+
+                    # Wait if user is currently recording or sending voice before sending tool response
+                    wait_send_start = time.monotonic()
+                    while (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set()):
+                        if stop is not None and stop.is_set():
+                            break
+                        if time.monotonic() - wait_send_start > 30.0:
+                            break
+                        time.sleep(0.2)
+
                     print(f"Sending tool response back to WhatsApp...")
                     desk.send_tool_response(reply_text)
                     event("tool_response_sent", calls=len(tool_calls))
@@ -587,31 +645,49 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                 logging.getLogger("jarvis.watcher").exception("Tool dispatch failed")
 
         # 3. Process voice playback queue
-        while queue and (stop is None or not stop.is_set()) and (pause is None or not pause.is_set()):
-            sig, button_path, dur = queue.pop(0)
-            if playing is not None:
-                playing.set()
-                event("echo_guard", state="playback_started", duration_s=dur)
-            try:
-                press(button_path, expected_label=cfg.voice_play_marker)
-                played_signatures.add(sig)
-                fail_counts.pop(sig, None)
-                _wait_for_completion(cfg, button_path, dur, stop, get_snapshot)
-                print("[Voice note playback finished]")
-            except Exception as exc:
-                fail_counts[sig] = fail_counts.get(sig, 0) + 1
-                print(f"Playback trigger failed for {button_path} (attempt {fail_counts[sig]}/3): {exc}")
-                if fail_counts[sig] >= 3:
-                    played_signatures.add(sig)
-                    print(f"Skipping voice note after 3 failed play attempts: {sig[:80]}")
-                continue
-            finally:
+        is_user_active = (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set())
+        if is_user_active:
+            if queue:
+                event("playback_hold", reason="user_recording_or_sending", queued=len(queue))
+        else:
+            while queue and (stop is None or not stop.is_set()):
+                # Re-check user activity before each note in queue
+                if (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set()):
+                    event("playback_hold", reason="user_recording_or_sending", queued=len(queue))
+                    break
+
+                sig, button_path, dur = queue.pop(0)
+
+                # Dynamically resolve play button path using fresh snapshot to avoid stale index shift!
+                try:
+                    fresh_rows = checked()
+                except Exception:
+                    fresh_rows = rows
+                target_path = resolve_voice_control(fresh_rows, cfg, sig, fallback_path=button_path)
+
                 if playing is not None:
-                    # Echo-tail buffer: keep playing set briefly so acoustic room reverberation dissipates
-                    if stop is not None:
-                        stop.wait(2.0)
-                    else:
-                        time.sleep(2.0)
-                    playing.clear()
-                    event("echo_guard", state="cooldown_complete", seconds=2.0)
+                    playing.set()
+                    event("echo_guard", state="playback_started", duration_s=dur)
+                try:
+                    press(target_path, expected_label=cfg.voice_play_marker)
+                    played_signatures.add(sig)
+                    fail_counts.pop(sig, None)
+                    _wait_for_completion(cfg, target_path, dur, stop, get_snapshot, user_recording=user_recording, press=press)
+                    print("[Voice note playback finished]")
+                except Exception as exc:
+                    fail_counts[sig] = fail_counts.get(sig, 0) + 1
+                    print(f"Playback trigger failed for {target_path} (attempt {fail_counts[sig]}/3): {exc}")
+                    if fail_counts[sig] >= 3:
+                        played_signatures.add(sig)
+                        print(f"Skipping voice note after 3 failed play attempts: {sig[:80]}")
+                    continue
+                finally:
+                    if playing is not None:
+                        # Echo-tail buffer: keep playing set briefly so acoustic room reverberation dissipates
+                        if stop is not None:
+                            stop.wait(2.0)
+                        else:
+                            time.sleep(2.0)
+                        playing.clear()
+                        event("echo_guard", state="cooldown_complete", seconds=2.0)
 
