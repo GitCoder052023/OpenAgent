@@ -186,8 +186,8 @@ def listen(cfg, on_audio, stop, playing=None):
         raise RuntimeError(f"Voice model directory missing: {model_path}. Set BRIDGE_VOICE_MODEL.")
 
     silence_seconds = cfg.voice_silence_seconds
-    if not 2 <= silence_seconds <= 30:
-        raise ValueError("BRIDGE_VOICE_SILENCE_SECONDS must be between 2 and 30")
+    if not 1 <= silence_seconds <= 30:
+        raise ValueError("BRIDGE_VOICE_SILENCE_SECONDS must be between 1 and 30")
 
     SetLogLevel(-1)
     model = Model(str(model_path))
