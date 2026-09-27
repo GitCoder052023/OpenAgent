@@ -206,36 +206,30 @@ class Desktop:
             event("paste_outcome", level="warning", outcome="focus_failed")
             return "picker"
         self.assert_locked()
-        for attempt, method in ((1, "keystroke"), (2, "menu")):
-            event("paste_attempt", attempt=attempt, method=method)
-            if method == "keystroke":
-                self._keystroke_paste()
-            elif not self._menu_paste():
-                event("paste_outcome", level="warning", outcome="menu_paste_unavailable")
-                return "picker"
-            outcome, state = self._await_preview(path, attempt)
-            event("paste_outcome", outcome=outcome, attempt=attempt,
-                  preview_markers=bool(state["caption"] or state["cancel"]),
-                  filename_seen=state["filename_seen"],
-                  composer_polluted=state["composer_polluted"],
-                  composer_chars=state["composer_chars"])
-            if outcome == "preview":
-                if click_preview_send(timeout=6.0):
-                    event("preview_send", ok=True)
-                    return True
-                event("preview_send", level="warning", ok=False)
-                raise RuntimeError("Pasted audio preview not confirmed sent; inspect WhatsApp before retrying")
-            if outcome == "ambiguous":
-                raise RuntimeError("Paste outcome unknown; inspect WhatsApp draft before retrying")
-            if outcome == "polluted":
-                cleared = self._clear_composer(path)
-                event("composer_cleared", ok=cleared)
-                if not cleared:
-                    raise RuntimeError("Paste inserted only text and the draft could not be cleared; clear the WhatsApp composer before retrying")
-                return "picker"
-            if outcome == "empty" and attempt == 1:
-                continue  # One retry through Edit > Paste before declaring paste unsupported.
-            return "picker"
+        # A verified empty paste should not trigger a second AppleScript paste.
+        # On some Desktop builds the Edit menu command blocks; use the picker.
+        event("paste_attempt", attempt=1, method="keystroke")
+        self._keystroke_paste()
+        outcome, state = self._await_preview(path, 1)
+        event("paste_outcome", outcome=outcome, attempt=1,
+              preview_markers=bool(state["caption"] or state["cancel"]),
+              filename_seen=state["filename_seen"],
+              composer_polluted=state["composer_polluted"],
+              composer_chars=state["composer_chars"])
+        if outcome == "preview":
+            if click_preview_send(timeout=6.0):
+                event("preview_send", ok=True)
+                return True
+            event("preview_send", level="warning", ok=False)
+            raise RuntimeError("Pasted audio preview not confirmed sent; inspect WhatsApp before retrying")
+        if outcome == "ambiguous":
+            raise RuntimeError("Paste outcome unknown; inspect WhatsApp draft before retrying")
+        if outcome == "polluted":
+            cleared = self._clear_composer(path)
+            event("composer_cleared", ok=cleared)
+            if not cleared:
+                raise RuntimeError("Paste inserted only text and the draft could not be cleared; clear the WhatsApp composer before retrying")
+        event("paste_fallback", reason=outcome, route="picker")
         return "picker"
 
     def send_audio(self, path):
@@ -258,12 +252,22 @@ class Desktop:
                         raise RuntimeError("Clipboard paste could not deliver the file and BRIDGE_SEND_ROUTE=clipboard forbids the picker fallback")
                     self._clipboard_unsupported = True
                     event("audio_send_route", route="picker_fallback", reason="clipboard_unsupported")
-                    self._send_audio_picker(path)
+                    try:
+                        self._send_audio_picker(path)
+                    except Exception as exc:
+                        event("picker_failed", level="error", error=type(exc).__name__, detail=str(exc)[:180])
+                        raise
+                    event("picker_done", route="picker_fallback")
             else:
                 event("audio_send_route", route="picker",
                       reason="configured" if route_pref == "picker" else "clipboard_unsupported_this_session",
                       bytes=path.stat().st_size)
-                self._send_audio_picker(path)
+                try:
+                    self._send_audio_picker(path)
+                except Exception as exc:
+                    event("picker_failed", level="error", error=type(exc).__name__, detail=str(exc)[:180])
+                    raise
+                event("picker_done", route="picker")
             time.sleep(0.4)
             hide_whatsapp()
 
