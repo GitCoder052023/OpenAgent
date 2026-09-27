@@ -11,7 +11,7 @@ from bridge.dispatcher import (
     format_tool_responses,
     MAX_WHATSAPP_RESPONSE_LEN,
 )
-from bridge.harness import OpenCodeHarness, HarnessError
+from bridge.harness import Harness, HarnessError
 
 
 def test_parse_tool_call_markdown_fenced():
@@ -111,7 +111,7 @@ def test_parse_non_tool_text_returns_empty():
 
 
 def test_execute_tool_call_bash():
-    mock_harness = MagicMock(spec=OpenCodeHarness)
+    mock_harness = MagicMock(spec=Harness)
     mock_harness.bash.return_value = {"exit_code": 0, "output": "file1\nfile2\n", "timed_out": False}
 
     res = execute_tool_call(mock_harness, {"tool": "bash", "args": {"command": "ls"}})
@@ -122,7 +122,7 @@ def test_execute_tool_call_bash():
 
 
 def test_execute_tool_call_read():
-    mock_harness = MagicMock(spec=OpenCodeHarness)
+    mock_harness = MagicMock(spec=Harness)
     mock_harness.read.return_value = {"path": "a.txt", "content": "hello", "lines_returned": 1}
 
     res = execute_tool_call(mock_harness, {"tool": "read", "args": {"path": "a.txt", "offset": 1, "limit": 10}})
@@ -132,7 +132,7 @@ def test_execute_tool_call_read():
 
 
 def test_execute_tool_call_write_and_edit():
-    mock_harness = MagicMock(spec=OpenCodeHarness)
+    mock_harness = MagicMock(spec=Harness)
     mock_harness.write.return_value = {"path": "a.txt", "bytes_written": 5}
     mock_harness.edit.return_value = {"path": "a.txt", "replacements": 1, "diff": "-a\n+b"}
 
@@ -145,7 +145,7 @@ def test_execute_tool_call_write_and_edit():
 
 
 def test_execute_tool_call_applescript():
-    mock_harness = MagicMock(spec=OpenCodeHarness)
+    mock_harness = MagicMock(spec=Harness)
     mock_harness.applescript.return_value = "Desk"
 
     res = execute_tool_call(mock_harness, {"tool": "applescript", "args": {"script": "return \"Desk\""}})
@@ -154,21 +154,21 @@ def test_execute_tool_call_applescript():
 
 
 def test_execute_tool_call_unknown_tool():
-    mock_harness = MagicMock(spec=OpenCodeHarness)
+    mock_harness = MagicMock(spec=Harness)
     res = execute_tool_call(mock_harness, {"tool": "fly_to_moon", "args": {}})
     assert res["status"] == "error"
     assert "Unknown harness tool" in res["error"]
 
 
 def test_execute_tool_call_missing_arg():
-    mock_harness = MagicMock(spec=OpenCodeHarness)
+    mock_harness = MagicMock(spec=Harness)
     res = execute_tool_call(mock_harness, {"tool": "bash", "args": {}})
     assert res["status"] == "error"
     assert "Missing 'command'" in res["error"]
 
 
 def test_execute_tool_call_harness_error():
-    mock_harness = MagicMock(spec=OpenCodeHarness)
+    mock_harness = MagicMock(spec=Harness)
     mock_harness.bash.side_effect = HarnessError("Timeout occurred")
 
     res = execute_tool_call(mock_harness, {"tool": "bash", "args": {"command": "sleep 10"}})

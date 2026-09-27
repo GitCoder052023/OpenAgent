@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from bridge.config import Config
 from bridge.replies import incoming_texts, watch
 from bridge.desktop import Desktop
-from bridge.harness import OpenCodeHarness
+from bridge.harness import Harness
 
 
 def test_incoming_texts_filters_outgoing():
@@ -55,7 +55,7 @@ def test_watch_baselines_existing_tool_calls():
     ]
 
     mock_desk = MagicMock(spec=Desktop)
-    mock_harness = MagicMock(spec=OpenCodeHarness)
+    mock_harness = MagicMock(spec=Harness)
     stop = threading.Event()
     stop.set()  # Stop immediately after initialization
 
@@ -95,7 +95,7 @@ def test_watch_dispatches_new_tool_call_and_deduplicates():
     ]
 
     mock_desk = MagicMock(spec=Desktop)
-    mock_harness = MagicMock(spec=OpenCodeHarness)
+    mock_harness = MagicMock(spec=Harness)
     mock_harness.bash.return_value = {"exit_code": 0, "output": "up 2 days", "timed_out": False}
 
     state = {"processed_texts": set()}
@@ -204,7 +204,7 @@ def test_watch_dispatches_flat_node_tool_call():
     ]
 
     mock_desk = MagicMock(spec=Desktop)
-    mock_harness = MagicMock(spec=OpenCodeHarness)
+    mock_harness = MagicMock(spec=Harness)
     mock_harness.system_info.return_value = {"os": "macOS", "hostname": "test"}
 
     state = {"processed_texts": set()}
@@ -318,7 +318,7 @@ def test_watch_startup_baseline_never_executes_existing_envelopes(tmp_path):
     ]
 
     mock_desk = MagicMock(spec=Desktop)
-    mock_harness = MagicMock(spec=OpenCodeHarness)
+    mock_harness = MagicMock(spec=Harness)
 
     state = {}
     stop = threading.Event()
@@ -369,7 +369,7 @@ def test_cross_restart_persistence(tmp_path):
 
     # Session 1: Baseline starts with empty chat, then msg_a arrives and runs
     mock_desk1 = MagicMock(spec=Desktop)
-    mock_harness1 = MagicMock(spec=OpenCodeHarness)
+    mock_harness1 = MagicMock(spec=Harness)
     mock_harness1.system_info.return_value = {"status": "ok"}
     stop1 = threading.Event()
 
@@ -397,7 +397,7 @@ def test_cross_restart_persistence(tmp_path):
 
     # Session 2 (bridge restart): fresh state, chat now has msg_a and new msg_b
     mock_desk2 = MagicMock(spec=Desktop)
-    mock_harness2 = MagicMock(spec=OpenCodeHarness)
+    mock_harness2 = MagicMock(spec=Harness)
     mock_harness2.system_info.return_value = {"status": "ok"}
     stop2 = threading.Event()
 

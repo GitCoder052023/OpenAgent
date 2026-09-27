@@ -563,4 +563,4 @@ rl.on("line", async (line) => {
 })
 
 // Ready signal on stderr so stdout remains 100% pure JSON
-process.stderr.write("[Jarvis OpenCode Harness] Ready on stdio IPC\n")
+process.stderr.write("[Jarvis Harness] Ready on stdio IPC\n")

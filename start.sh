@@ -5,7 +5,7 @@
 # Spins up the complete Jarvis Bridge system:
 # 1. Verifies environment (Python venv, Bun, Ripgrep, Node modules)
 # 2. Ensures WhatsApp Desktop is open and backgrounded
-# 3. Runs an instant preflight test on the OpenCode execution harness
+# 3. Runs an instant preflight test on the headless execution harness
 # 4. Starts the push-to-talk voice/text bridge with real-time tool execution
 # ==============================================================================
 
@@ -92,17 +92,17 @@ fi
 echo -e "  ${GREEN}✓${RESET} Configuration (.env) loaded"
 
 # 4. Harness & TypeScript Modules
-echo -e "${BOLD}[3/4] Testing OpenCode headless execution harness...${RESET}"
-if [[ ! -d "opencode/node_modules" ]]; then
-    echo -e "  ${YELLOW}!${RESET} Installing opencode dependencies with Bun..."
-    (cd opencode && bun install)
+echo -e "${BOLD}[3/4] Testing headless execution harness...${RESET}"
+if [[ ! -d "harness/node_modules" ]]; then
+    echo -e "  ${YELLOW}!${RESET} Installing harness dependencies with Bun..."
+    (cd harness && bun install)
 fi
 
 # Run instant IPC preflight check
-if .venv/bin/python3 -c "from bridge.harness import OpenCodeHarness; h=OpenCodeHarness(); h.system_info(); h.close()" 2>/dev/null; then
+if .venv/bin/python3 -c "from bridge.harness import Harness; h=Harness(); h.system_info(); h.close()" 2>/dev/null; then
     echo -e "  ${GREEN}✓${RESET} Headless harness IPC operational (bash, read, write, edit, applescript, grep, glob)"
 else
-    echo -e "${RED}[ERROR] Failed to start OpenCode harness over stdio IPC.${RESET}"
+    echo -e "${RED}[ERROR] Failed to start execution harness over stdio IPC.${RESET}"
     exit 1
 fi
 

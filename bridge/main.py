@@ -107,8 +107,8 @@ def main():
 
     harness = None
     try:
-        from .harness import OpenCodeHarness
-        harness = OpenCodeHarness()
+        from .harness import Harness
+        harness = Harness()
         print("Harness bridge: ENABLED (headless Mac execution harness online).")
     except Exception as exc:
         print(f"Harness bridge: DISABLED ({exc}).")

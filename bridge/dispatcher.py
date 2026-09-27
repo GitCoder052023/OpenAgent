@@ -13,7 +13,7 @@ import json
 import logging
 import re
 from typing import Any, Dict, List, Optional
-from .harness import OpenCodeHarness, HarnessError
+from .harness import Harness, HarnessError, OpenCodeHarness
 
 logger = logging.getLogger("jarvis.dispatcher")
 
@@ -301,8 +301,8 @@ def parse_tool_call(text: str) -> Optional[Dict[str, Any]]:
     return calls[0] if calls else None
 
 
-def execute_tool_call(harness: OpenCodeHarness, call: Dict[str, Any]) -> Dict[str, Any]:
-    """Execute a parsed tool call using the OpenCode harness.
+def execute_tool_call(harness: Harness, call: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute a parsed tool call using the harness.
 
     Returns a standardized dictionary:
     {"status": "ok" | "error", "tool": name, "result": ..., "error": ...}

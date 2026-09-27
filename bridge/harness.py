@@ -1,6 +1,6 @@
-"""Connection channel between jarvis-bridge and OpenCode's headless harness.
+"""Connection channel between jarvis-bridge and the headless harness.
 
-Spawns the OpenCode harness over stdio IPC and exposes type-safe operational tools:
+Spawns the headless execution harness over stdio IPC and exposes type-safe operational tools:
 - bash: Execute shell commands with timeout and output capture
 - read: Read files with pagination or directory listings
 - write: Atomic file writing
@@ -25,18 +25,23 @@ logger = logging.getLogger("jarvis.harness")
 
 
 class HarnessError(Exception):
-    """Raised when an OpenCode harness tool call fails."""
+    """Raised when a harness tool call fails."""
     pass
 
 
-class OpenCodeHarness:
-    """Manages the lifecycle of the OpenCode stdio IPC process."""
+class Harness:
+    """Manages the lifecycle of the headless harness stdio IPC process."""
 
-    def __init__(self, opencode_root: Optional[Path] = None):
-        if opencode_root is None:
-            self.root = Path(__file__).resolve().parent.parent / "opencode"
+    def __init__(
+        self,
+        harness_root: Optional[Path] = None,
+        opencode_root: Optional[Path] = None,
+    ):
+        root = harness_root or opencode_root
+        if root is None:
+            self.root = Path(__file__).resolve().parent.parent / "harness"
         else:
-            self.root = Path(opencode_root)
+            self.root = Path(root)
 
         self.script_path = self.root / "harness-bridge.ts"
         if not self.script_path.exists():
@@ -105,7 +110,7 @@ class OpenCodeHarness:
 
                 response_line = self._proc.stdout.readline()
                 if not response_line:
-                    raise HarnessError("OpenCode harness process closed the connection pipe.")
+                    raise HarnessError("Harness process closed the connection pipe.")
 
                 res = json.loads(response_line)
                 if res.get("status") == "error":
@@ -219,3 +224,9 @@ class OpenCodeHarness:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+
+# Backward compatibility alias
+OpenCodeHarness = Harness
+
+__all__ = ["Harness", "OpenCodeHarness", "HarnessError"]

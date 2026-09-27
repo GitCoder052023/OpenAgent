@@ -27,7 +27,7 @@ pytest -q
 
 ## One-Command Quick Start
 
-Spin up the entire system (dependencies check, OpenCode execution harness, WhatsApp Desktop backgrounding, and tool call interceptor) in one command:
+Spin up the entire system (dependencies check, execution harness, WhatsApp Desktop backgrounding, and tool call interceptor) in one command:
 
 ```bash
 ./start.sh
