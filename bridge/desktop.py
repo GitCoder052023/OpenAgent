@@ -157,7 +157,7 @@ class Desktop:
         items = []
         while time.monotonic() - t0 < 3.0:
             items = _picker_menu_items(snapshot(safe_mode=self.cfg.safe_mode), attach, before_menu)
-            if items:
+            if any(i["label"].casefold() in preferred for i in items):
                 break
             time.sleep(0.1)
         event("picker_menu_items", items=[{"label": i["label"], "role": i["role"]} for i in items])
