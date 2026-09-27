@@ -378,7 +378,7 @@ def listen(cfg, on_audio, stop, playing=None):
                 if now - last_buffer_log >= 1.0:
                     last_buffer_log = now
                     event("capture_buffer", phrase_s=round(phrase_frames / RATE, 2),
-                          clip_s=round(clip_frames / RATE, 2), level=level)
+                          clip_s=round(clip_frames / RATE, 2), audio_level=level)
 
             # Speech recognition
             if recognizer.AcceptWaveform(data):
