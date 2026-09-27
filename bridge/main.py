@@ -186,6 +186,9 @@ def main():
             if not gate_pcm(pcm, source="voice" if recorded_path.name.startswith("jarvis-voice-") else "hotkey"):
                 raise RuntimeError("Audio gate rejected silent or mostly quiet clip; not sending")
 
+            if playing.is_set():
+                event("capture_drop", reason="playback_before_send")
+                raise RuntimeError("Playback began before send; dropped possible echo")
             sending.set()
             event("send_begin", mode=cfg.send_mode, source="voice" if recorded_path.name.startswith("jarvis-voice-") else "hotkey", duration_s=round(len(pcm)/32000, 2))
             if cfg.send_mode == "text":
@@ -217,6 +220,9 @@ def main():
         if cfg.send_mode != "audio":
             raise RuntimeError("Voice mode sends audio files; select --send-mode audio")
         def on_voice_audio(pcm):
+            if playing.is_set():
+                event("capture_drop", reason="playback_at_handoff")
+                return
             if busy.locked():
                 print("[Busy] Utterance dropped; retry after the previous send.")
                 return
