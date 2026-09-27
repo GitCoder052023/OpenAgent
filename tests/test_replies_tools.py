@@ -723,4 +723,117 @@ def test_tool_call_not_blocked_by_voice_playback():
     assert mock_desk.send_tool_response.call_count == 1
 
 
+def test_voice_note_never_requeued_in_loop():
+    """Verify that an incoming voice note is queued exactly once and never re-queued on subsequent ticks."""
+    cfg = Config(
+        number="+16508702892",
+        header_path="/0/1",
+        message_list_path="/0/2",
+        incoming_marker="Incoming message",
+        voice_play_marker="Play voice message",
+        voice_pause_marker="Pause voice message",
+        safe_mode=False,
+    )
+
+    base_rows = [
+        {"path": "/0/1", "role": "AXButton", "title": "+1 (650) 870-2892", "description": "", "value": ""},
+        {"path": "/0/2", "role": "AXList", "title": "", "description": "", "value": ""},
+    ]
+
+    # Voice note with 36s duration
+    unplayed_note = base_rows + [
+        {"path": "/0/2/0", "role": "AXGroup", "title": "Incoming message", "description": "11:42 AM, Received from +16508702892", "value": ""},
+        {"path": "/0/2/0/0", "role": "AXButton", "title": "Play voice message", "description": "0:36", "value": ""},
+    ]
+
+    # Same note while actively playing (pause marker active)
+    playing_note = base_rows + [
+        {"path": "/0/2/0", "role": "AXGroup", "title": "Incoming message", "description": "11:42 AM, Received from +16508702892", "value": ""},
+        {"path": "/0/2/0/0", "role": "AXButton", "title": "Pause voice message", "description": "0:05 of 0:36", "value": ""},
+    ]
+
+    # Same note after playing completed (played / play button again)
+    completed_note = base_rows + [
+        {"path": "/0/2/0", "role": "AXGroup", "title": "Incoming message", "description": "11:42 AM, Received from +16508702892", "value": ""},
+        {"path": "/0/2/0/0", "role": "AXButton", "title": "Play voice message", "description": "0:36, Played", "value": ""},
+    ]
+
+    mock_press = MagicMock()
+    stop = threading.Event()
+    state = {}
+
+    ticks = [0]
+    def snapshot_provider(**kw):
+        ticks[0] += 1
+        if ticks[0] == 1:
+            return base_rows  # Startup: empty chat
+        elif ticks[0] == 2:
+            return unplayed_note  # Tick 2: 36s voice note arrives
+        elif ticks[0] in (3, 4, 5):
+            return playing_note  # Ticks 3-5: note is playing
+        elif ticks[0] in (6, 7, 8):
+            return completed_note  # Ticks 6-8: note finished playing
+        else:
+            stop.set()
+            return completed_note
+
+    watch(
+        cfg,
+        timeout=3,
+        stop=stop,
+        get_snapshot=snapshot_provider,
+        press=mock_press,
+        state=state,
+    )
+
+    # Must have triggered playback exactly ONCE, never re-queued in a loop!
+    assert mock_press.call_count == 1
+    assert len(state.get("queue", [])) == 0
+
+
+def test_voice_note_startup_baseline_never_queued():
+    """Verify that voice notes already in chat history on startup are never queued or played."""
+    cfg = Config(
+        number="+16508702892",
+        header_path="/0/1",
+        message_list_path="/0/2",
+        incoming_marker="Incoming message",
+        voice_play_marker="Play voice message",
+        voice_pause_marker="Pause voice message",
+        safe_mode=False,
+    )
+
+    existing_history = [
+        {"path": "/0/1", "role": "AXButton", "title": "+1 (650) 870-2892", "description": "", "value": ""},
+        {"path": "/0/2", "role": "AXList", "title": "", "description": "", "value": ""},
+        {"path": "/0/2/0", "role": "AXGroup", "title": "Incoming message", "description": "10:30 AM, Received from +16508702892", "value": ""},
+        {"path": "/0/2/0/0", "role": "AXButton", "title": "Play voice message", "description": "0:36", "value": ""},
+    ]
+
+    mock_press = MagicMock()
+    stop = threading.Event()
+    state = {}
+
+    ticks = [0]
+    def snapshot_provider(**kw):
+        ticks[0] += 1
+        if ticks[0] >= 4:
+            stop.set()
+        return existing_history
+
+    watch(
+        cfg,
+        timeout=2,
+        stop=stop,
+        get_snapshot=snapshot_provider,
+        press=mock_press,
+        state=state,
+    )
+
+    # Historical voice note present on startup must NEVER be played!
+    assert mock_press.call_count == 0
+    assert len(state.get("queue", [])) == 0
+
+
+
 

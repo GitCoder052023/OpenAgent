@@ -339,11 +339,12 @@ def _label(row):
     return " ".join(row.get(k, "") for k in ("title", "description", "value")).strip().casefold()
 
 
-def voice_groups(rows, cfg):
+def voice_groups(rows, cfg, include_playing=False):
     """Return ordered (group path, play-button path) pairs; text groups are skipped.
 
     Markers must be on non-body AX metadata. A single exact play control is
     required per group. Ambiguous audio controls stop the watcher.
+    When include_playing is False, active pause controls (currently playing audio) are skipped.
     """
     if not cfg.message_list_path or len(cfg.incoming_marker) < 3 or len(cfg.voice_play_marker) < 3 or len(cfg.voice_pause_marker) < 3:
         raise RuntimeError("Incoming/voice AX markers and list path must be calibrated")
@@ -369,6 +370,9 @@ def voice_groups(rows, cfg):
         if controls or pauses:
             if len(controls) + len(pauses) != 1:
                 raise RuntimeError("Voice control ambiguous; stopping")
+            if not include_playing and pauses and not controls:
+                # Active pause button: audio is currently playing in this group; do not queue.
+                continue
             result.append((group["path"], (controls or pauses)[0]["path"]))
     return result
 
@@ -396,18 +400,51 @@ def voice_signature(row):
     return cleaned or row.get("path", "")
 
 
+def canonical_voice_signature(ctrl, group=None, cfg=None):
+    """Build a stable, position-independent signature for an incoming voice note.
+
+    Combines the group timestamp with the audio duration so the signature
+    remains completely invariant whether the note is unplayed, playing, or played.
+    """
+    desc = " ".join(ctrl.get(k, "") for k in ("title", "description", "value"))
+    dur = parse_duration(desc)
+    grp_desc = group.get("description", "") if isinstance(group, dict) else ""
+    ts = _timestamp_from_description(grp_desc)
+    
+    cleaned = re.sub(r'[\u200e,\s]+(Listened|Unplayed|Delivered|Played)', '', desc, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\d+:\d{2}\s*(?:of|/)\s*', '', cleaned)
+    if cfg:
+        if cfg.voice_play_marker:
+            cleaned = re.sub(re.escape(cfg.voice_play_marker), '', cleaned, flags=re.IGNORECASE)
+        if cfg.voice_pause_marker:
+            cleaned = re.sub(re.escape(cfg.voice_pause_marker), '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\b(play|pause)\b(?:\s+voice\s+message)?', '', cleaned, flags=re.IGNORECASE).strip()
+
+    if ts and dur:
+        return f"voice:{ts}:{dur}s"
+    if dur:
+        return f"voice:{dur}s:{cleaned}"
+    if ts:
+        return f"voice:{ts}:{cleaned}"
+    return f"voice:{cleaned}" if cleaned else ctrl.get("path", "")
+
+
 def resolve_voice_control(rows, cfg, target_sig, fallback_path=None):
     """Dynamically resolve the current play button path for a voice note signature from fresh rows.
 
     Prevents stale AX path errors when new message bubbles shift list indices.
     """
     try:
-        groups = voice_groups(rows, cfg)
+        groups = voice_groups(rows, cfg, include_playing=True)
         row_map = {r["path"]: r for r in rows}
         for grp_path, ctrl_path in groups:
             ctrl = row_map.get(ctrl_path)
-            if ctrl and voice_signature(ctrl) == target_sig:
-                return ctrl_path
+            grp = row_map.get(grp_path)
+            if ctrl:
+                if voice_signature(ctrl) == target_sig:
+                    return ctrl_path
+                if canonical_voice_signature(ctrl, grp, cfg) == target_sig:
+                    return ctrl_path
     except Exception:
         pass
     return fallback_path
@@ -529,27 +566,31 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
 
     if state is None:
         state = {}
+    target_path = ledger_path or getattr(cfg, "ledger_path", None)
+
     played_signatures = state.get("played")
     if played_signatures is None:
-        # First window only: index existing voice notes so old messages are not replayed
-        played_signatures = set()
+        # First window only: index existing voice notes so old history is not replayed
+        played_signatures = ProcessedLedger(path=target_path) if target_path else set()
         try:
             init = get_initial()
-            initial_groups = voice_groups(init, cfg)
             row_map = {r["path"]: r for r in init}
-            for grp_path, ctrl_path in initial_groups:
+            initial_voice = voice_groups(init, cfg, include_playing=True)
+            for grp_path, ctrl_path in initial_voice:
                 ctrl = row_map.get(ctrl_path)
+                grp = row_map.get(grp_path)
                 if ctrl:
                     played_signatures.add(voice_signature(ctrl))
-        except Exception:
-            pass
+                    played_signatures.add(canonical_voice_signature(ctrl, grp, cfg))
+            event("voice_baseline", count=len(initial_voice), ledger_total=len(played_signatures))
+        except Exception as v_exc:
+            logging.getLogger("jarvis.watcher").warning("Voice baseline deferred: %s", v_exc)
         state["played"] = played_signatures
 
     processed_texts = state.get("processed_texts")
     if processed_texts is None:
         # First window: load persistent ledger (survives restarts) and baseline
         # any visible incoming text messages so chat history is never re-executed.
-        target_path = ledger_path or getattr(cfg, "ledger_path", None)
         processed_texts = ProcessedLedger(path=target_path)
         try:
             init = get_initial()
@@ -602,7 +643,6 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                 target_path = resolve_voice_control(fresh_rows, cfg, sig, fallback_path=button_path) if fresh_rows else button_path
 
                 press(target_path, expected_label=cfg.voice_play_marker)
-                played_signatures.add(sig)
                 fail_counts.pop(sig, None)
                 _wait_for_completion(cfg, target_path, dur, stop, get_snapshot, user_recording=user_recording, press=press)
                 print("[Voice note playback finished]")
@@ -610,7 +650,6 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                 fail_counts[sig] = fail_counts.get(sig, 0) + 1
                 print(f"Playback trigger failed for {button_path} (attempt {fail_counts[sig]}/3): {exc}")
                 if fail_counts[sig] >= 3:
-                    played_signatures.add(sig)
                     print(f"Skipping voice note after 3 failed play attempts: {sig[:80]}")
             finally:
                 if playing is not None:
@@ -645,21 +684,28 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
             # 1. Voice reply check (detect new notes and add to queue)
             if cfg.voice_play_marker and cfg.voice_pause_marker:
                 try:
-                    current_groups = voice_groups(rows, cfg)
+                    current_groups = voice_groups(rows, cfg, include_playing=False)
                     warned_missing = False
                     for grp_path, ctrl_path in current_groups:
                         ctrl = row_map.get(ctrl_path)
+                        grp = row_map.get(grp_path)
                         if not ctrl: continue
                         sig = voice_signature(ctrl)
-                        if sig not in played_signatures and not any(q[0] == sig for q in queue):
-                            dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
-                            queue.append((sig, ctrl_path, dur))
-                            event("voice_note_queued", duration_s=dur)
-                            is_user_busy = (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set())
-                            if is_user_busy:
-                                print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Held (waiting for your voice message to send)...")
-                            else:
-                                print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Queued for background playback...")
+                        canon_sig = canonical_voice_signature(ctrl, grp, cfg)
+                        if sig in played_signatures or canon_sig in played_signatures or any(q[0] in (sig, canon_sig) for q in queue):
+                            continue
+
+                        dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
+                        queue.append((sig, ctrl_path, dur))
+                        # Immediately mark as played so it can NEVER be queued again!
+                        played_signatures.add(sig)
+                        played_signatures.add(canon_sig)
+                        event("voice_note_queued", duration_s=dur)
+                        is_user_busy = (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set())
+                        if is_user_busy:
+                            print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Held (waiting for your voice message to send)...")
+                        else:
+                            print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Queued for background playback...")
                 except Exception as exc:
                     if cfg.safe_mode:
                         raise
