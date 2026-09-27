@@ -1,50 +1,53 @@
 export * as SystemContextBuiltIns from "./builtins"
 
-import { makeLocationNode } from "../effect/app-node"
 import { DateTime, Effect, Layer, Schema } from "effect"
-import { Location } from "../location"
 import { SystemContext } from "./index"
-import { InstructionContext } from "../instruction-context"
 import { SystemContextRegistry } from "./registry"
-import { FSUtil } from "../fs-util"
-import { Global } from "../global"
 
-const builtIns = Layer.effectDiscard(
-  Effect.gen(function* () {
-    const location = yield* Location.Service
-    const registry = yield* SystemContextRegistry.Service
-    const environment = [
-      "<env>",
-      `  Working directory: ${location.directory}`,
-      `  Workspace root folder: ${location.project.directory}`,
-      `  Is directory a git repo: ${location.vcs?.type === "git" ? "yes" : "no"}`,
-      `  Platform: ${process.platform}`,
-      "</env>",
-    ].join("\n")
-    const context = SystemContext.combine([
-      SystemContext.make({
-        key: SystemContext.Key.make("core/environment"),
-        codec: Schema.toCodecJson(Schema.String),
-        load: Effect.succeed(environment),
-        baseline: (environment) =>
-          ["Here is some useful information about the environment you are running in:", environment].join("\n"),
-        update: (_previous, environment) => ["The environment you are running in is now:", environment].join("\n"),
-      }),
-      SystemContext.make({
-        key: SystemContext.Key.make("core/date"),
-        codec: Schema.toCodecJson(Schema.String),
-        load: DateTime.nowAsDate.pipe(Effect.map((date) => date.toDateString())),
-        baseline: (date) => `Today's date: ${date}`,
-        update: (_previous, date) => `Today's date is now: ${date}`,
-      }),
-    ])
+export function renderEnvironment(opts: {
+  directory: string
+  worktree: string
+  isGit?: boolean
+  platform?: string
+}) {
+  return [
+    "Here is some useful information about the environment you are running in:",
+    "<env>",
+    `  Working directory: ${opts.directory}`,
+    `  Workspace root folder: ${opts.worktree}`,
+    `  Is directory a git repo: ${opts.isGit ? "yes" : "no"}`,
+    `  Platform: ${opts.platform ?? process.platform}`,
+    `  Today's date: ${new Date().toDateString()}`,
+    "</env>",
+  ].join("\n")
+}
 
-    yield* registry.register({ key: SystemContext.Key.make("core/builtins"), load: Effect.succeed(context) })
-  }),
-)
+export const layer = (env: { directory: string; worktree: string; isGit?: boolean }) =>
+  Layer.effectDiscard(
+    Effect.gen(function* () {
+      const registry = yield* SystemContextRegistry.Service
+      const environmentText = renderEnvironment({
+        directory: env.directory,
+        worktree: env.worktree,
+        isGit: env.isGit,
+      })
+      const context = SystemContext.combine([
+        SystemContext.make({
+          key: SystemContext.Key.make("core/environment"),
+          codec: Schema.toCodecJson(Schema.String),
+          load: Effect.succeed(environmentText),
+          baseline: (env) => env,
+          update: (_previous, env) => ["The environment you are running in is now:", env].join("\n"),
+        }),
+        SystemContext.make({
+          key: SystemContext.Key.make("core/date"),
+          codec: Schema.toCodecJson(Schema.String),
+          load: DateTime.nowAsDate.pipe(Effect.map((date) => date.toDateString())),
+          baseline: (date) => `Today's date: ${date}`,
+          update: (_previous, date) => `Today's date is now: ${date}`,
+        }),
+      ])
 
-export const node = makeLocationNode({
-  name: "system-context-builtins",
-  layer: builtIns,
-  deps: [Location.node, SystemContextRegistry.node, InstructionContext.node, FSUtil.node, Global.node],
-})
+      yield* registry.register({ key: SystemContext.Key.make("core/builtins"), load: Effect.succeed(context) })
+    }),
+  )

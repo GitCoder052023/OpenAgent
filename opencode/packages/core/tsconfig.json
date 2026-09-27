@@ -1,7 +1,3 @@
 {
-  "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "@tsconfig/bun/tsconfig.json",
-  "compilerOptions": {
-    "noUncheckedIndexedAccess": false
-  }
+  "extends": "../../tsconfig.json"
 }

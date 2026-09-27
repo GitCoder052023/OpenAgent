@@ -2,7 +2,6 @@ export * as SystemContextRegistry from "./registry"
 
 import { Context, Effect, Layer, Ref, Scope } from "effect"
 import { SystemContext } from "./index"
-import { makeLocationNode } from "../effect/app-node"
 
 export interface Entry {
   readonly key: SystemContext.Key
@@ -46,4 +45,3 @@ const layer = Layer.effect(
   }),
 )
 
-export const node = makeLocationNode({ service: Service, layer, deps: [] })
