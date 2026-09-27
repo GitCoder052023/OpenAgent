@@ -25,6 +25,19 @@ jarvis-bridge run  # hold F8 to speak, release to send; Esc quits
 pytest -q
 ```
 
+## One-Command Quick Start
+
+Spin up the entire system (dependencies check, OpenCode execution harness, WhatsApp Desktop backgrounding, and tool call interceptor) in one command:
+
+```bash
+./start.sh
+```
+
+To run with specific flags (e.g. Whisper text mode):
+```bash
+./start.sh --send-mode text
+```
+
 The manual `jarvis-bridge speak --text 'Speaker check'` still tests the Mac's `say` output, but automatic replies never invoke it. Text links/codes must be read on-screen. The model downloader and UI automation should be reviewed before use.
 
 ## Safety

@@ -22,6 +22,7 @@ You have full operational capability on this Mac: you can execute shell commands
    ```
    <tool output>
    ```
+
 5. You read the tool response in your next turn and continue your workflow or report your results to Hamdan.
 
 ==================================================
