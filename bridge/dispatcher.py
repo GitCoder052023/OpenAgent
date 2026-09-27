@@ -57,6 +57,7 @@ def _decode_envelope(payload_b64: str) -> Optional[Any]:
     compact = re.sub(r"\s+", "", payload_b64)
     if not compact:
         return None
+    compact += "=" * (-len(compact) % 4)  # tolerate lost padding
     try:
         raw = base64.b64decode(compact, validate=True)
     except Exception:
@@ -77,7 +78,7 @@ def _sanitize_rendered_text(text: str) -> str:
         text = text.replace(ch, "")
     for smart, plain in _SMART_QUOTES.items():
         text = text.replace(smart, plain)
-    return text
+    return text.replace("\u00a0", " ")
 
 
 
@@ -202,22 +203,25 @@ def parse_tool_calls(text: str) -> List[Dict[str, Any]]:
 
     cleaned = text.strip()
 
-    # 0. Primary transport: JARVIS_CALL envelopes (base64 survives WhatsApp rendering)
-    for env_match in _ENVELOPE_RE.finditer(cleaned):
-        parsed = _decode_envelope(env_match.group(1))
-        if parsed is not None:
-            add_candidate(parsed)
-        else:
-            logger.warning("Ignoring JARVIS_CALL envelope that failed to decode.")
-    if calls:
-        return calls
-
-    # Fallback transports on the raw text, then on a sanitized copy.
+    # Sanitized copy first: zero-width chars inside the prefix or payload break
+    # the envelope regex, and WhatsApp inserts them around punctuation.
     variants = [cleaned]
     sanitized = _sanitize_rendered_text(cleaned)
     if sanitized != cleaned:
         variants.append(sanitized)
 
+    # 0. Primary transport: JARVIS_CALL envelopes (base64 survives WhatsApp rendering)
+    for variant in variants:
+        for env_match in _ENVELOPE_RE.finditer(variant):
+            parsed = _decode_envelope(env_match.group(1))
+            if parsed is not None:
+                add_candidate(parsed)
+            else:
+                logger.warning("Ignoring JARVIS_CALL envelope that failed to decode.")
+        if calls:
+            return calls
+
+    # Fallback transports on the raw text, then on the sanitized copy.
     for variant in variants:
         _parse_legacy_calls(variant, calls, add_candidate)
         if calls:
