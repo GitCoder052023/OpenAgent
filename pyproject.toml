@@ -11,3 +11,6 @@ voice = ["vosk>=0.3.45", "sounddevice>=0.4.6"]
 jarvis-bridge = "bridge.main:main"
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.setuptools.packages.find]
+include = ["bridge*"]

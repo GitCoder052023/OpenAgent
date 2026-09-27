@@ -3,7 +3,38 @@
 No idle audio is saved. Commands require exact standalone phrases; this is not
 speaker authentication or call isolation.
 """
-import audioop
+try:
+    import audioop
+except ImportError:
+    try:
+        import audioop_lts as audioop
+    except ImportError:
+        import array
+        import math
+
+        class _AudioOpFallback:
+            @staticmethod
+            def rms(fragment, width):
+                if not fragment:
+                    return 0
+                if width == 2:
+                    a = array.array("h")
+                    a.frombytes(fragment)
+                    if not a:
+                        return 0
+                    return int(math.isqrt(sum(x * x for x in a) // len(a)))
+                elif width == 1:
+                    return int(math.isqrt(sum((b - 128) ** 2 for b in fragment) // len(fragment)))
+                elif width == 4:
+                    a = array.array("i")
+                    a.frombytes(fragment)
+                    if not a:
+                        return 0
+                    return int(math.isqrt(sum(x * x for x in a) // len(a)))
+                return 0
+
+        audioop = _AudioOpFallback()
+
 import json
 import queue
 import re

@@ -122,3 +122,11 @@ def test_verify_header_relaxed_instinct():
     # In unlocked mode, if header contains "Instinct", it passes without warning spam
     assert verify_header(rows, "+16508702892", "/0/1", safe_mode=False)
 
+
+def test_audioop_fallback_rms():
+    from bridge.voice import audioop
+    dummy = b"\x00\x01" * 1000
+    assert audioop.rms(dummy, 2) == 256
+    assert audioop.rms(b"", 2) == 0
+
+

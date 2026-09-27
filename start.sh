@@ -64,6 +64,22 @@ if [[ ! -f ".venv/bin/python3" ]]; then
 fi
 echo -e "  ${GREEN}✓${RESET} Python virtualenv: $(.venv/bin/python3 --version)"
 
+# If --voice mode is requested, ensure voice dependencies and offline model are present
+if [[ " $* " =~ " --voice " ]]; then
+    if ! .venv/bin/python3 -c "import sounddevice, vosk" 2>/dev/null; then
+        echo -e "  ${YELLOW}!${RESET} Installing voice dependencies (sounddevice, vosk)..."
+        .venv/bin/pip install sounddevice vosk
+    fi
+    if [[ ! -d "models/vosk-model-small-en-us-0.15" ]]; then
+        echo -e "  ${YELLOW}!${RESET} Downloading offline Vosk model for voice wake-phrase mode..."
+        mkdir -p models
+        curl -L -s https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip -o models/vosk-model.zip
+        unzip -q -o models/vosk-model.zip -d models/
+        rm -f models/vosk-model.zip
+    fi
+    echo -e "  ${GREEN}✓${RESET} Voice mode offline model & audio libraries ready"
+fi
+
 if [[ ! -f ".env" ]]; then
     if [[ -f ".env.example" ]]; then
         echo -e "  ${YELLOW}!${RESET} .env not found. Initializing from .env.example..."
