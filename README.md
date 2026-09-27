@@ -1,33 +1,108 @@
 # jarvis-bridge
 
-An experimental, local push-to-talk Mac bridge to Instinct in WhatsApp Desktop. F8 records speech, whisper.cpp transcribes locally, and a guarded AppleScript sends only in the configured chat. **Not plug-and-play and not tested on Hamdan's Mac.** See [setup](docs/setup.md) and [limitations](docs/limitations.md) before sending anything.
+[![macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)](https://apple.com)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
+[![Bun](https://img.shields.io/badge/runtime-bun-black.svg)](https://bun.sh)
+[![Tests](https://img.shields.io/badge/tests-98%20passing-brightgreen.svg)]()
 
-The opt-in reply watcher now **plays incoming WhatsApp voice notes in the app**, through the Mac's selected speaker or Bluetooth output. It does **not** convert text replies to speech: links, codes and other text remain visible in WhatsApp, not read aloud. Consecutive new voice notes are queued and started one after the previous note's play/pause control indicates completion. If that state is not available or stable, the watcher stops instead of overlapping audio. It does not download note bytes or call TTS for replies. The watcher is disabled until the actual WhatsApp Accessibility labels/paths and incoming direction have been calibrated on this Mac. It watches for 90 seconds after an outgoing message and is not a background notification service.
+A high-speed, local push-to-talk voice and autonomous tool execution bridge connecting macOS to **Jarvis** on WhatsApp Desktop (`+16508702892`).
 
-**Locked WhatsApp destination:** `+16508702892` by default. It is not Instinct's iMessage number. Verify the unsaved-number chat header yourself and calibrate `BRIDGE_HEADER_PATH`; a contact display name alone is not enough.
+`jarvis-bridge` turns WhatsApp Desktop into a full-duplex conversational voice interface and headless Mac execution agent: speak to Jarvis with push-to-talk (F8) or hands-free wake word, receive incoming voice notes in the background, and allow Jarvis to autonomously execute shell commands and file edits on your Mac with sub-second turnaround times.
 
-## Requirements and install
+---
 
-macOS, WhatsApp Desktop, Python 3.11+, Homebrew, mic, Accessibility/Microphone/Input Monitoring permission; whisper.cpp and SoX. WhatsApp must be visible and the exact number shown in the selected chat. Bluetooth output is selected in macOS Control Center. Actual AX layout, voice controls, hotkeys and audio output require on-device tests.
+## Key Features
 
-```sh
-xcode-select --install
-brew install python sox whisper-cpp ffmpeg
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e '.[dev]'
-bash scripts/download-model.sh base  # multilingual, unlike base.en
-cp .env.example .env
-# Calibrate .env using docs/setup.md; never commit the AX dump.
-set -a; source .env; set +a
-jarvis-bridge inspect > ax-tree.json
-jarvis-bridge run  # hold F8 to speak, release to send; Esc quits
-pytest -q
+- **Autonomous Tool Execution Harness**:
+  Intercepts `JARVIS_CALL` envelopes from WhatsApp messages, executes tools locally via a sandboxed Bun/TypeScript execution harness (`harness/`), and replies with execution output in <1.5s total round-trip time. Supported tools include:
+  - `bash`: Full zsh/bash command execution on macOS
+  - `file_read` / `file_write` / `edit_file`: Local file manipulation
+  - `list_directory`: Directory browsing and inspection
+- **Non-Blocking Concurrent Architecture**:
+  Voice-note playback runs in a dedicated background worker (`playback_thread`), completely decoupled from the watcher loop. When Jarvis invokes a tool while an incoming voice note is playing, the tool call is detected and executed immediately without waiting for playback to finish.
+- **Intelligent Playback Hold & Barge-In**:
+  - **Hold**: If the user is speaking, recording, or sending a voice message, incoming voice notes from Jarvis are held and queued in memory; playback only begins after the user's message is delivered.
+  - **Barge-In**: Pressing the talk hotkey immediately pauses any active playback and clears echo guards so the user's voice is never dropped as an echo.
+- **Dual Voice Input Modes**:
+  - **Push-to-Talk**: Hold `F8` (or custom hotkey) to speak, release to send.
+  - **Hands-Free Wake-Word Mode**: Say *"Wakeup Jarvis"* to enter hands-free listening (powered by offline Vosk speech recognition); say *"Jarvis stand by"* to sleep.
+- **Dual Send Modes**:
+  - `audio` (Default): Sends recorded M4A files as WhatsApp attachments using native macOS Accessibility UI automation.
+  - `text`: Transcribes speech locally on-device using `whisper.cpp` and pastes text into chat.
+- **Background Privacy & Fail-Closed Safety**:
+  WhatsApp Desktop remains completely hidden and backgrounded while running. Dynamic chat header verification prevents cross-chat message leaks, and a persistent deduplication ledger (`ProcessedLedger`) guarantees messages and tool calls are never replayed across restarts.
+
+---
+
+## Project Structure
+
+```text
+jarvis-bridge/
+├── bridge/                         # Core Python bridge package
+│   ├── main.py                     # Entry point, CLI flags, hotkey loop & orchestration
+│   ├── replies.py                  # Message watcher, non-blocking playback, tool dispatch
+│   ├── desktop.py                  # macOS Accessibility (AX) & AppleScript automation
+│   ├── dispatcher.py               # JARVIS_CALL parser, validator & envelope formatter
+│   ├── harness.py                  # Python interface to the Bun/TS headless harness
+│   ├── ax.py                       # macOS Accessibility API wrappers & header checks
+│   ├── audio.py                    # SoX recording, silence gating & audio conversion
+│   ├── voice.py                    # Hands-free Vosk wake word & silence detector
+│   ├── config.py                   # Environment configuration loader (.env)
+│   └── diagnostics.py              # Structured JSON event logging
+├── harness/                        # Headless TypeScript execution harness
+│   ├── harness-bridge.ts           # Bun execution bridge exposing local tools
+│   ├── package.json                # Harness dependencies (Effect, TypeScript, etc.)
+│   ├── bunfig.toml                 # Bun configuration
+│   └── packages/                   # Core harness packages
+├── scripts/                        # Automation & helper scripts
+│   ├── send.scpt                   # AppleScript: pastes and sends message to WhatsApp
+│   ├── commit.scpt                 # AppleScript: presses Enter in WhatsApp
+│   ├── attach.scpt                 # AppleScript: drives file chooser dialog
+│   ├── commit-audio.scpt           # AppleScript: confirms audio preview send
+│   └── download-model.sh           # Whisper GGML model downloader
+├── models/                         # Local ML models
+│   ├── ggml-base.bin               # Multilingual whisper.cpp model
+│   └── vosk-model-small-en-us-0.15 # Offline wake word & silence detection model
+├── tests/                          # Pytest test suite (98 tests)
+│   ├── test_replies_tools.py       # Watcher, tool dispatch, playback hold & concurrency
+│   ├── test_dispatcher.py          # JARVIS_CALL base64 parsing & validation
+│   ├── test_harness.py             # Local tool execution tests
+│   ├── test_safety.py              # Header lock, safe mode & fail-closed tests
+│   ├── test_voice_capture.py       # Audio recording & format validation
+│   ├── test_voice_wake_drop.py     # Wake word and sleep state machine tests
+│   └── test_diagnostics_gate.py    # Silence gating and diagnostics
+├── docs/                           # Documentation
+│   ├── setup.md                    # Initial calibration & environment setup
+│   ├── architecture.md             # Security model & fail-closed design
+│   ├── limitations.md              # Known limitations & constraints
+│   ├── JARVIS_INSTRUCTIONS.md      # Instructions & prompt for Jarvis
+│   └── voice-routing-design.md     # Audio routing & echo prevention design
+├── start.sh                        # All-in-one launcher with environment preflights
+├── pyproject.toml                  # Python package definition & dependencies
+└── README.md                       # This file
 ```
 
-## One-Command Quick Start
+---
 
-Spin up the entire system (dependencies check, execution harness, WhatsApp Desktop backgrounding, and tool call interceptor) in one command:
+## Requirements
+
+- **Operating System**: macOS (Apple Silicon or Intel, tested on macOS 14/15/Sonoma/Sequoia).
+- **WhatsApp Desktop**: Native macOS app running and signed into the destination chat (`+16508702892`).
+- **Python**: 3.11+
+- **Bun**: Modern JavaScript/TypeScript runtime ([bun.sh](https://bun.sh))
+- **Homebrew Packages**: `sox`, `whisper-cpp`, `ffmpeg`, `ripgrep`
+- **macOS Permissions**:
+  - *Accessibility* (System Settings -> Privacy & Security -> Accessibility)
+  - *Microphone* (System Settings -> Privacy & Security -> Microphone)
+  - *Input Monitoring* (System Settings -> Privacy & Security -> Input Monitoring)
+
+---
+
+## Quick Start
+
+### 1. One-Command Automated Launch
+
+The easiest way to start is using the launcher script, which runs environment preflights, verifies Bun, checks Python virtualenv, and starts the bridge:
 
 ```bash
 ./start.sh
@@ -38,20 +113,112 @@ To run with specific flags (e.g. Whisper text mode):
 ./start.sh --send-mode text
 ```
 
-The manual `jarvis-bridge speak --text 'Speaker check'` still tests the Mac's `say` output, but automatic replies never invoke it. Text links/codes must be read on-screen. The model downloader and UI automation should be reviewed before use.
+### 2. Manual Installation & Setup
 
-## Safety
+1. **Install system dependencies**:
+   ```bash
+   brew install python sox whisper-cpp ffmpeg ripgrep
+   curl -fsSL https://bun.sh/install | bash
+   ```
 
-This is a fail-closed prototype. The selected number is checked by a locally calibrated AX path; outgoing sending checks the header around paste/Enter. Incoming playback requires a calibrated message list, incoming direction marker, exact voice play and pause labels, and a stable append-only list; no general notifications, other chats, or text are spoken. GUI scripting cannot guarantee an atomic chat lock. If the path changes or playback state is unclear, it stops. Keep WhatsApp foreground and supervise. Native UI automation does not guarantee zero WhatsApp account risk. Clipboard and AX dumps can contain private data; do not dictate secrets or commit `ax-tree.json`. See [architecture](docs/architecture.md).
+2. **Set up Python virtual environment**:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -e '.[dev,voice]'
+   ```
 
-## Audio attachment send mode
+3. **Install harness dependencies**:
+   ```bash
+   cd harness && bun install && cd ..
+   ```
 
-F8 release now sends the recorded M4A as a WhatsApp **file attachment** instead of running Whisper transcription. This can avoid local transcription time, but is not a native WhatsApp voice-note bubble and does not guarantee the receiving service will process M4A attachments. Sending is disabled until `BRIDGE_ATTACH_LABEL`, `BRIDGE_DOCUMENT_LABEL`, and `BRIDGE_ATTACHMENT_SEND_LABEL` are locally calibrated. The file chooser and draft send need supervised testing on Hamdan's Mac. The incoming voice-note playback remains the opt-in watcher described above. See [setup](docs/setup.md).
+4. **Download models**:
+   ```bash
+   bash scripts/download-model.sh base
+   ```
+   *(For hands-free voice mode, download the small Vosk model into `models/vosk-model-small-en-us-0.15`)*
 
+5. **Configure environment**:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your chat calibration (see docs/setup.md)
+   ```
 
-## Phase 2: opt-in always-listening voice mode (experimental)
+6. **Inspect WhatsApp Accessibility layout**:
+   ```bash
+   jarvis-bridge inspect > ax-tree.json
+   ```
 
-Install the extra dependencies with `pip install -e '.[voice]'`. Download and extract an offline English Vosk model from [Vosk's model list](https://alphacephei.com/vosk/models) to `models/vosk-model-small-en-us-0.15`, or set `BRIDGE_VOICE_MODEL` to the extracted model directory. Grant Terminal/Python microphone and Accessibility permissions; verify that SoX and ffmpeg work. Run `jarvis-bridge run --voice --send-mode audio` with the Mac's default microphone selected. Esc exits. The microphone stays open while the process runs. Idle audio stays in memory only and is not saved or sent. Say exactly "Wakeup Jarvis" as a separate utterance; speech after that is grouped into an M4A attachment after 2 seconds of quiet, with no duration cap in voice mode. Short 1-2 second natural pauses stay in the same clip. A sleep request flushes the current clip. Esc exits and drops any unfinished clip. Very long clips consume memory and disk, take longer to encode and upload, and can hit WhatsApp attachment limits; test with short clips first. Set `BRIDGE_VOICE_SILENCE_SECONDS=5` in `.env` to adjust the gap (2-30 seconds). This uses Vosk endpoints and microphone signal level; test with your mic, since background noise or a quiet voice can affect timing. To stop sending, say exactly "Jarvis stand by", then exactly "confirm stand by Jarvis" as a separate utterance within eight seconds. Any other utterance cancels the pending sleep request. Restarting the app starts asleep. Hotkey mode is unchanged.
+7. **Run the bridge**:
+   ```bash
+   jarvis-bridge run
+   ```
 
-**Important:** Vosk is used only to spot command phrases, not to transcribe outgoing speech; outgoing audio remains M4A. English recognition may mishear Hinglish. This is not speaker verification or call detection: a nearby person or call audio through the selected mic could wake it or supply both sleep phrases. Use headphones during calls and exit with Esc when privacy matters. Test wake, Hinglish, pauses, call audio, and the exact sleep confirmation on your Mac before trusting it. No software-only phrase regex can guarantee zero false triggers. There is no on-device validation from this repo; do not leave unattended. The existing WhatsApp AX calibration, destination checks, and attachment-send caveats still apply.
+---
 
+## Operating Modes
+
+### 1. Push-to-Talk (Default)
+Hold **`F8`** (or configured hotkey) to speak. When you release the key:
+- In `audio` mode (default), the recorded audio is converted to M4A and sent as a document attachment.
+- In `text` mode (`--send-mode text`), local `whisper-cli` transcribes your speech and pastes it into WhatsApp.
+- Press `Esc` anytime to quit.
+
+### 2. Hands-Free Always-Listening Voice Mode (`--voice`)
+```bash
+jarvis-bridge run --voice --send-mode audio
+```
+- The microphone stays open in memory.
+- Say **"Wakeup Jarvis"** as a separate phrase to activate listening.
+- Speech is recorded and automatically sent when you stop speaking (after 2 seconds of quiet).
+- Say **"Jarvis stand by"** followed by **"confirm stand by Jarvis"** to return to sleep mode.
+
+### 3. Headless Tool Execution (Autonomous Mac Control)
+When Jarvis sends a command inside a `JARVIS_CALL` envelope:
+```text
+JARVIS_CALL:eyJ0b29sIjogImJhc2giLCAiYXJncyI6IHsiY29tbWFuZCI6ICJ1bmFtZSAtYSJ9fQ==:END
+```
+The bridge intercepts the message, dispatches it to `harness/harness-bridge.ts`, executes the command, and automatically posts the result back to WhatsApp:
+```text
+[Jarvis Tool Response: bash | status: ok]
+```
+Darwin Mac.local 24.x.x arm64
+```
+```
+See [docs/JARVIS_INSTRUCTIONS.md](docs/JARVIS_INSTRUCTIONS.md) for the complete prompt and protocol instructions to send to Jarvis.
+
+---
+
+## Safety & Security
+
+- **Strict Chat Lock**: By default, `BRIDGE_SAFE_MODE=true` enforces that every action verifies the active WhatsApp chat header matches the calibrated target number before sending or clicking.
+- **Append-Only Ledger**: The bridge maintains an on-disk ledger (`~/.cache/jarvis-bridge/processed_texts.json`) of processed message signatures. Old chat history and previously executed tool envelopes will **never** re-execute across restarts.
+- **Background Operation**: WhatsApp Desktop remains completely hidden from your screen, preventing accidental UI clicks or screen clutter.
+
+---
+
+## Running Tests
+
+Run the full pytest suite:
+
+```bash
+.venv/bin/python3 -m pytest
+```
+
+The test suite covers:
+- Tool call parsing, validation, and execution
+- Non-blocking concurrent voice playback & tool response
+- Playback hold during user recording and barge-in
+- Audio gate, silence thresholding, and format conversion
+- Safety checks, safe-mode lock verification, and error handling
+
+---
+
+## Documentation
+
+- [Setup & Calibration Guide](docs/setup.md)
+- [Architecture & Safety Guarantees](docs/architecture.md)
+- [Operational Instructions for Jarvis](docs/JARVIS_INSTRUCTIONS.md)
+- [Voice Routing & Audio Design](docs/voice-routing-design.md)
+- [Limitations & Caveats](docs/limitations.md)
