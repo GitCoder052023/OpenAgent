@@ -8,3 +8,7 @@ models/
 .DS_Store
 *.egg-info/
 ax-tree.json
+app/node_modules/
+app/dist/
+app/release/
+*.dmg
