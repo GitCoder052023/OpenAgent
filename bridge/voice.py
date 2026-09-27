@@ -143,18 +143,40 @@ def gate_pcm(pcm, source="voice", recognized=None):
     active_s = active / 50
     ratio = active_s / seconds
     words = len(" ".join(recognized or []).split())
+
+    # Count sustained active runs (>= 4 consecutive 20ms windows, i.e. >= 80ms continuous voicing).
+    # Speech contains sustained vowel/consonant phonemes; typing clicks are isolated 10-30ms impulses.
+    max_run = 0
+    curr_run = 0
+    sustained_windows = 0
+    for level in levels:
+        if level >= threshold:
+            curr_run += 1
+            if curr_run > max_run:
+                max_run = curr_run
+        else:
+            if curr_run >= 4:
+                sustained_windows += curr_run
+            curr_run = 0
+    if curr_run >= 4:
+        sustained_windows += curr_run
+    sustained_s = sustained_windows / 50
+
     reason = "ok"
     if recognized is not None and not words:
         reason = "no_recognition"
     elif peak < 500 or active_s < 0.7:
         reason = "low_energy"
-    elif seconds >= 10 and (ratio < 0.16 or active_s < 1.5):
+    elif max_run < 4 or sustained_s < 0.15:
+        reason = "impulse_noise"
+    elif (seconds >= 5.0 and ratio < 0.15) or (seconds >= 8.0 and (ratio < 0.18 or active_s < 1.3)):
         reason = "mostly_quiet"
-    elif seconds >= 20 and recognized is not None and words < max(2, int(seconds / 10)):
+    elif seconds >= 8.0 and recognized is not None and words < max(2, int(seconds / 8)):
         reason = "sparse_recognition"
     event("audio_gate", source=source, accepted=reason == "ok", reason=reason,
           duration_s=round(seconds, 2), active_s=round(active_s, 2),
-          active_ratio=round(ratio, 3), peak=peak, threshold=threshold, words=words)
+          active_ratio=round(ratio, 3), peak=peak, threshold=threshold, words=words,
+          max_run=max_run, sustained_s=round(sustained_s, 2))
     return reason == "ok"
 
 
@@ -261,7 +283,15 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None):
     def flush():
         nonlocal clip, clip_frames, recognized
         raw = b"".join(clip)
-        event("capture_flush", duration_s=round(len(raw)/32000, 2), recognized_words=len(" ".join(recognized).split()))
+        words = len(" ".join(recognized).split())
+        event("capture_flush", duration_s=round(len(raw)/32000, 2), recognized_words=words)
+        if not words:
+            if user_recording is not None:
+                user_recording.clear()
+            if clip_frames:
+                print("[Voice mode] Dropped quiet or unrecognized audio.")
+            clip, clip_frames, recognized = [], 0, []
+            return
         pcm = prepare_clip(raw, recognized)
         if pcm is not None:
             on_audio(pcm)
@@ -382,6 +412,14 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None):
             if state.awake:
                 phrase.append(data)
                 phrase_frames += len(data) // 2
+                # Cap speculative pre-roll when no speech has been recognized yet.
+                # Keep the last ~2.5 seconds so speech onset is preserved without accumulating
+                # long typing/idle noise before speech begins.
+                if not clip_frames and phrase_frames > RATE * 3:
+                    target_frames = int(RATE * 2.5)
+                    while phrase and phrase_frames > target_frames:
+                        dropped = phrase.pop(0)
+                        phrase_frames -= len(dropped) // 2
                 if level >= 200:
                     last_voice_at = now
                 if now - last_buffer_log >= 1.0:
@@ -414,9 +452,15 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None):
                     action = finish(final_text, now)
                     if action == "ignore" and trailing_frames:
                         event("capture_drop", reason="wake_echo_flush", dropped_s=round(trailing_frames / RATE, 2))
-                if state.awake and not final_text:
-                    clip.extend(trailing)
-                    clip_frames += trailing_frames
-                if state.awake and clip_frames:
-                    flush()
+                if state.awake:
+                    if clip_frames:
+                        if not final_text:
+                            clip.extend(trailing)
+                            clip_frames += trailing_frames
+                        flush()
+                    else:
+                        phrase.clear()
+                        phrase_frames = 0
+                        if user_recording is not None:
+                            user_recording.clear()
                 last_voice_at = 0.0
