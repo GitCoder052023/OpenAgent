@@ -140,7 +140,7 @@ class VoiceState:
         return "send"
 
 
-def listen(cfg, on_audio, stop):
+def listen(cfg, on_audio, stop, playing=None):
     """Listen continuously; group recognized speech until a sustained quiet gap."""
     try:
         import sounddevice as sd
@@ -170,10 +170,14 @@ def listen(cfg, on_audio, stop):
     max_level_seen = 0
     start_time = time.monotonic()
     checked_mic_level = False
+    was_playing = False
 
     def callback(indata, count, timestamp, status):
         if status:
             print(f"[Mic warning] {status}")
+        # Drop mic audio at source while Jarvis voice note is playing through speakers
+        if playing is not None and playing.is_set():
+            return
         try:
             q.put_nowait(bytes(indata))
         except queue.Full:
@@ -225,6 +229,39 @@ def listen(cfg, on_audio, stop):
                 continue
 
             now = time.monotonic()
+
+            # Echo cancellation / feedback suppression:
+            # If WhatsApp is currently playing a voice note, or during echo-tail cooldown:
+            if playing is not None and playing.is_set():
+                was_playing = True
+                phrase.clear()
+                phrase_frames = 0
+                clip.clear()
+                clip_frames = 0
+                last_voice_at = 0.0
+                while not q.empty():
+                    try:
+                        q.get_nowait()
+                    except queue.Empty:
+                        break
+                recognizer = KaldiRecognizer(model, RATE)
+                continue
+
+            if was_playing:
+                was_playing = False
+                phrase.clear()
+                phrase_frames = 0
+                clip.clear()
+                clip_frames = 0
+                last_voice_at = 0.0
+                while not q.empty():
+                    try:
+                        q.get_nowait()
+                    except queue.Empty:
+                        break
+                recognizer = KaldiRecognizer(model, RATE)
+                continue
+
             if data is None:
                 phrase, phrase_frames, clip, clip_frames = [], 0, [], 0
                 last_voice_at = 0.0

@@ -207,7 +207,7 @@ def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot):
             time.sleep(0.5)
 
 
-def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None, pause=None, desk=None, harness=None):
+def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None, pause=None, desk=None, harness=None, playing=None):
     """Play new inbound notes and/or dispatch incoming tool calls over WhatsApp.
 
     WhatsApp remains completely hidden in the background while running.
@@ -335,8 +335,14 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
         # 3. Process voice playback queue
         while queue and (stop is None or not stop.is_set()) and (pause is None or not pause.is_set()):
             sig, button_path, dur = queue.pop(0)
+            if playing is not None:
+                playing.set()
             try:
                 press(button_path, expected_label=cfg.voice_play_marker)
+                played_signatures.add(sig)
+                fail_counts.pop(sig, None)
+                _wait_for_completion(cfg, button_path, dur, stop, get_snapshot)
+                print("[Voice note playback finished]")
             except Exception as exc:
                 fail_counts[sig] = fail_counts.get(sig, 0) + 1
                 print(f"Playback trigger failed for {button_path} (attempt {fail_counts[sig]}/3): {exc}")
@@ -344,7 +350,11 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                     played_signatures.add(sig)
                     print(f"Skipping voice note after 3 failed play attempts: {sig[:80]}")
                 continue
-            played_signatures.add(sig)
-            fail_counts.pop(sig, None)
-            _wait_for_completion(cfg, button_path, dur, stop, get_snapshot)
-            print("[Voice note playback finished]")
+            finally:
+                if playing is not None:
+                    # Echo-tail buffer: keep playing set briefly so acoustic room reverberation dissipates
+                    if stop is not None:
+                        stop.wait(0.8)
+                    else:
+                        time.sleep(0.8)
+                    playing.clear()

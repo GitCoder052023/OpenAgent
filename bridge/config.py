@@ -40,7 +40,7 @@ class Config:
     send_mode: str = "text"
     hotkey: str = "f8"
     voice_model: str = "models/vosk-model-small-en-us-0.15"
-    voice_silence_seconds: float = 4.5
+    voice_silence_seconds: int = 1
 
     @classmethod
     def from_env(cls):
