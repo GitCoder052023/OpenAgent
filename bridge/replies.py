@@ -159,11 +159,16 @@ def voice_groups(rows, cfg):
 
 
 def parse_duration(desc):
+    """Read the voice-note total, including WhatsApp's 0:09 / 1:02 display."""
     m_min = re.search(r"(\d+)\s*minute", desc, re.IGNORECASE)
     m_sec = re.search(r"(\d+)\s*second", desc, re.IGNORECASE)
-    mins = int(m_min.group(1)) if m_min else 0
-    secs = int(m_sec.group(1)) if m_sec else 0
-    return mins * 60 + secs if (mins or secs) else 5
+    if m_min or m_sec:
+        return (int(m_min.group(1)) if m_min else 0) * 60 + (int(m_sec.group(1)) if m_sec else 0)
+    clock = re.findall(r"(?<!\d)(\d{1,2}):(\d{2})(?!\d)", desc)
+    if clock:
+        minutes, seconds = clock[-1]  # "0:03 of 0:09": use the total.
+        return int(minutes) * 60 + int(seconds)
+    return 0  # Unknown duration: wait for a real pause-to-play transition.
 
 
 def voice_signature(row):
@@ -177,44 +182,44 @@ def voice_signature(row):
 
 
 def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot):
-    """Wait until the note's control flips from pause back to play.
+    """Hold the mic guard until playback ends, never on a stale Play label.
 
-    Bounded by the parsed duration and cfg.max_voice_seconds. Falls back to
-    the duration guess when the control path stops resolving (list
-    virtualization), so a lost path can never hang the watcher.
+    AX may lag and show Play while the note is audible. If duration is known,
+    preserve the guard for at least that long; if the path disappears, wait
+    out the duration. An unknown duration without a pause transition holds
+    to the configured cap instead of releasing after three seconds.
     """
     play = cfg.voice_play_marker.casefold()
     pause = cfg.voice_pause_marker.casefold()
-    cap = min(max(float(dur) + 5.0, 10.0), float(cfg.max_voice_seconds or 300))
-    wait_end = time.monotonic() + cap
-    start_deadline = time.monotonic() + 3.0
-    path_lost = False
+    started = time.monotonic()
+    cap = max(10.0, float(cfg.max_voice_seconds or 300))
+    minimum = float(dur) + 1.0 if dur else 0.0
+    wait_end = started + min(cap, max(minimum + 5.0, 10.0) if dur else cap)
     saw_pause = False
     while time.monotonic() < wait_end:
         if stop is not None and stop.is_set():
             return
-        if not path_lost:
-            ctrl = None
+        ctrl = None
+        try:
             try:
-                try:
-                    rows = get_snapshot(safe_mode=cfg.safe_mode)
-                except TypeError:
-                    rows = get_snapshot()
-                ctrl = next((r for r in rows if r["path"] == button_path), None)
-            except Exception:
-                ctrl = None
-            if ctrl is None:
-                path_lost = True  # list virtualized; wait out the duration guess
-            else:
-                lab = _label(ctrl)
-                if pause in lab:
-                    saw_pause = True
-                elif play in lab and (saw_pause or time.monotonic() > start_deadline):
-                    return  # control flipped back to play: note finished
+                rows = get_snapshot(safe_mode=cfg.safe_mode)
+            except TypeError:
+                rows = get_snapshot()
+            ctrl = next((r for r in rows if r["path"] == button_path), None)
+        except Exception:
+            pass
+        if ctrl is not None:
+            lab = _label(ctrl)
+            if pause in lab:
+                saw_pause = True
+            elif play in lab and saw_pause and time.monotonic() - started >= minimum:
+                event("echo_guard", state="playback_completed", elapsed_s=round(time.monotonic() - started, 2), duration_s=dur)
+                return
         if stop is not None:
             stop.wait(0.5)
         else:
             time.sleep(0.5)
+    event("echo_guard", state="playback_wait_expired", level="warning", elapsed_s=round(time.monotonic() - started, 2), duration_s=dur, saw_pause=saw_pause)
 
 
 def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None, pause=None, desk=None, harness=None, playing=None):
@@ -304,6 +309,8 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                     if sig not in played_signatures and not any(q[0] == sig for q in queue):
                         dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
                         queue.append((sig, ctrl_path, dur))
+                        if playing is not None:
+                            playing.set()  # Block capture as soon as reply is queued.
                         event("voice_note_queued", duration_s=dur)
                         print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Playing...")
             except Exception as exc:
@@ -355,8 +362,8 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
         while queue and (stop is None or not stop.is_set()) and (pause is None or not pause.is_set()):
             sig, button_path, dur = queue.pop(0)
             if playing is not None:
-                event("echo_guard", state="playback_started")
                 playing.set()
+                event("echo_guard", state="playback_started", duration_s=dur)
             try:
                 press(button_path, expected_label=cfg.voice_play_marker)
                 played_signatures.add(sig)
