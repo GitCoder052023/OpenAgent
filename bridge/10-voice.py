@@ -1,0 +1,377 @@
+"""Opt-in local, continuous microphone command mode.
+
+No idle audio is saved. Commands require standalone wake phrases.
+Real-time partial and final recognition with visible audio feedback.
+"""
+try:
+    import audioop
+except ImportError:
+    try:
+        import audioop_lts as audioop
+    except ImportError:
+        import array
+        
+        class _AudioOpFallback:
+            @staticmethod
+            def rms(fragment, width):
+                if not fragment:
+                    return 0
+                if width == 2:
+                    a = array.array("h")
+                    a.frombytes(fragment)
+                    if not a:
+                        return 0
+                    return int(math.isqrt(sum(x * x for x in a) // len(a)))
+                elif width == 1:
+                    return int(math.isqrt(sum((b - 128) ** 2 for b in fragment) // len(fragment)))
+                elif width == 4:
+                    a = array.array("i")
+                    a.frombytes(fragment)
+                    if not a:
+                        return 0
+                    return int(math.isqrt(sum(x * x for x in a) // len(a)))
+                return 0
+
+        audioop = _AudioOpFallback()
+
+import json
+import queue
+from .diagnostics import event
+import re
+import time
+from pathlib import Path
+
+RATE = 16000
+
+WAKE_WORDS = (
+    "wake up jarvis",
+    "wakeup jarvis",
+    "wake jarvis",
+    "hey jarvis",
+    "hi jarvis",
+    "hello jarvis",
+    "ok jarvis",
+    "okay jarvis",
+    "wake up",
+    "wakeup",
+    "jarvis wake up",
+    "jarvis",
+    # Common Vosk phonetic misrecognitions for "jarvis"
+    "wake up service",
+    "wake up travis",
+    "wake up drivers",
+    "wake up davis",
+)
+
+SLEEP_WORDS = (
+    "jarvis stand by",
+    "stand by jarvis",
+    "stand by",
+    "jarvis sleep",
+    "go to sleep",
+    "sleep jarvis",
+)
+
+CONFIRM_WORDS = (
+    "confirm stand by jarvis",
+    "confirm stand by",
+    "confirm sleep",
+    "confirm",
+)
+
+
+def normalized(text):
+    return " ".join(re.sub(r"[^a-z0-9 ]", " ", text.casefold()).split())
+
+
+def is_wake_phrase(text: str) -> bool:
+    norm = normalized(text)
+    if not norm:
+        return False
+    return any(w in norm for w in WAKE_WORDS)
+
+
+def is_sleep_phrase(text: str) -> bool:
+    norm = normalized(text)
+    if not norm:
+        return False
+    return any(w in norm for w in SLEEP_WORDS)
+
+
+def is_confirm_phrase(text: str) -> bool:
+    norm = normalized(text)
+    if not norm:
+        return False
+    return any(w in norm for w in CONFIRM_WORDS)
+
+
+def gate_pcm(pcm, source="voice", recognized=None):
+    """Conservative energy gate; recognition is only a hint, never proof of speech."""
+    seconds = len(pcm) / (RATE * 2)
+    if seconds < 1 or len(pcm) % 2:
+        event("audio_gate", source=source, accepted=False, reason="invalid_or_short", duration_s=round(seconds, 2))
+        return False
+    window = RATE // 50 * 2
+    levels = [audioop.rms(pcm[i:i + window], 2) for i in range(0, len(pcm) - window + 1, window)]
+    peak = max(levels, default=0)
+    # A fixed floor avoids promoting steady room hiss to speech. Relative floor
+    # rejects low-level tails after isolated peaks, not a voice classifier.
+    threshold = max(180, min(650, int(peak * 0.13)))
+    active = sum(level >= threshold for level in levels)
+    active_s = active / 50
+    ratio = active_s / seconds
+    words = len(" ".join(recognized or []).split())
+    reason = "ok"
+    if recognized is not None and not words:
+        reason = "no_recognition"
+    elif peak < 500 or active_s < 0.7:
+        reason = "low_energy"
+    elif seconds >= 10 and (ratio < 0.16 or active_s < 1.5):
+        reason = "mostly_quiet"
+    elif seconds >= 20 and recognized is not None and words < max(2, int(seconds / 10)):
+        reason = "sparse_recognition"
+    event("audio_gate", source=source, accepted=reason == "ok", reason=reason,
+          duration_s=round(seconds, 2), active_s=round(active_s, 2),
+          active_ratio=round(ratio, 3), peak=peak, threshold=threshold, words=words)
+    return reason == "ok"
+
+
+def prepare_clip(pcm, recognized):
+    """Trim quiet edges after the conservative shared energy/recognition gate."""
+    if not gate_pcm(pcm, source="voice", recognized=recognized):
+        return None
+    window = RATE // 50 * 2
+    levels = [audioop.rms(pcm[i:i + window], 2) for i in range(0, len(pcm) - window + 1, window)]
+    threshold = max(180, min(650, int(max(levels) * 0.13)))
+    active = [i for i, level in enumerate(levels) if level >= threshold]
+    margin = 18
+    start = max(0, active[0] - margin) * window
+    end = min(len(pcm), (active[-1] + margin + 1) * window)
+    return pcm[start:end]
+
+
+
+class VoiceState:
+    def __init__(self):
+        self.awake = False
+        self.confirm_until = 0.0
+
+    def accept(self, text, now=None):
+        """Return wake, sleep_prompt, sleep, ignore or send; never sleep on a substring."""
+        now = time.monotonic() if now is None else now
+        text = normalized(text)
+        if not text:
+            return "ignore"
+
+        if not self.awake:
+            if is_wake_phrase(text):
+                self.awake = True
+                return "wake"
+            return "ignore"
+
+        if self.confirm_until:
+            deadline = self.confirm_until
+            self.confirm_until = 0.0
+            if now <= deadline and is_confirm_phrase(text):
+                self.awake = False
+                return "sleep"
+
+        if is_sleep_phrase(text):
+            self.confirm_until = now + 8.0
+            return "sleep_prompt"
+
+        if is_wake_phrase(text) or is_confirm_phrase(text):
+            return "ignore"
+
+        return "send"
+
+
+def listen(cfg, on_audio, stop, playing=None):
+    """Listen continuously; group recognized speech until a sustained quiet gap."""
+    try:
+        import sounddevice as sd
+        from vosk import Model, KaldiRecognizer, SetLogLevel
+    except ImportError as exc:
+        raise RuntimeError("Voice mode needs pip install '.[voice]' (vosk and sounddevice)") from exc
+
+    model_path = Path(cfg.voice_model).expanduser()
+    if not model_path.is_dir():
+        raise RuntimeError(f"Voice model directory missing: {model_path}. Set BRIDGE_VOICE_MODEL.")
+
+    silence_seconds = cfg.voice_silence_seconds
+    if not 1 <= silence_seconds <= 30:
+        raise ValueError("BRIDGE_VOICE_SILENCE_SECONDS must be between 1 and 30")
+
+    SetLogLevel(-1)
+    model = Model(str(model_path))
+    recognizer = KaldiRecognizer(model, RATE)
+    state = VoiceState()
+    phrase = []
+    phrase_frames = 0
+    clip = []
+    clip_frames = 0
+    recognized = []
+    last_voice_at = 0.0
+    q = queue.Queue(maxsize=128)
+
+    max_level_seen = 0
+    start_time = time.monotonic()
+    checked_mic_level = False
+    was_playing = False
+
+    def callback(indata, count, timestamp, status):
+        if status:
+            print(f"[Mic warning] {status}")
+        # Drop mic audio at source while Jarvis voice note is playing through speakers
+        if playing is not None and playing.is_set():
+            return
+        try:
+            q.put_nowait(bytes(indata))
+        except queue.Full:
+            while not q.empty():
+                try:
+                    q.get_nowait()
+                except queue.Empty:
+                    break
+            q.put_nowait(None)
+
+    def flush():
+        nonlocal clip, clip_frames, recognized
+        raw = b"".join(clip)
+        event("capture_flush", duration_s=round(len(raw)/32000, 2), recognized_words=len(" ".join(recognized).split()))
+        pcm = prepare_clip(raw, recognized)
+        if pcm is not None:
+            on_audio(pcm)
+        elif clip_frames:
+            print("[Voice mode] Dropped quiet or unrecognized audio.")
+        clip, clip_frames, recognized = [], 0, []
+
+    def finish(text, now):
+        nonlocal phrase, phrase_frames, clip, clip_frames, recognizer, last_voice_at, recognized
+        text = (text or "").strip()
+        if not text:
+            return
+        action = state.accept(text, now)
+        if action == "wake":
+            print(f"\n[⚡ Jarvis awake] Listening to your request... ({silence_seconds:g}s of quiet sends audio)")
+        elif action == "sleep_prompt":
+            flush()
+            print("\n[Sleep requested] Say 'confirm stand by Jarvis' within 8 seconds; anything else cancels it.")
+        elif action == "sleep":
+            flush()
+            print("\n[💤 Jarvis sleeping] Listening for 'Wakeup Jarvis' or 'Hey Jarvis'.")
+        elif action == "send":
+            clip.extend(phrase)
+            clip_frames += phrase_frames
+            recognized.append(text)
+            if not last_voice_at:
+                last_voice_at = now
+            print(f"[Capturing] \"{text}\"")
+        elif not state.awake:
+            print(f"[Mic heard] \"{text}\"")
+            clip, clip_frames, recognized = [], 0, []
+        phrase, phrase_frames = [], 0
+        recognizer = KaldiRecognizer(model, RATE)
+
+    print("[Voice mode] Default microphone open. Idle audio is not saved. Say 'Wakeup Jarvis'. Esc quits.")
+    with sd.RawInputStream(samplerate=RATE, blocksize=4000, dtype="int16", channels=1, callback=callback):
+        while not stop.is_set():
+            try:
+                data = q.get(timeout=0.3)
+            except queue.Empty:
+                data = b""  # Still observe playback transitions when the callback drops frames.
+
+            now = time.monotonic()
+
+            # Echo cancellation / feedback suppression:
+            # If WhatsApp is currently playing a voice note, or during echo-tail cooldown:
+            if playing is not None and playing.is_set():
+                if not was_playing: event("echo_guard", state="playback_started")
+                was_playing = True
+                phrase.clear()
+                phrase_frames = 0
+                clip.clear()
+                clip_frames = 0
+                recognized.clear()
+                last_voice_at = 0.0
+                while not q.empty():
+                    try:
+                        q.get_nowait()
+                    except queue.Empty:
+                        break
+                recognizer = KaldiRecognizer(model, RATE)
+                continue
+
+            if was_playing:
+                event("echo_guard", state="playback_finished_queue_flushed")
+                was_playing = False
+                phrase.clear()
+                phrase_frames = 0
+                clip.clear()
+                clip_frames = 0
+                recognized.clear()
+                last_voice_at = 0.0
+                while not q.empty():
+                    try:
+                        q.get_nowait()
+                    except queue.Empty:
+                        break
+                recognizer = KaldiRecognizer(model, RATE)
+                continue
+
+            if not data:
+                if data == b"":
+                    continue
+                phrase, phrase_frames, clip, clip_frames = [], 0, [], 0
+                recognized.clear()
+                last_voice_at = 0.0
+                recognizer = KaldiRecognizer(model, RATE)
+                print("[Mic overflow] Dropped partial audio; retry the command.")
+                continue
+
+            # Audio level calculation
+            level = audioop.rms(data, 2)
+            if level > max_level_seen:
+                max_level_seen = level
+
+            # Diagnostic check for mic input permissions after a few seconds
+            if not checked_mic_level and now - start_time > 4.0:
+                checked_mic_level = True
+                if max_level_seen < 30:
+                    print("\n[Mic warning] Audio level near 0. If you are speaking, ensure Terminal has Microphone permission:")
+                    print("  → macOS System Settings > Privacy & Security > Microphone > Enable Terminal/Python\n")
+
+            if state.awake:
+                phrase.append(data)
+                phrase_frames += len(data) // 2
+                if level >= 200:
+                    last_voice_at = now
+
+            # Speech recognition
+            if recognizer.AcceptWaveform(data):
+                res_text = json.loads(recognizer.Result()).get("text", "").strip()
+                if res_text:
+                    finish(res_text, now)
+            elif not state.awake:
+                # Catch wake words in real-time partial results without waiting for phrase silence
+                partial = json.loads(recognizer.PartialResult()).get("partial", "").strip()
+                if partial and is_wake_phrase(partial):
+                    finish(partial, now)
+
+            if not state.awake:
+                continue
+
+            # Silence threshold reached while awake: finalize speech and send
+            if (clip_frames or phrase_frames) and last_voice_at and now - last_voice_at >= silence_seconds:
+                trailing = phrase.copy()
+                trailing_frames = phrase_frames
+                final_text = json.loads(recognizer.FinalResult()).get("text", "").strip()
+                if final_text:
+                    finish(final_text, now)
+                if state.awake and not final_text:
+                    clip.extend(trailing)
+                    clip_frames += trailing_frames
+                if state.awake and clip_frames:
+                    flush()
+                last_voice_at = 0.0
+
