@@ -97,6 +97,7 @@ def main():
     stop = threading.Event()
     watcher = None
     sending = threading.Event()
+    playing = threading.Event()  # Shared by reply playback and the microphone.
 
     harness = None
     try:
@@ -118,7 +119,7 @@ def main():
         def hear():
             while not stop.is_set():
                 try:
-                    watch(cfg, stop=stop, state=watcher_state, pause=sending, desk=desk, harness=harness)
+                    watch(cfg, stop=stop, state=watcher_state, pause=sending, desk=desk, harness=harness, playing=playing)
                 except Exception as exc:
                     if stop.is_set(): break
                     print(f"\n[Watcher error] {exc} (restarting)")
@@ -219,7 +220,7 @@ def main():
         from .voice import listen
         try:
             with keyboard.Listener(on_press=lambda key: (stop.set(), False)[1] if key == keyboard.Key.esc else None):
-                listen(cfg, on_voice_audio, stop)
+                listen(cfg, on_voice_audio, stop, playing=playing)
         finally:
             stop.set()
             if harness:
