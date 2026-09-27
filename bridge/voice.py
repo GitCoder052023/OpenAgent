@@ -10,8 +10,7 @@ except ImportError:
         import audioop_lts as audioop
     except ImportError:
         import array
-        import math
-
+        
         class _AudioOpFallback:
             @staticmethod
             def rms(fragment, width):
@@ -105,6 +104,40 @@ def is_confirm_phrase(text: str) -> bool:
     return any(w in norm for w in CONFIRM_WORDS)
 
 
+def prepare_clip(pcm, recognized):
+    """Trim the quiet edges and discard recordings without enough speech.
+
+    Energy is only a guard, not an addressee detector. Keep a short margin so
+    low-volume consonants at either edge are not cut off.
+    """
+    if not recognized or len(pcm) < RATE * 2:
+        return None
+    chunk_bytes = RATE // 50 * 2  # 20 ms, signed 16-bit mono.
+    levels = [audioop.rms(pcm[i:i + chunk_bytes], 2)
+              for i in range(0, len(pcm) - chunk_bytes + 1, chunk_bytes)]
+    if not levels:
+        return None
+    # Fixed minimum rejects floor noise; peak-relative threshold helps with
+    # quieter microphones without cutting off soft words on loud inputs.
+    threshold = max(90, min(350, max(levels) * 0.08))
+    active = [i for i, level in enumerate(levels) if level >= threshold]
+    if len(active) < 25:  # less than 0.5 s of audible material
+        return None
+    duration = len(pcm) / (RATE * 2)
+    active_seconds = len(active) / 50
+    # Long, almost empty recordings should not upload just because Vosk heard
+    # a stray word or a sound spike kept resetting the silence clock.
+    if duration > 20 and active_seconds / duration < 0.06:
+        return None
+    if duration > 45 and len(" ".join(recognized).split()) < duration / 10:
+        return None
+    margin = 18  # 360 ms at each edge
+    start = max(0, active[0] - margin) * chunk_bytes
+    end = min(len(pcm), (active[-1] + margin + 1) * chunk_bytes)
+    trimmed = pcm[start:end]
+    return trimmed if len(trimmed) >= RATE * 2 else None
+
+
 class VoiceState:
     def __init__(self):
         self.awake = False
@@ -164,6 +197,7 @@ def listen(cfg, on_audio, stop, playing=None):
     phrase_frames = 0
     clip = []
     clip_frames = 0
+    recognized = []
     last_voice_at = 0.0
     q = queue.Queue(maxsize=128)
 
@@ -189,13 +223,16 @@ def listen(cfg, on_audio, stop, playing=None):
             q.put_nowait(None)
 
     def flush():
-        nonlocal clip, clip_frames
-        if clip_frames >= RATE:
-            on_audio(b"".join(clip))
-        clip, clip_frames = [], 0
+        nonlocal clip, clip_frames, recognized
+        pcm = prepare_clip(b"".join(clip), recognized)
+        if pcm is not None:
+            on_audio(pcm)
+        elif clip_frames:
+            print("[Voice mode] Dropped quiet or unrecognized audio.")
+        clip, clip_frames, recognized = [], 0, []
 
     def finish(text, now):
-        nonlocal phrase, phrase_frames, clip, clip_frames, recognizer, last_voice_at
+        nonlocal phrase, phrase_frames, clip, clip_frames, recognizer, last_voice_at, recognized
         text = (text or "").strip()
         if not text:
             return
@@ -211,12 +248,13 @@ def listen(cfg, on_audio, stop, playing=None):
         elif action == "send":
             clip.extend(phrase)
             clip_frames += phrase_frames
+            recognized.append(text)
             if not last_voice_at:
                 last_voice_at = now
             print(f"[Capturing] \"{text}\"")
         elif not state.awake:
             print(f"[Mic heard] \"{text}\"")
-            clip, clip_frames = [], 0
+            clip, clip_frames, recognized = [], 0, []
         phrase, phrase_frames = [], 0
         recognizer = KaldiRecognizer(model, RATE)
 
@@ -226,7 +264,7 @@ def listen(cfg, on_audio, stop, playing=None):
             try:
                 data = q.get(timeout=0.3)
             except queue.Empty:
-                continue
+                data = b""  # Still observe playback transitions when the callback drops frames.
 
             now = time.monotonic()
 
@@ -238,6 +276,7 @@ def listen(cfg, on_audio, stop, playing=None):
                 phrase_frames = 0
                 clip.clear()
                 clip_frames = 0
+                recognized.clear()
                 last_voice_at = 0.0
                 while not q.empty():
                     try:
@@ -253,6 +292,7 @@ def listen(cfg, on_audio, stop, playing=None):
                 phrase_frames = 0
                 clip.clear()
                 clip_frames = 0
+                recognized.clear()
                 last_voice_at = 0.0
                 while not q.empty():
                     try:
@@ -262,8 +302,11 @@ def listen(cfg, on_audio, stop, playing=None):
                 recognizer = KaldiRecognizer(model, RATE)
                 continue
 
-            if data is None:
+            if not data:
+                if data == b"":
+                    continue
                 phrase, phrase_frames, clip, clip_frames = [], 0, [], 0
+                recognized.clear()
                 last_voice_at = 0.0
                 recognizer = KaldiRecognizer(model, RATE)
                 print("[Mic overflow] Dropped partial audio; retry the command.")
@@ -311,9 +354,6 @@ def listen(cfg, on_audio, stop, playing=None):
                 if state.awake and not final_text:
                     clip.extend(trailing)
                     clip_frames += trailing_frames
-                if state.awake and clip_frames >= RATE:
-                    dur_s = clip_frames / RATE
-                    print(f"\n[Audio captured (~{dur_s:.1f}s)] Sending to WhatsApp (+{cfg.number})...")
+                if state.awake and clip_frames:
                     flush()
-                    print("[Sent! Jarvis listening for next utterance or 'Jarvis stand by']")
                 last_voice_at = 0.0
