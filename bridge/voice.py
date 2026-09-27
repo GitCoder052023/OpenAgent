@@ -5,11 +5,13 @@ Real-time partial and final recognition with visible audio feedback.
 """
 try:
     import audioop
+    import math
 except ImportError:
     try:
         import audioop_lts as audioop
     except ImportError:
         import array
+        import math
         
         class _AudioOpFallback:
             @staticmethod

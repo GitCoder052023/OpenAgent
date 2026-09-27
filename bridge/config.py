@@ -41,7 +41,7 @@ class Config:
     send_route: str = "auto"
     hotkey: str = "f8"
     voice_model: str = "models/vosk-model-small-en-us-0.15"
-    voice_silence_seconds: float = 1
+    voice_silence_seconds: float = 2.0
 
     @classmethod
     def from_env(cls):
