@@ -43,6 +43,49 @@ def _classify_paste_state(rows, filename):
     }
 
 
+def _picker_menu_items(rows, attach_label):
+    """Find menu choices in the open attach popover, excluding unrelated menus."""
+    containers = [r["path"] for r in rows if r.get("role") in ("AXMenu", "AXPopover")]
+    items = []
+    for row in rows:
+        role = row.get("role")
+        if role not in ("AXMenuItem", "AXButton"):
+            continue
+        label = (row.get("description") or row.get("title") or "").strip("\u200e ")
+        if not label or label.casefold() == attach_label.casefold():
+            continue
+        path = row.get("path", "")
+        if role == "AXMenuItem" or any(path.startswith(parent + "/") for parent in containers):
+            items.append({"path": path, "role": role, "label": label})
+    return items
+
+
+def _press_picker_item(item):
+    """Press exact snapshotted menu control only if its role and label still match."""
+    from ApplicationServices import (AXUIElementCreateApplication, AXUIElementCopyAttributeValue,
+                                     AXUIElementPerformAction)
+    from .ax import get_whatsapp_pid
+    pid = get_whatsapp_pid()
+    if not pid:
+        return False
+    el = AXUIElementCreateApplication(pid)
+    for part in item["path"].split("/")[1:]:
+        if not part.isdigit() or int(part) >= 300:
+            return False
+        err, children = AXUIElementCopyAttributeValue(el, "AXChildren", None)
+        if err or not children or int(part) >= len(children):
+            return False
+        el = children[int(part)]
+    def attr(name):
+        err, value = AXUIElementCopyAttributeValue(el, "AX" + name, None)
+        return str(value or "") if err == 0 else ""
+    if attr("Role") != item["role"]:
+        return False
+    if item["label"].casefold() not in [v.strip("\u200e ").casefold() for v in (attr("Description"), attr("Title"))]:
+        return False
+    return AXUIElementPerformAction(el, "AXPress") == 0
+
+
 class Desktop:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -105,15 +148,32 @@ class Desktop:
             event("picker_step", level="warning", step="attach", ok=False, label=attach)
             raise RuntimeError(f"Attach control '{attach}' not found; no send")
         event("picker_step", step="attach", ok=True, label=attach)
+        # File/document preserves M4A as an audio attachment. Do not choose
+        # Photos & videos: it might reject or transform the recording.
+        preferred = list(dict.fromkeys(x.casefold() for x in
+                       (doc, "Document", "Documents", "File", "Files") if x))
         t0 = time.monotonic()
+        items = []
         while time.monotonic() - t0 < 3.0:
-            if click_element_by_description(doc):
+            items = _picker_menu_items(snapshot(safe_mode=self.cfg.safe_mode), attach)
+            if items:
                 break
             time.sleep(0.1)
-        else:
-            event("picker_step", level="warning", step="document", ok=False, label=doc)
-            raise RuntimeError(f"Document menu item '{doc}' not found; no send")
-        event("picker_step", step="document", ok=True, label=doc)
+        event("picker_menu_items", items=[{"label": i["label"], "role": i["role"]} for i in items])
+        selected = None
+        for name in preferred:
+            matches = [i for i in items if i["label"].casefold() == name]
+            if len(matches) == 1:
+                selected = matches[0]
+                break
+        labels = ", ".join(f"{i['label']} ({i['role']})" for i in items) or "none visible"
+        if selected is None:
+            event("picker_step", level="warning", step="document", ok=False, label=doc, available=labels)
+            raise RuntimeError(f"Document/file attach item not found; menu items: {labels}; no send")
+        if not _press_picker_item(selected):
+            event("picker_step", level="warning", step="document", ok=False, label=selected["label"], available=labels)
+            raise RuntimeError(f"Attach item '{selected['label']}' could not be pressed; menu items: {labels}; no send")
+        event("picker_step", step="document", ok=True, label=selected["label"])
         time.sleep(0.35)
         subprocess.run(["osascript", str(SCRIPTS / "attach.scpt"), str(path)], check=True, timeout=25)
         event("picker_step", step="chooser", ok=True)
