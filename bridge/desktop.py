@@ -43,9 +43,9 @@ def _classify_paste_state(rows, filename):
     }
 
 
-def _picker_menu_items(rows, attach_label):
+def _picker_menu_items(rows, attach_label, before):
     """Find menu choices in the open attach popover, excluding unrelated menus."""
-    containers = [r["path"] for r in rows if r.get("role") in ("AXMenu", "AXPopover")]
+    old = {(r.get("path"), r.get("role"), r.get("title"), r.get("description")) for r in before}
     items = []
     for row in rows:
         role = row.get("role")
@@ -55,7 +55,7 @@ def _picker_menu_items(rows, attach_label):
         if not label or label.casefold() == attach_label.casefold():
             continue
         path = row.get("path", "")
-        if role == "AXMenuItem" or any(path.startswith(parent + "/") for parent in containers):
+        if (path, role, row.get("title"), row.get("description")) not in old:
             items.append({"path": path, "role": role, "label": label})
     return items
 
@@ -144,6 +144,7 @@ class Desktop:
             doc = self.cfg.document_label
             send_btn = self.cfg.attachment_send_label
         self.assert_locked()
+        before_menu = snapshot(safe_mode=self.cfg.safe_mode)
         if not click_element_by_description(attach):
             event("picker_step", level="warning", step="attach", ok=False, label=attach)
             raise RuntimeError(f"Attach control '{attach}' not found; no send")
@@ -155,7 +156,7 @@ class Desktop:
         t0 = time.monotonic()
         items = []
         while time.monotonic() - t0 < 3.0:
-            items = _picker_menu_items(snapshot(safe_mode=self.cfg.safe_mode), attach)
+            items = _picker_menu_items(snapshot(safe_mode=self.cfg.safe_mode), attach, before_menu)
             if items:
                 break
             time.sleep(0.1)
