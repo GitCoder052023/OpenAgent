@@ -8,6 +8,7 @@ Enables Jarvis (the remote AI on WhatsApp) to invoke local Mac harness tools:
 """
 
 import ast
+import base64
 import json
 import logging
 import re
@@ -17,6 +18,67 @@ from .harness import OpenCodeHarness, HarnessError
 logger = logging.getLogger("jarvis.dispatcher")
 
 MAX_WHATSAPP_RESPONSE_LEN = 3500
+
+# ---------------------------------------------------------------------------
+# JARVIS_CALL envelope (primary transport)
+# ---------------------------------------------------------------------------
+# WhatsApp renders outgoing messages: backticks become monospace spans and the
+# formatting characters * _ ~ are consumed. A raw JSON tool call can therefore
+# arrive mangled. The envelope carries the tool call as standard base64, whose
+# alphabet has no WhatsApp formatting characters, so it survives untouched.
+#
+#   JARVIS_CALL:<standard base64 of the UTF-8 JSON call or array of calls>:END
+#
+# Multiple envelopes per message are allowed; whitespace/newlines inside the
+# base64 payload are tolerated.
+
+ENVELOPE_PREFIX = "JARVIS_CALL:"
+ENVELOPE_SUFFIX = ":END"
+_ENVELOPE_RE = re.compile(
+    re.escape(ENVELOPE_PREFIX) + r"([A-Za-z0-9+/=\s]+)" + re.escape(ENVELOPE_SUFFIX)
+)
+
+# Characters WhatsApp rendering / mobile keyboards inject that break naive parsing.
+_SMART_QUOTES = {
+    "\u201c": '"', "\u201d": '"', "\u201e": '"', "\u201f": '"',
+    "\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201b": "'",
+}
+_ZERO_WIDTH_CHARS = ("\u200b", "\u200c", "\u200d", "\u200e", "\u200f", "\u2060", "\ufeff")
+
+
+def encode_tool_call(call: Any) -> str:
+    """Encode a tool call (dict or list of dicts) as a JARVIS_CALL envelope string."""
+    payload = base64.b64encode(json.dumps(call).encode("utf-8")).decode("ascii")
+    return f"{ENVELOPE_PREFIX}{payload}{ENVELOPE_SUFFIX}"
+
+
+def _decode_envelope(payload_b64: str) -> Optional[Any]:
+    """Decode one envelope payload, tolerating embedded whitespace. None on failure."""
+    compact = re.sub(r"\s+", "", payload_b64)
+    if not compact:
+        return None
+    try:
+        raw = base64.b64decode(compact, validate=True)
+    except Exception:
+        return None
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    try:
+        return json.loads(text)
+    except Exception:
+        return None
+
+
+def _sanitize_rendered_text(text: str) -> str:
+    """Normalize characters WhatsApp rendering / mobile keyboards inject into text."""
+    for ch in _ZERO_WIDTH_CHARS:
+        text = text.replace(ch, "")
+    for smart, plain in _SMART_QUOTES.items():
+        text = text.replace(smart, plain)
+    return text
+
 
 
 def _normalize_call(obj: Any) -> Optional[Dict[str, Any]]:
@@ -102,16 +164,18 @@ def _extract_balanced_chunks(text: str) -> List[str]:
 def parse_tool_calls(text: str) -> List[Dict[str, Any]]:
     """Extract all tool call specifications from an incoming WhatsApp message.
 
-    Supports:
-    1. Markdown code fences:
-       ```json
-       {"tool": "bash", "args": {"command": "git status"}}
-       ```
-       or ```tool ... ```
-    2. XML-style tags:
-       <tool_call>{"tool": "bash", "args": {"command": "ls"}}</tool_call>
+    Primary transport (WhatsApp-proof):
+    0. JARVIS_CALL envelopes:
+       JARVIS_CALL:<standard base64 of UTF-8 JSON call or array>:END
+       Multiple envelopes per message; whitespace inside the base64 is fine.
+
+    Fallback transports (legacy, best-effort over WhatsApp-rendered text):
+    1. Markdown code fences (```json ... ``` or ```tool ... ```)
+    2. XML-style tags: <tool_call>{...}</tool_call>
     3. Standalone JSON objects or arrays anywhere in the text
     4. Python single-quoted dict literals
+    Fallbacks run on the raw text, then on a sanitized copy (zero-width
+    characters stripped, smart quotes normalized).
     """
     if not text or not text.strip():
         return []
@@ -138,6 +202,32 @@ def parse_tool_calls(text: str) -> List[Dict[str, Any]]:
 
     cleaned = text.strip()
 
+    # 0. Primary transport: JARVIS_CALL envelopes (base64 survives WhatsApp rendering)
+    for env_match in _ENVELOPE_RE.finditer(cleaned):
+        parsed = _decode_envelope(env_match.group(1))
+        if parsed is not None:
+            add_candidate(parsed)
+        else:
+            logger.warning("Ignoring JARVIS_CALL envelope that failed to decode.")
+    if calls:
+        return calls
+
+    # Fallback transports on the raw text, then on a sanitized copy.
+    variants = [cleaned]
+    sanitized = _sanitize_rendered_text(cleaned)
+    if sanitized != cleaned:
+        variants.append(sanitized)
+
+    for variant in variants:
+        _parse_legacy_calls(variant, calls, add_candidate)
+        if calls:
+            break
+
+    return calls
+
+
+def _parse_legacy_calls(cleaned: str, calls: List[Dict[str, Any]], add_candidate) -> None:
+    """Legacy best-effort extraction from WhatsApp-rendered text."""
     # 1. XML-style <tool_call>...</tool_call>
     for xml_match in re.finditer(r"<tool_call>\s*(.*?)\s*</tool_call>", cleaned, re.DOTALL | re.IGNORECASE):
         content = xml_match.group(1).strip()
@@ -199,8 +289,6 @@ def parse_tool_calls(text: str) -> List[Dict[str, Any]]:
                 add_candidate(parsed)
             except Exception:
                 pass
-
-    return calls
 
 
 def parse_tool_call(text: str) -> Optional[Dict[str, Any]]:
@@ -412,3 +500,4 @@ def format_tool_responses(responses: List[Dict[str, Any]], max_length: int = MAX
     if len(combined) > max_length:
         combined = combined[:max_length - 40] + "\n... [Output truncated]"
     return combined
+
