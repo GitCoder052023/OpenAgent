@@ -9,6 +9,7 @@ import os
 import re
 import time
 import logging
+import threading
 from pathlib import Path
 from .diagnostics import event
 from .ax import snapshot, verify_header, press_button
@@ -441,8 +442,8 @@ def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot, user_recordi
     pause = cfg.voice_pause_marker.casefold()
     started = time.monotonic()
     cap = max(10.0, float(cfg.max_voice_seconds or 300))
-    minimum = float(dur) + 1.0 if dur else 0.0
-    wait_end = started + min(cap, max(minimum + 5.0, 10.0) if dur else cap)
+    minimum = float(dur) + 0.8 if dur else 0.0
+    wait_end = started + min(cap, (float(dur) + 3.0) if dur else min(cap, 25.0))
     saw_pause = False
     while time.monotonic() < wait_end:
         if stop is not None and stop.is_set():
@@ -459,6 +460,7 @@ def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot, user_recordi
                 pass
             return
         ctrl = None
+        rows = []
         try:
             try:
                 rows = get_snapshot(safe_mode=cfg.safe_mode)
@@ -467,6 +469,16 @@ def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot, user_recordi
             ctrl = next((r for r in rows if r["path"] == button_path), None)
         except Exception:
             pass
+
+        # Check if pause marker is visible anywhere in the message list
+        has_active_pause = False
+        if rows:
+            has_active_pause = any(
+                pause in _label(r)
+                for r in rows
+                if under(r.get("path", ""), cfg.message_list_path) and r.get("role") in ("AXButton", "AXStaticText")
+            )
+
         if ctrl is not None:
             lab = _label(ctrl)
             if pause in lab:
@@ -474,10 +486,21 @@ def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot, user_recordi
             elif play in lab and saw_pause and time.monotonic() - started >= minimum:
                 event("echo_guard", state="playback_completed", elapsed_s=round(time.monotonic() - started, 2), duration_s=dur)
                 return
+        elif has_active_pause:
+            saw_pause = True
+        elif saw_pause and time.monotonic() - started >= minimum:
+            event("echo_guard", state="playback_completed", elapsed_s=round(time.monotonic() - started, 2), duration_s=dur)
+            return
+
+        # If audio duration is known and has elapsed + 1.2s, and no pause control is active anywhere, complete!
+        if dur and time.monotonic() - started >= dur + 1.2 and not has_active_pause:
+            event("echo_guard", state="playback_duration_elapsed", elapsed_s=round(time.monotonic() - started, 2), duration_s=dur)
+            return
+
         if stop is not None:
-            stop.wait(0.5)
+            stop.wait(0.3)
         else:
-            time.sleep(0.5)
+            time.sleep(0.3)
     event("echo_guard", state="playback_wait_expired", level="warning", elapsed_s=round(time.monotonic() - started, 2), duration_s=dur, saw_pause=saw_pause)
 
 
@@ -542,152 +565,155 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
 
     queue = state.setdefault("queue", [])
     fail_counts = state.setdefault("fails", {})
+    playback_active = threading.Event()
+    playback_stop = threading.Event()
 
-    warned_missing = state.get("warned_missing", False)
-    while (time.monotonic() < deadline or queue) and (stop is None or not stop.is_set()):
-        if pause is not None and pause.is_set():
-            if stop is not None: stop.wait(0.5)
-            else: time.sleep(0.5)
-            continue
-        if stop is not None and stop.wait(1):
-            return
-        if stop is None:
-            time.sleep(1)
+    def process_playback():
+        """Dedicated background playback worker: plays voice notes without blocking the tool watcher."""
+        while not (stop is not None and stop.is_set()) and not playback_stop.is_set():
+            if not queue:
+                if stop is not None: stop.wait(0.2)
+                else: time.sleep(0.2)
+                continue
 
-        try:
-            rows = checked()
-        except Exception as exc:
-            if cfg.safe_mode:
-                raise
-            print(f"Snapshot check failed (unlocked mode): {exc}")
-            continue
-
-        if pause is not None and pause.is_set():
-            continue
-        row_map = {r["path"]: r for r in rows}
-
-        # 1. Voice reply check (if voice markers calibrated)
-        if cfg.voice_play_marker and cfg.voice_pause_marker:
-            try:
-                current_groups = voice_groups(rows, cfg)
-                warned_missing = False
-                state["warned_missing"] = False
-                for grp_path, ctrl_path in current_groups:
-                    ctrl = row_map.get(ctrl_path)
-                    if not ctrl: continue
-                    sig = voice_signature(ctrl)
-                    if sig not in played_signatures and not any(q[0] == sig for q in queue):
-                        dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
-                        queue.append((sig, ctrl_path, dur))
-                        # NOTE: Do NOT set playing here! playing is only active while audio is physically outputting.
-                        event("voice_note_queued", duration_s=dur)
-                        is_user_busy = (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set())
-                        if is_user_busy:
-                            print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Held (waiting for your voice message to send)...")
-                        else:
-                            print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Queued for playback...")
-            except Exception as exc:
-                if cfg.safe_mode:
-                    raise
-                if "Message list path missing or ambiguous" in str(exc):
-                    if not warned_missing:
-                        print("Voice scan unavailable: calibrated BRIDGE_MESSAGE_LIST_PATH is not visible.")
-                        warned_missing = True
-                        state["warned_missing"] = True
-                else:
-                    print(f"Voice scan paused (unlocked mode): {exc}")
-
-        # 2. Text tool call check (if desk and harness connected)
-        if desk is not None and harness is not None:
-            try:
-                current_texts = incoming_texts(rows, cfg)
-                event("text_scan_result", level="debug", count=len(current_texts))
-                for grp_path, msg_text, sig in current_texts:
-                    if sig in processed_texts:
-                        continue
-                    # Mark BEFORE execution to prevent the next scan cycle from
-                    # picking up the same message while this one is still running.
-                    # Tool calls may have side effects; replaying is worse than
-                    # dropping a retryable send failure.
-                    processed_texts.add(sig)
-
-                    tool_calls = parse_tool_calls(msg_text)
-                    if not tool_calls:
-                        event("text_ignored", level="debug", reason="no_call", text=repr(msg_text[:200]))
-                        continue
-                    event("tool_dispatch", calls=len(tool_calls), tools=[c.get("tool") for c in tool_calls])
-
-                    print(f"\n[Incoming tool call detected from Jarvis ({len(tool_calls)} call{'s' if len(tool_calls) > 1 else ''})]")
-                    responses = []
-                    for call in tool_calls:
-                        t_name = call.get("tool", "unknown")
-                        print(f"Executing tool '{t_name}' via harness...")
-                        res = execute_tool_call(harness, call)
-                        responses.append(res)
-
-                    reply_text = format_tool_responses(responses)
-
-                    # Wait if user is currently recording or sending voice before sending tool response
-                    wait_send_start = time.monotonic()
-                    while (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set()):
-                        if stop is not None and stop.is_set():
-                            break
-                        if time.monotonic() - wait_send_start > 30.0:
-                            break
-                        time.sleep(0.2)
-
-                    print(f"Sending tool response back to WhatsApp...")
-                    desk.send_tool_response(reply_text)
-                    event("tool_response_sent", calls=len(tool_calls))
-                    print("[Tool response sent successfully]")
-            except Exception as exc:
-                print(f"[Tool dispatch error] {exc}")
-                logging.getLogger("jarvis.watcher").exception("Tool dispatch failed")
-
-        # 3. Process voice playback queue
-        is_user_active = (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set())
-        if is_user_active:
-            if queue:
+            # Hold playback while user is recording or sending
+            is_user_active = (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set())
+            if is_user_active:
                 event("playback_hold", reason="user_recording_or_sending", queued=len(queue))
-        else:
-            while queue and (stop is None or not stop.is_set()):
-                # Re-check user activity before each note in queue
-                if (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set()):
-                    event("playback_hold", reason="user_recording_or_sending", queued=len(queue))
-                    break
+                if stop is not None: stop.wait(0.2)
+                else: time.sleep(0.2)
+                continue
 
+            try:
                 sig, button_path, dur = queue.pop(0)
+            except IndexError:
+                continue
 
-                # Dynamically resolve play button path using fresh snapshot to avoid stale index shift!
+            playback_active.set()
+            if playing is not None:
+                playing.set()
+                event("echo_guard", state="playback_started", duration_s=dur)
+
+            try:
                 try:
                     fresh_rows = checked()
                 except Exception:
-                    fresh_rows = rows
-                target_path = resolve_voice_control(fresh_rows, cfg, sig, fallback_path=button_path)
+                    fresh_rows = []
+                target_path = resolve_voice_control(fresh_rows, cfg, sig, fallback_path=button_path) if fresh_rows else button_path
 
-                if playing is not None:
-                    playing.set()
-                    event("echo_guard", state="playback_started", duration_s=dur)
-                try:
-                    press(target_path, expected_label=cfg.voice_play_marker)
+                press(target_path, expected_label=cfg.voice_play_marker)
+                played_signatures.add(sig)
+                fail_counts.pop(sig, None)
+                _wait_for_completion(cfg, target_path, dur, stop, get_snapshot, user_recording=user_recording, press=press)
+                print("[Voice note playback finished]")
+            except Exception as exc:
+                fail_counts[sig] = fail_counts.get(sig, 0) + 1
+                print(f"Playback trigger failed for {button_path} (attempt {fail_counts[sig]}/3): {exc}")
+                if fail_counts[sig] >= 3:
                     played_signatures.add(sig)
-                    fail_counts.pop(sig, None)
-                    _wait_for_completion(cfg, target_path, dur, stop, get_snapshot, user_recording=user_recording, press=press)
-                    print("[Voice note playback finished]")
+                    print(f"Skipping voice note after 3 failed play attempts: {sig[:80]}")
+            finally:
+                if playing is not None:
+                    if stop is not None: stop.wait(1.5)
+                    else: time.sleep(1.5)
+                    playing.clear()
+                    event("echo_guard", state="cooldown_complete", seconds=1.5)
+                playback_active.clear()
+
+    playback_thread = threading.Thread(target=process_playback, daemon=True, name="jarvis-voice-playback")
+    playback_thread.start()
+
+    warned_missing = False
+    poll_interval = 0.35
+    try:
+        while (time.monotonic() < deadline or queue or playback_active.is_set()) and (stop is None or not stop.is_set()):
+            if stop is not None and stop.wait(poll_interval):
+                return
+            if stop is None:
+                time.sleep(poll_interval)
+
+            try:
+                rows = checked()
+            except Exception as exc:
+                # If safe mode and not a temporary send/attach transition, raise
+                if cfg.safe_mode and not ((pause is not None and pause.is_set()) or (user_recording is not None and user_recording.is_set())):
+                    raise
+                continue
+
+            row_map = {r["path"]: r for r in rows}
+
+            # 1. Voice reply check (detect new notes and add to queue)
+            if cfg.voice_play_marker and cfg.voice_pause_marker:
+                try:
+                    current_groups = voice_groups(rows, cfg)
+                    warned_missing = False
+                    for grp_path, ctrl_path in current_groups:
+                        ctrl = row_map.get(ctrl_path)
+                        if not ctrl: continue
+                        sig = voice_signature(ctrl)
+                        if sig not in played_signatures and not any(q[0] == sig for q in queue):
+                            dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
+                            queue.append((sig, ctrl_path, dur))
+                            event("voice_note_queued", duration_s=dur)
+                            is_user_busy = (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set())
+                            if is_user_busy:
+                                print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Held (waiting for your voice message to send)...")
+                            else:
+                                print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Queued for background playback...")
                 except Exception as exc:
-                    fail_counts[sig] = fail_counts.get(sig, 0) + 1
-                    print(f"Playback trigger failed for {target_path} (attempt {fail_counts[sig]}/3): {exc}")
-                    if fail_counts[sig] >= 3:
-                        played_signatures.add(sig)
-                        print(f"Skipping voice note after 3 failed play attempts: {sig[:80]}")
-                    continue
-                finally:
-                    if playing is not None:
-                        # Echo-tail buffer: keep playing set briefly so acoustic room reverberation dissipates
-                        if stop is not None:
-                            stop.wait(2.0)
-                        else:
-                            time.sleep(2.0)
-                        playing.clear()
-                        event("echo_guard", state="cooldown_complete", seconds=2.0)
+                    if cfg.safe_mode:
+                        raise
+                    if "Message list path missing or ambiguous" in str(exc):
+                        if not warned_missing:
+                            print("Voice scan unavailable: calibrated BRIDGE_MESSAGE_LIST_PATH is not visible.")
+                            warned_missing = True
+                    else:
+                        print(f"Voice scan paused (unlocked mode): {exc}")
+
+            # 2. Text tool call check (FAST: executes and responds immediately!)
+            if desk is not None and harness is not None:
+                try:
+                    current_texts = incoming_texts(rows, cfg)
+                    for grp_path, msg_text, sig in current_texts:
+                        if sig in processed_texts:
+                            continue
+                        processed_texts.add(sig)
+
+                        tool_calls = parse_tool_calls(msg_text)
+                        if not tool_calls:
+                            continue
+                        event("tool_dispatch", calls=len(tool_calls), tools=[c.get("tool") for c in tool_calls])
+
+                        print(f"\n[Incoming tool call detected from Jarvis ({len(tool_calls)} call{'s' if len(tool_calls) > 1 else ''})]")
+                        t_start = time.monotonic()
+                        responses = []
+                        for call in tool_calls:
+                            t_name = call.get("tool", "unknown")
+                            res = execute_tool_call(harness, call)
+                            responses.append(res)
+                        t_exec = time.monotonic() - t_start
+
+                        reply_text = format_tool_responses(responses)
+
+                        # Wait briefly if user is actively recording or sending audio
+                        wait_send_start = time.monotonic()
+                        while (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set()):
+                            if stop is not None and stop.is_set():
+                                break
+                            if time.monotonic() - wait_send_start > 30.0:
+                                break
+                            time.sleep(0.1)
+
+                        t_send_start = time.monotonic()
+                        desk.send_tool_response(reply_text)
+                        t_total = time.monotonic() - t_start
+                        event("tool_response_sent", calls=len(tool_calls), exec_s=round(t_exec, 3), total_s=round(t_total, 3))
+                        print(f"[Tool response sent in {t_total:.2f}s (exec: {t_exec:.2f}s)]")
+                except Exception as exc:
+                    print(f"[Tool dispatch error] {exc}")
+                    logging.getLogger("jarvis.watcher").exception("Tool dispatch failed")
+    finally:
+        playback_stop.set()
+        if playback_thread.is_alive():
+            playback_thread.join(timeout=0.5)
 

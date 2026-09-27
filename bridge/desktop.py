@@ -14,8 +14,9 @@ class Desktop:
         self.cfg = cfg
         self._lock = threading.Lock()
 
-    def assert_locked(self):
-        ensure_whatsapp_ready(self.cfg.number)
+    def assert_locked(self, quick=False):
+        if not quick:
+            ensure_whatsapp_ready(self.cfg.number)
         try:
             return verify_header(snapshot(safe_mode=self.cfg.safe_mode), self.cfg.number, self.cfg.header_path, safe_mode=self.cfg.safe_mode)
         except Exception as exc:
@@ -38,19 +39,17 @@ class Desktop:
             hide_whatsapp()
 
     def send_tool_response(self, text: str):
-        """Send a multiline tool execution response back to Jarvis on WhatsApp."""
+        """Send a multiline tool execution response back to Jarvis on WhatsApp with minimal latency."""
         if not text or not text.strip():
             raise ValueError("Tool response text must be nonempty")
         if len(text) > 4000:
             text = text[:3900] + "\n... [Truncated for WhatsApp]"
         with self._lock:
-            ensure_whatsapp_ready(self.cfg.number)
-            self.assert_locked()
-            focus_composer()
+            # Single quick verification of chat target before paste (skips redundant menu walking)
+            self.assert_locked(quick=True)
             subprocess.run(["osascript", str(SCRIPTS / "send.scpt"), self.cfg.number, text], check=True)
-            self.assert_locked()
             subprocess.run(["osascript", str(SCRIPTS / "commit.scpt")], check=True)
-            time.sleep(0.3)
+            time.sleep(0.05)
             hide_whatsapp()
 
     def send_audio(self, path):

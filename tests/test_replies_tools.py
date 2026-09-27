@@ -646,3 +646,81 @@ def test_tool_response_waits_for_user_recording_to_complete():
     assert mock_desk.send_tool_response.call_count == 1
 
 
+def test_tool_call_not_blocked_by_voice_playback():
+    """A tool call arriving while a voice note is playing must be dispatched immediately."""
+    cfg = Config(
+        number="+16508702892",
+        header_path="/0/1",
+        message_list_path="/0/2",
+        incoming_marker="Incoming message",
+        voice_play_marker="Play voice message",
+        voice_pause_marker="Pause voice message",
+        safe_mode=False,
+        ledger_path=":memory:",
+    )
+
+    base_rows = [
+        {"path": "/0/1", "role": "AXButton", "title": "+1 (650) 870-2892", "description": "", "value": ""},
+        {"path": "/0/2", "role": "AXList", "title": "", "description": "", "value": ""},
+    ]
+
+    # Voice note with 60 second duration
+    voice_note_rows = base_rows + [
+        {"path": "/0/2/0", "role": "AXGroup", "title": "Incoming message", "description": "", "value": ""},
+        {"path": "/0/2/0/0", "role": "AXButton", "title": "Play voice message", "description": "1:00", "value": ""},
+    ]
+
+    # While playing, tool call arrives
+    tool_and_voice_rows = voice_note_rows + [
+        {"path": "/0/2/1", "role": "AXGroup", "title": "Incoming message", "description": "", "value": ""},
+        {"path": "/0/2/1/0", "role": "AXStaticText", "title": "", "description": "", "value": '```json\n{"tool": "bash", "args": {"command": "echo fast_reply"}}\n```'},
+    ]
+
+    mock_desk = MagicMock(spec=Desktop)
+    mock_harness = MagicMock(spec=Harness)
+    mock_harness.bash.return_value = {"exit_code": 0, "output": "fast_reply", "timed_out": False}
+
+    playback_started = threading.Event()
+    stop = threading.Event()
+    state = {"processed_texts": set()}
+
+    def mock_press(path, expected_label=None):
+        playback_started.set()
+
+    ticks = [0]
+    def snapshot_provider(**kw):
+        ticks[0] += 1
+        if ticks[0] == 1:
+            return base_rows
+        elif ticks[0] == 2:
+            return voice_note_rows
+        else:
+            return tool_and_voice_rows
+
+    def on_send_response(reply):
+        # As soon as the tool response is sent, stop watch
+        stop.set()
+
+    mock_desk.send_tool_response.side_effect = on_send_response
+
+    t_start = time.monotonic()
+    watch(
+        cfg,
+        timeout=3,
+        stop=stop,
+        get_snapshot=snapshot_provider,
+        press=mock_press,
+        desk=mock_desk,
+        harness=mock_harness,
+        state=state,
+    )
+    elapsed = time.monotonic() - t_start
+
+    # Tool call should have executed and sent its response within < 1.5 seconds,
+    # despite the voice note having a 60-second duration!
+    assert elapsed < 1.5
+    assert mock_harness.bash.call_count == 1
+    assert mock_desk.send_tool_response.call_count == 1
+
+
+
