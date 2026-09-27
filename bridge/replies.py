@@ -14,11 +14,58 @@ from .dispatcher import parse_tool_calls, execute_tool_call, format_tool_respons
 # Invisible characters WhatsApp rendering inserts (LRM/RLM, zero-width, BOM).
 _INVISIBLE_CHARS = ("\u200b", "\u200c", "\u200d", "\u200e", "\u200f", "\u2060", "\ufeff")
 
+# Timestamp + direction suffix in AXDescription, e.g.:
+#   ", 10:50 AM, Received from ..."  or  ", 3:05 PM, Sent to ..."
+# \u202f (narrow no-break space) appears between time and AM/PM in some locales.
+_DESC_TIMESTAMP_RE = re.compile(
+    r",\s*\d{1,2}:\d{2}\s*[AP]M\s*(?:,\s*(?:Received from|Sent to|Read|Delivered)\b.*)?$",
+    re.IGNORECASE,
+)
+
 
 def _strip_invisible(text):
     for ch in _INVISIBLE_CHARS:
         text = text.replace(ch, "")
     return text.replace("\u00a0", " ")
+
+
+def _body_from_description(desc):
+    """Extract the message body from a WhatsApp AXDescription string.
+
+    WhatsApp Desktop (≥2.26) renders each message as a flat AXStaticText node
+    whose AXDescription has the format:
+        ‎message, <BODY>, <HH:MM> <AM/PM>, ‎Received from <NUMBER>
+        ‎Your message, <BODY>, <HH:MM> <AM/PM>, ‎Sent to <NUMBER>, ‎Delivered
+
+    Returns the body text, or '' if the description doesn't match.
+    """
+    clean = _strip_invisible(desc).strip()
+    if not clean:
+        return ""
+
+    # Incoming text: starts with "message, " (NOT "Your message")
+    lc = clean.lower()
+    if lc.startswith("your ") or lc.startswith("voice message"):
+        return ""
+    prefix = ""
+    if lc.startswith("message, "):
+        prefix = clean[:len("message, ")]
+    elif lc.startswith("document, "):
+        # Incoming document descriptions - don't extract body (filename, not text)
+        return ""
+    else:
+        return ""
+
+    rest = clean[len(prefix):]
+    # Strip trailing timestamp + direction suffix
+    m = _DESC_TIMESTAMP_RE.search(rest)
+    if m:
+        body = rest[:m.start()].strip()
+    else:
+        # Description was truncated at 1500 chars; take everything after prefix.
+        # This is safe because we already confirmed it's an incoming text message.
+        body = rest.strip()
+    return body
 
 
 def _group_sample(descendants, group, limit=120):
@@ -27,6 +74,11 @@ def _group_sample(descendants, group, limit=120):
         v = _strip_invisible(r.get("value") or "").strip()
         if v:
             return repr(v[:limit])
+    # WhatsApp 2.26+: body is in description, not value
+    for r in descendants:
+        body = _body_from_description(r.get("description", ""))
+        if body:
+            return repr(body[:limit])
     v = _strip_invisible(group.get("value") or "").strip()
     return repr(v[:limit]) if v else ""
 
@@ -88,9 +140,10 @@ def incoming_texts(rows, cfg):
             metadata = descendants
         meta_label = " ".join(_strip_invisible(r.get("title", "") + " " + r.get("description", "")).lower() for r in metadata)
 
-        # Skip outgoing messages
-        if any(out in meta_label for out in ("your message", "outgoing", "you:")):
-            if "jarvis_call" in meta_label or any("jarvis_call" in _strip_invisible(r.get("value") or "").casefold() for r in descendants):
+        # Skip outgoing messages (check both metadata label and group description)
+        grp_desc_clean = _strip_invisible(group.get("description", "")).lower()
+        if any(out in meta_label for out in ("your message", "outgoing", "you:")) or grp_desc_clean.startswith("your "):
+            if "jarvis_call" in meta_label or "jarvis_call" in grp_desc_clean or any("jarvis_call" in _strip_invisible(r.get("value") or "").casefold() for r in descendants):
                 event("text_group_skip", level="warning", reason="outgoing_filter", meta=meta_label[:120], sample=_group_sample(descendants, group))
             skipped.append(("outgoing_filter", _group_sample(descendants, group)))
             continue
@@ -101,17 +154,25 @@ def incoming_texts(rows, cfg):
             is_incoming = True
         elif "incoming" in meta_label:
             is_incoming = True
+        elif "received from" in meta_label or "received from" in grp_desc_clean:
+            is_incoming = True
         elif target_num and target_num in "".join(c for c in meta_label if c.isdigit()):
+            is_incoming = True
+        # WhatsApp 2.26+ flat nodes: incoming text starts with "message, "
+        # (not "Your message") and has no "Sent to" suffix.
+        elif grp_desc_clean.startswith("message, ") and "sent to" not in grp_desc_clean:
             is_incoming = True
         elif not cfg.safe_mode:
             is_incoming = True
 
         if not is_incoming:
-            if any("jarvis_call" in _strip_invisible(r.get("value") or "").casefold() for r in descendants):
+            if any("jarvis_call" in _strip_invisible(r.get("value") or "").casefold() for r in descendants) or "jarvis_call" in grp_desc_clean:
                 event("text_group_skip", level="warning", reason="direction_filter", meta=meta_label[:120], sample=_group_sample(descendants, group))
             skipped.append(("not_incoming", _group_sample(descendants, group)))
             continue
 
+        # --- Body text extraction ---
+        # Strategy 1: child AXStaticText/AXTextArea/AXLink nodes with value or title
         text_nodes = [r for r in descendants if r.get("role") in ("AXStaticText", "AXTextArea", "AXLink")]
         body_parts = []
         for r in text_nodes:
@@ -121,12 +182,21 @@ def incoming_texts(rows, cfg):
             if chunk:
                 body_parts.append(chunk)
 
+        # Strategy 2: group's AXValue (some older WhatsApp builds)
         if not body_parts:
-            # Some WhatsApp builds put the body on the bubble group's AXValue.
-            # Never take description/title, which often contain sender metadata.
             val = _strip_invisible(group.get("value") or "").strip()
             if "JARVIS_CALL:" in val:
                 body_parts.append(val)
+
+        # Strategy 3: AXDescription-based extraction (WhatsApp 2.26+ flat nodes).
+        # The description holds everything: "message, <body>, <time>, Received from ..."
+        if not body_parts:
+            for r in descendants:
+                desc_body = _body_from_description(r.get("description", ""))
+                if desc_body:
+                    body_parts.append(desc_body)
+                    break  # one body per group
+
         if not body_parts:
             sample = _group_sample(descendants, group)
             if sample:
