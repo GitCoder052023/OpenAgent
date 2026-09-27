@@ -15,7 +15,7 @@ See [limitations](limitations.md) before relying on it.
 
 ## Audio-file input mode
 
-The bridge still records locally and encodes M4A. It puts the file on the macOS clipboard (both the file-URL and the legacy filenames flavor), focuses the composer in the verified Instinct chat, pastes with Cmd+V, waits up to 8 seconds for a WhatsApp attachment preview that names that file, and sends from that preview. This is a **file attachment**, not a native WhatsApp voice note.
+The bridge still records locally and encodes M4A. It puts the file on the macOS clipboard (both the file-URL and the legacy filenames flavor), focuses the composer in the verified Instinct chat, pastes with Cmd+V, waits up to 8 seconds for a WhatsApp attachment preview that names that file, and sends from that preview. This is a **file attachment**, not a native WhatsApp voice note. With the default `BRIDGE_SEND_ROUTE=picker`, the bridge skips this clipboard flow and sends straight through the Attach > Document picker; the flow above applies to `BRIDGE_SEND_ROUTE=auto` and `clipboard`.
 
 After each paste attempt the bridge classifies what WhatsApp actually did, because a wrong guess here sends duplicates:
 
@@ -24,7 +24,7 @@ After each paste attempt the bridge classifies what WhatsApp actually did, becau
 - **empty**: WhatsApp ignored the paste: it retries once via the Edit > Paste menu, then uses the picker.
 - **ambiguous**: some paste evidence exists but no preview could be confirmed: it stops with an unknown-outcome error rather than risk a duplicate; inspect and clear the draft manually before retrying.
 
-Once clipboard paste proves unsupported in a run, later sends in that run go straight to the picker. Set `BRIDGE_SEND_ROUTE=picker` in `.env` to always use the picker, or `BRIDGE_SEND_ROUTE=clipboard` to forbid the picker fallback. Calibrate `BRIDGE_ATTACH_LABEL`, `BRIDGE_DOCUMENT_LABEL`, and `BRIDGE_ATTACHMENT_SEND_LABEL` for the picker route in the verified +16508702892 chat. Diagnose with the `clipboard_stage`, `paste_attempt`, `paste_poll`, `paste_outcome`, `composer_cleared`, `preview_send`, `audio_send_route`, and `picker_step` events (with `--verbose`, or in the JSONL log). WhatsApp's live recorder is not used. Do not leave this untested UI automation unattended.
+Once clipboard paste proves unsupported in a run, later sends in that run go straight to the picker. The picker is the default send route; set `BRIDGE_SEND_ROUTE=auto` in `.env` to try clipboard paste first with the picker as fallback, or `BRIDGE_SEND_ROUTE=clipboard` to forbid the picker fallback. Calibrate `BRIDGE_ATTACH_LABEL`, `BRIDGE_DOCUMENT_LABEL`, and `BRIDGE_ATTACHMENT_SEND_LABEL` for the picker route in the verified +16508702892 chat. Diagnose with the `clipboard_stage`, `paste_attempt`, `paste_poll`, `paste_outcome`, `composer_cleared`, `preview_send`, `audio_send_route`, and `picker_step` events (with `--verbose`, or in the JSONL log). WhatsApp's live recorder is not used. Do not leave this untested UI automation unattended.
 
 
 ## Phase 2 voice-mode trial
@@ -42,4 +42,5 @@ Update the checkout (`git pull`), restart the bridge, and run your normal comman
 First run with a short deliberate spoken test and then a silent test. `audio_gate` should say `accepted:true` for speech and `accepted:false` for silence, for both F8 and `--voice`. The gate is intentionally conservative and can drop soft speech; tune only after looking at the logged peak, active ratio, and duration. The echo guard only knows about voice notes played by this bridge, not manually played audio or other apps.
 
 For tool interception, check `watcher_config`, `text_baseline`, `text_scan_result`, and `tool_dispatch`. The bridge needs a **single calibrated message list and incoming direction**; if `watcher_disabled` or `text_scan_unavailable` appears, recalibrate locally using `jarvis-bridge inspect` and the exact incoming bubble's AX metadata. The first watcher pass baselines existing messages rather than executing history, so send a **new harmless** tool-call envelope only after restart. Check that `tool_dispatch` lists the expected names and `tool_response_sent` follows. The existing test call from 8:41 will not replay on restart. If harness startup says DISABLED, check Bun and the local `opencode/harness-bridge.ts` installation. Do not run arbitrary external tool-call envelopes: only the verified Instinct chat should supply them.
+
 
