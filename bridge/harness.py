@@ -11,9 +11,11 @@ Spawns the OpenCode harness over stdio IPC and exposes type-safe operational too
 - applescript: Native macOS AppleScript execution (Mac-specific operational superpower)
 """
 
+import atexit
 import json
 import logging
 import os
+import selectors
 import subprocess
 import threading
 from pathlib import Path
@@ -44,6 +46,7 @@ class OpenCodeHarness:
         self._lock = threading.Lock()
         self._seq = 0
         self._start_process()
+        atexit.register(self.close)
 
     def _start_process(self):
         """Spawns the headless Bun harness process."""
@@ -66,8 +69,18 @@ class OpenCodeHarness:
 
         threading.Thread(target=drain_stderr, daemon=True).start()
 
-    def _call(self, tool: str, args: Dict[str, Any]) -> Any:
-        """Sends a single JSON-RPC message over stdin and parses the response."""
+    def _kill_process(self):
+        """Forcefully terminates the child process if running."""
+        if self._proc:
+            try:
+                self._proc.kill()
+                self._proc.wait(timeout=1)
+            except Exception:
+                pass
+            self._proc = None
+
+    def _call(self, tool: str, args: Dict[str, Any], timeout: float = 65.0) -> Any:
+        """Sends a single JSON-RPC message over stdin and parses the response with deadlock protection."""
         with self._lock:
             if self._proc is None or self._proc.poll() is not None:
                 self._start_process()
@@ -80,6 +93,15 @@ class OpenCodeHarness:
                 assert self._proc and self._proc.stdin and self._proc.stdout
                 self._proc.stdin.write(payload + "\n")
                 self._proc.stdin.flush()
+
+                sel = selectors.DefaultSelector()
+                sel.register(self._proc.stdout, selectors.EVENT_READ)
+                events = sel.select(timeout=timeout)
+                sel.close()
+
+                if not events:
+                    self._kill_process()
+                    raise HarnessError(f"Harness IPC timed out after {timeout}s waiting for '{tool}' response")
 
                 response_line = self._proc.stdout.readline()
                 if not response_line:
@@ -100,7 +122,9 @@ class OpenCodeHarness:
         args: Dict[str, Any] = {"command": command, "timeout_ms": timeout_ms}
         if cwd:
             args["cwd"] = cwd
-        return self._call("bash", args)
+        # Allow bash timeout to trigger on subprocess before IPC channel timeout
+        ipc_timeout = (timeout_ms / 1000.0) + 5.0
+        return self._call("bash", args, timeout=ipc_timeout)
 
     # 2. File Reading & Directory Listing
     def read(self, path: str, offset: Optional[int] = None, limit: Optional[int] = None) -> Dict[str, Any]:
@@ -156,11 +180,25 @@ class OpenCodeHarness:
 
     # 8. Native Mac Operational Extension (AppleScript / JXA)
     def applescript(self, script: str) -> str:
-        """Run an AppleScript via osascript for native Mac automation."""
-        res = self.bash(f"osascript -e {json.dumps(script)}")
-        if res["exit_code"] != 0:
-            raise HarnessError(f"AppleScript failed (exit {res['exit_code']}): {res['output']}")
+        """Run an AppleScript via osascript stdin for native Mac automation."""
+        res = self._call("applescript", {"script": script})
         return res["output"].strip()
+
+    # 9. Instructions (Global and project instructions)
+    def instructions(self, directory: Optional[str] = None) -> Dict[str, Any]:
+        """Load global and project instructions (AGENTS.md, CLAUDE.md, CONTEXT.md)."""
+        args: Dict[str, Any] = {}
+        if directory:
+            args["directory"] = directory
+        return self._call("instructions", args)
+
+    # 10. System Prompts & Agent Specifications
+    def system_prompt(self, model: str = "default", agent: Optional[str] = None) -> Dict[str, Any]:
+        """Retrieve battle-tested system prompt and agent definitions."""
+        args: Dict[str, Any] = {"model": model}
+        if agent:
+            args["agent"] = agent
+        return self._call("system_prompt", args)
 
     def close(self):
         """Terminate the harness subprocess."""
@@ -170,8 +208,11 @@ class OpenCodeHarness:
                 try:
                     self._proc.wait(timeout=2)
                 except subprocess.TimeoutExpired:
-                    self._proc.kill()
+                    self._kill_process()
             self._proc = None
+
+    def __del__(self):
+        self.close()
 
     def __enter__(self):
         return self

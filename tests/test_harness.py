@@ -59,3 +59,88 @@ def test_harness_grep():
         res = h.grep("OpenCodeHarness", path="bridge/harness.py")
         assert res["total_matches"] >= 1
         assert any("class OpenCodeHarness" in m["text"] for m in res["matches"])
+
+
+def test_harness_grep_invalid_regex_raises():
+    with OpenCodeHarness() as h:
+        with pytest.raises(HarnessError, match="Invalid regex pattern"):
+            h.grep("[unclosed_bracket", path="bridge/harness.py")
+
+
+def test_harness_glob_matches():
+    with OpenCodeHarness() as h:
+        res = h.glob("*.toml")
+        assert "matches" in res
+        assert any("pyproject.toml" in m for m in res["matches"])
+
+
+def test_harness_glob_empty_regression():
+    # Regression test for bug where non-matching glob returned ['.']
+    with OpenCodeHarness() as h:
+        res = h.glob("non_existent_file_pattern_12345_*")
+        assert res["matches"] == []
+
+
+def test_harness_read_fuzzy_suggestion():
+    with OpenCodeHarness() as h:
+        with pytest.raises(HarnessError, match="Did you mean one of these"):
+            # pyproject.tom typo
+            h.read("pyproject.tom")
+
+
+def test_harness_instructions():
+    with OpenCodeHarness() as h:
+        res = h.instructions()
+        assert "instructions" in res
+        assert "count" in res
+
+
+def test_harness_system_prompt():
+    with OpenCodeHarness() as h:
+        res = h.system_prompt(model="claude-3-5-sonnet", agent="build")
+        assert "system_prompt" in res
+        assert len(res["system_prompt"]) > 100
+        assert "agent" in res
+        assert res["agent"]["name"] == "build"
+        assert "build" in res["available_agents"]
+
+
+def test_harness_applescript_multiline():
+    multiline = """
+    set a to 15
+    set b to 27
+    return a + b
+    """
+    with OpenCodeHarness() as h:
+        res = h.applescript(multiline)
+        assert res == "42"
+
+
+def test_harness_read_binary_rejected(tmp_path: Path):
+    bin_file = tmp_path / "audio.m4a"
+    bin_file.write_bytes(b"\x00\x00\x00\x20ftypM4A ")
+    with OpenCodeHarness() as h:
+        with pytest.raises(HarnessError, match="Cannot read binary file"):
+            h.read(str(bin_file))
+
+
+def test_harness_edit_empty_old_string_rejected(tmp_path: Path):
+    test_file = tmp_path / "empty_old.txt"
+    test_file.write_text("sample content")
+    with OpenCodeHarness() as h:
+        with pytest.raises(HarnessError, match="oldString cannot be empty"):
+            h.edit(str(test_file), "", "replacement")
+
+
+def test_harness_grep_nonexistent_path_rejected():
+    with OpenCodeHarness() as h:
+        with pytest.raises(HarnessError, match="Path does not exist"):
+            h.grep("pattern", path="non_existent_folder_xyz123")
+
+
+def test_harness_glob_nonexistent_path_rejected():
+    with OpenCodeHarness() as h:
+        with pytest.raises(HarnessError, match="Path must be an existing directory"):
+            h.glob("*.py", path="non_existent_folder_xyz123")
+
+

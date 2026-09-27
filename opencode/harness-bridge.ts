@@ -6,13 +6,28 @@
 import readline from "node:readline"
 import path from "node:path"
 import fs from "node:fs/promises"
-import { existsSync, statSync } from "node:fs"
+import { existsSync, statSync, createReadStream } from "node:fs"
 import { spawn } from "node:child_process"
 import { createTwoFilesPatch } from "diff"
 
+// Preserved OpenCode agent intelligence & system context
+import { loadSystemInstructions } from "./packages/opencode/src/session/instruction"
+import { provider, environment } from "./packages/opencode/src/session/system"
+import { BuiltinAgents } from "./packages/opencode/src/agent/agent"
+
 interface ToolRequest {
   id: string | number
-  tool: "bash" | "read" | "write" | "edit" | "grep" | "glob" | "system_info"
+  tool:
+    | "bash"
+    | "read"
+    | "write"
+    | "edit"
+    | "grep"
+    | "glob"
+    | "system_info"
+    | "instructions"
+    | "system_prompt"
+    | "applescript"
   args: Record<string, any>
 }
 
@@ -41,6 +56,9 @@ function truncateOutput(text: string, maxBytes = MAX_OUTPUT_BYTES): { output: st
 async function executeBash(args: { command: string; cwd?: string; timeout_ms?: number }): Promise<any> {
   const { command, cwd = process.cwd(), timeout_ms = 60000 } = args
   const resolvedCwd = path.resolve(cwd)
+  if (!existsSync(resolvedCwd) || !statSync(resolvedCwd).isDirectory()) {
+    throw new Error(`Working directory does not exist: ${resolvedCwd}`)
+  }
 
   return new Promise((resolve, reject) => {
     let stdout = ""
@@ -98,58 +116,107 @@ async function executeBash(args: { command: string; cwd?: string; timeout_ms?: n
   })
 }
 
-// 2. READ TOOL
+// 2. READ TOOL (Streaming, line-bounded and byte-bounded with fuzzy path suggestion)
 async function executeRead(args: { path: string; offset?: number; limit?: number }): Promise<any> {
   const targetPath = path.resolve(args.path)
   if (!existsSync(targetPath)) {
-    throw new Error(`Path does not exist: ${targetPath}`)
+    const dir = path.dirname(targetPath)
+    const base = path.basename(targetPath)
+    let suggestion = ""
+    try {
+      const entries = await fs.readdir(dir)
+      const matches = entries
+        .filter(
+          (e) =>
+            e.toLowerCase().includes(base.toLowerCase()) ||
+            base.toLowerCase().includes(e.toLowerCase()),
+        )
+        .slice(0, 3)
+      if (matches.length > 0) {
+        suggestion = `\n\nDid you mean one of these?\n${matches.map((m) => path.join(dir, m)).join("\n")}`
+      }
+    } catch {
+      // directory unreadable
+    }
+    throw new Error(`Path does not exist: ${targetPath}${suggestion}`)
   }
 
   const stat = statSync(targetPath)
   if (stat.isDirectory()) {
     const entries = await fs.readdir(targetPath, { withFileTypes: true })
-    const list = entries.map((e) => ({
-      name: e.name,
-      type: e.isDirectory() ? "directory" : e.isFile() ? "file" : "other",
-    }))
+    const sorted = entries
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((e) => ({
+        name: e.isDirectory() ? e.name + "/" : e.name,
+        type: e.isDirectory() ? "directory" : e.isFile() ? "file" : "other",
+      }))
     const offset = Math.max(1, args.offset ?? 1)
     const limit = args.limit ?? 100
-    const sliced = list.slice(offset - 1, offset - 1 + limit)
+    const sliced = sorted.slice(offset - 1, offset - 1 + limit)
     return {
       type: "directory",
       path: targetPath,
-      total_entries: list.length,
+      total_entries: sorted.length,
       offset,
       limit,
+      truncated: offset - 1 + limit < sorted.length,
       entries: sliced,
     }
   }
 
-  const content = await fs.readFile(targetPath, "utf-8")
-  const lines = content.split("\n")
-  const totalLines = lines.length
-
-  if (args.offset !== undefined || args.limit !== undefined) {
-    const offset = Math.max(1, args.offset ?? 1)
-    const limit = args.limit ?? 200
-    const slice = lines.slice(offset - 1, offset - 1 + limit)
-    return {
-      type: "file",
-      path: targetPath,
-      total_lines: totalLines,
-      offset,
-      limit,
-      content: slice.join("\n"),
-    }
+  // Prevent reading binary files into text
+  const ext = path.extname(targetPath).toLowerCase()
+  const BINARY_EXTS = new Set([
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico",
+    ".m4a", ".mp3", ".wav", ".ogg", ".flac",
+    ".zip", ".tar", ".gz", ".7z", ".bz2", ".xz",
+    ".pdf", ".bin", ".dylib", ".so", ".exe", ".dmg", ".pkg", ".pyc"
+  ])
+  if (BINARY_EXTS.has(ext)) {
+    throw new Error(`Cannot read binary file: ${targetPath}`)
   }
 
-  const { output, truncated } = truncateOutput(content)
+  // Stream lines to prevent high memory allocation on large files
+  const offset = Math.max(1, args.offset ?? 1)
+  const limit = args.limit ?? 2000
+  const lines: string[] = []
+  let currentLine = 0
+  let truncated = false
+  let bytesAccumulated = 0
+
+  const fileStream = createReadStream(targetPath, { encoding: "utf-8" })
+  const lineReader = readline.createInterface({
+    input: fileStream,
+    crlfDelay: Infinity,
+  })
+
+  for await (const line of lineReader) {
+    currentLine++
+    if (currentLine < offset) continue
+    if (lines.length >= limit) {
+      truncated = true
+      break
+    }
+    bytesAccumulated += Buffer.byteLength(line, "utf-8")
+    if (bytesAccumulated > MAX_OUTPUT_BYTES) {
+      truncated = true
+      lines.push(`\n... [Output truncated at ${MAX_OUTPUT_BYTES} bytes]`)
+      break
+    }
+    lines.push(line)
+  }
+
+  fileStream.destroy()
+  lineReader.close()
+
   return {
     type: "file",
     path: targetPath,
-    total_lines: totalLines,
+    offset,
+    limit,
+    lines_returned: lines.length,
     truncated,
-    content: output,
+    content: lines.join("\n"),
   }
 }
 
@@ -176,6 +243,10 @@ async function executeEdit(args: {
   const targetPath = path.resolve(args.path)
   if (!existsSync(targetPath)) {
     throw new Error(`File does not exist: ${targetPath}`)
+  }
+
+  if (!args.oldString) {
+    throw new Error("oldString cannot be empty")
   }
 
   const original = await fs.readFile(targetPath, "utf-8")
@@ -218,14 +289,27 @@ async function executeEdit(args: {
   }
 }
 
-// 5. GREP TOOL (Ripgrep)
+// 5. GREP TOOL (Ripgrep with argument isolation and regex error detection from OpenCode ripgrep.ts)
 async function executeGrep(args: { pattern: string; path?: string; include?: string }): Promise<any> {
-  const searchPath = path.resolve(args.path ?? ".")
-  const cmdArgs = ["--json", "-e", args.pattern]
-  if (args.include) {
-    cmdArgs.push("-g", args.include)
+  if (!args.pattern) {
+    throw new Error("Search pattern cannot be empty")
   }
-  cmdArgs.push(searchPath)
+  const searchPath = path.resolve(args.path ?? ".")
+  if (!existsSync(searchPath)) {
+    throw new Error(`Path does not exist: ${searchPath}`)
+  }
+  const cmdArgs = [
+    "--no-config",
+    "--json",
+    "--hidden",
+    "--no-messages",
+    ...(args.include ? [`--glob=${args.include}`] : []),
+    "--glob=!**/.git/**",
+    "--glob=!**/node_modules/**",
+    "--",
+    args.pattern,
+    searchPath,
+  ]
 
   return new Promise((resolve, reject) => {
     const proc = spawn("rg", cmdArgs)
@@ -239,24 +323,33 @@ async function executeGrep(args: { pattern: string; path?: string; include?: str
       stderr += chunk.toString("utf-8")
     })
 
-    proc.on("error", (err) => {
-      // Fallback to git grep or zsh grep if rg is not in PATH
+    proc.on("error", (err: any) => {
       resolve({
         pattern: args.pattern,
-        error: `rg execution error: ${err.message}. Ensure ripgrep is installed.`,
+        error: `Ripgrep execution error: ${err.message}. Ensure ripgrep is installed.`,
         matches: [],
       })
     })
 
     proc.on("close", (code) => {
+      if (
+        code === 2 &&
+        (stderr.includes("regex parse error") ||
+          stderr.includes("error parsing regex") ||
+          stderr.includes("error:"))
+      ) {
+        return reject(new Error(`Invalid regex pattern '${args.pattern}': ${stderr.trim()}`))
+      }
+
       const matches: Array<{ file: string; line: number; text: string }> = []
       for (const line of stdout.split("\n")) {
         if (!line.trim()) continue
         try {
           const parsed = JSON.parse(line)
           if (parsed.type === "match") {
+            const relFile = parsed.data.path.text.replace(/^(\.[\\/])+/u, "")
             matches.push({
-              file: parsed.data.path.text,
+              file: relFile,
               line: parsed.data.line_number,
               text: parsed.data.lines.text.trimEnd(),
             })
@@ -275,22 +368,57 @@ async function executeGrep(args: { pattern: string; path?: string; include?: str
   })
 }
 
-// 6. GLOB TOOL
-async function executeGlob(args: { pattern: string; path?: string }): Promise<any> {
+// 6. GLOB TOOL (Ripgrep-based file matcher from OpenCode ripgrep.ts - safe & no shell injection)
+async function executeGlob(args: { pattern: string; path?: string; hidden?: boolean }): Promise<any> {
   const base = path.resolve(args.path ?? ".")
-  // Using find or zsh glob
-  const proc = spawn("/bin/zsh", ["-c", `setopt null_glob; ls -d ${args.pattern}`], {
-    cwd: base,
-  })
+  if (!existsSync(base) || !statSync(base).isDirectory()) {
+    throw new Error(`Path must be an existing directory: ${base}`)
+  }
+
+  const rgArgs = [
+    "--no-config",
+    "--files",
+    ...(args.hidden ? ["--hidden"] : []),
+    `--glob=${args.pattern}`,
+    "--glob=!**/.git/**",
+    "--glob=!**/node_modules/**",
+    ".",
+  ]
+
   return new Promise((resolve) => {
+    const proc = spawn("rg", rgArgs, { cwd: base })
     let stdout = ""
+    let stderr = ""
+
     proc.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk.toString("utf-8")
     })
-    proc.on("close", () => {
+    proc.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf-8")
+    })
+
+    proc.on("error", (err: any) => {
+      resolve({
+        pattern: args.pattern,
+        base,
+        error: `Ripgrep execution error: ${err.message}. Ensure ripgrep is installed.`,
+        matches: [],
+      })
+    })
+
+    proc.on("close", (code) => {
+      // code 1 means no matches found in ripgrep
+      if (code === 1 || !stdout.trim()) {
+        return resolve({
+          pattern: args.pattern,
+          base,
+          matches: [],
+        })
+      }
+
       const files = stdout
         .split("\n")
-        .map((f) => f.trim())
+        .map((f) => f.trim().replace(/^(\.[\\/])+/u, ""))
         .filter(Boolean)
       resolve({
         pattern: args.pattern,
@@ -311,6 +439,59 @@ function executeSystemInfo(): any {
     user: process.env.USER,
     home: process.env.HOME,
   }
+}
+
+// 8. INSTRUCTIONS (Preserved OpenCode project/global instructions)
+async function executeInstructions(args: { directory?: string }): Promise<any> {
+  const instructions = await loadSystemInstructions({ directory: args.directory })
+  return {
+    instructions,
+    count: instructions.length,
+  }
+}
+
+// 9. SYSTEM PROMPT (Preserved OpenCode agent intelligence & system prompts)
+function executeSystemPrompt(args: { model?: string; agent?: string }): any {
+  const modelId = args.model ?? "default"
+  const prompts = provider(modelId)
+  const agentInfo = args.agent ? (BuiltinAgents as Record<string, any>)[args.agent] : undefined
+  return {
+    model: modelId,
+    system_prompt: prompts.join("\n\n"),
+    agent: agentInfo,
+    available_agents: Object.keys(BuiltinAgents),
+  }
+}
+
+// 10. APPLESCRIPT TOOL (Direct stdin execution - handles multiline scripts and quotes)
+async function executeAppleScript(args: { script: string }): Promise<any> {
+  if (!args.script || !args.script.trim()) {
+    throw new Error("AppleScript cannot be empty")
+  }
+  return new Promise((resolve, reject) => {
+    const proc = spawn("osascript", ["-"])
+    let stdout = ""
+    let stderr = ""
+    proc.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf-8")
+    })
+    proc.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf-8")
+    })
+    proc.on("error", (err: any) => {
+      reject(err)
+    })
+    proc.on("close", (code) => {
+      if (code !== 0) {
+        return reject(
+          new Error(`AppleScript failed (exit ${code}): ${stderr.trim() || stdout.trim()}`),
+        )
+      }
+      resolve({ output: stdout.trim() })
+    })
+    proc.stdin.write(args.script)
+    proc.stdin.end()
+  })
 }
 
 // Router
@@ -338,6 +519,15 @@ async function handleRequest(req: ToolRequest): Promise<ToolResponse> {
         break
       case "system_info":
         result = executeSystemInfo()
+        break
+      case "instructions":
+        result = await executeInstructions(req.args as any)
+        break
+      case "system_prompt":
+        result = executeSystemPrompt(req.args as any)
+        break
+      case "applescript":
+        result = await executeAppleScript(req.args as any)
         break
       default:
         throw new Error(`Unknown tool: ${(req as any).tool}`)
