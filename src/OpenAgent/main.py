@@ -132,9 +132,16 @@ def main():
     try:
         from .mac_adapter import MacAdapter
         mac_adapter = MacAdapter()
-        print("macOS Harness: ENABLED (native computer-use vision, clicks, keys, and Chrome CDP online).")
+        print("macOS Harness: ENABLED (native computer-use vision, clicks, keys, and AX inspection online).")
     except Exception as exc:
         print(f"macOS Harness: DISABLED ({exc}).")
+
+    try:
+        from .browser_adapter import BrowserAdapter
+        BrowserAdapter()
+        print("Browser Harness: ENABLED (Chrome background control, AX tree, and domain skills online).")
+    except Exception as exc:
+        print(f"Browser Harness: DISABLED ({exc}).")
 
     event("watcher_config", list_calibrated=bool(cfg.message_list_path), direction_calibrated=bool(cfg.incoming_marker), harness=bool(harness), mac_adapter=bool(mac_adapter), safe_mode=cfg.safe_mode)
     has_voice = bool(cfg.message_list_path and cfg.incoming_marker and cfg.voice_play_marker and cfg.voice_pause_marker)

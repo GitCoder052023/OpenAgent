@@ -77,14 +77,19 @@ if [[ ! -f ".venv/bin/python3" ]]; then
     echo -e "  ${YELLOW}!${RESET} Virtualenv not found. Creating .venv..."
     python3 -m venv .venv
     .venv/bin/pip install --upgrade pip
-    .venv/bin/pip install -e '.[dev,voice]' -e ./src/macos-harness
+    .venv/bin/pip install -e '.[dev,voice]' -e ./src/macos-harness -e ./src/browser-harness
 fi
 echo -e "  ${GREEN}✓${RESET} Python virtualenv: $(.venv/bin/python3 --version)"
 
-# Ensure local macos-harness package is installed in virtualenv
+# Ensure local macos-harness and browser-harness packages are installed in virtualenv
 if ! .venv/bin/python3 -c "import macos_harness" 2>/dev/null; then
     echo -e "  ${YELLOW}!${RESET} Installing local macos-harness package..."
     .venv/bin/pip install -e ./src/macos-harness
+fi
+
+if ! .venv/bin/python3 -c "import browser_harness" 2>/dev/null; then
+    echo -e "  ${YELLOW}!${RESET} Installing local browser-harness package..."
+    .venv/bin/pip install -e ./src/browser-harness
 fi
 
 # If --voice mode is requested, ensure voice dependencies and offline model are present
@@ -143,9 +148,16 @@ fi
 
 # Run preflight check for native macOS computer-use harness
 if .venv/bin/python3 -c "from OpenAgent.mac_adapter import MacAdapter; MacAdapter()" 2>/dev/null; then
-    echo -e "  ${GREEN}✓${RESET} Native macOS computer-use harness operational (vision, clicks, keys, Chrome CDP)"
+    echo -e "  ${GREEN}✓${RESET} Native macOS computer-use harness operational (vision, clicks, keys, AX inspection)"
 else
     echo -e "  ${YELLOW}[WARN] Native macOS computer-use harness could not initialize.${RESET}"
+fi
+
+# Run preflight check for Browser Harness CDP
+if .venv/bin/python3 -c "import browser_harness; from OpenAgent.browser_adapter import BrowserAdapter; BrowserAdapter()" 2>/dev/null; then
+    echo -e "  ${GREEN}✓${RESET} Browser Harness CDP operational (Chrome background control, AX tree, domain skills)"
+else
+    echo -e "  ${YELLOW}[WARN] Browser Harness CDP could not initialize.${RESET}"
 fi
 
 # Check macOS Accessibility permission (required to inspect WhatsApp UI and capture hotkeys)

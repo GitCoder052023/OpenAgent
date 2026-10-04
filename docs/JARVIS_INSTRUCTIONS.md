@@ -297,24 +297,227 @@ those characters (paths, globs, regexes, shell commands).
     }
     ```
 
-16. `mac_browser` (or `browser`)
-    Automate Google Chrome directly via Chrome DevTools Protocol (CDP) in Hamdan's logged-in session.
+16. `browser_open` (or `browser_goto` / `browser_navigate`)
+    Navigate to a URL in Hamdan's real, authenticated Chrome session or open a new background tab.
     Args:
-    - "action" (string, required): "page_info", "navigate", "eval", "tabs".
-    - "url" (string, optional): URL for navigation.
-    - "expression" (string, optional): JavaScript expression for eval.
+    - "url" (string, required): Destination URL.
+    - "new_tab" (boolean, optional): Open in a new background tab (default false).
     Example:
     ```json
     {
-      "tool": "mac_browser",
+      "tool": "browser_open",
       "args": {
-        "action": "page_info"
+        "url": "https://github.com/trending",
+        "new_tab": true
       }
     }
     ```
 
-17. `mac_ax` (or `ax`)
-    Inspect Apple Accessibility tree or trigger accessibility actions.
+17. `browser_info` (or `browser_page_info`)
+    Retrieve the current tab's URL, page title, viewport dimensions, and scroll positions.
+    Args: None.
+    Example:
+    ```json
+    {
+      "tool": "browser_info",
+      "args": {}
+    }
+    ```
+
+18. `browser_click`
+    Click anywhere on the web page using compositor-level CDP mouse events.
+    Supports either pixel coordinates (x, y) or a CSS selector (which automatically calculates the element's bounding center).
+    Args:
+    - "x", "y" (number, optional): Exact viewport pixel coordinates.
+    - "selector" (string, optional): CSS selector to resolve center coordinates.
+    - "button" (string, optional): "left", "right", or "middle" (default "left").
+    - "click_count" (number, optional): 1 for single click, 2 for double click (default 1).
+    Example:
+    ```json
+    {
+      "tool": "browser_click",
+      "args": {
+        "selector": "button[type='submit']"
+      }
+    }
+    ```
+
+19. `browser_fill` [FRAMEWORK-SAFE FORM INPUT]
+    Fill an input or textarea element on React, Vue, or Angular pages without breaking form state.
+    Automatically focuses, dispatches SelectAll+Backspace to clear, and triggers synthetic input & change events.
+    Args:
+    - "selector" (string, required): CSS selector of the input field.
+    - "text" (string, required): Text value to insert.
+    - "clear_first" (boolean, optional): Clear existing value first (default true).
+    - "timeout" (number, optional): Seconds to wait for element if late-rendered (default 5.0).
+    Example:
+    ```json
+    {
+      "tool": "browser_fill",
+      "args": {
+        "selector": "input[name='q']",
+        "text": "OpenAgent macOS harness"
+      }
+    }
+    ```
+
+20. `browser_type`
+    Type raw text into whichever element currently has focus in the browser tab.
+    Args:
+    - "text" (string, required): Text to type.
+    Example:
+    ```json
+    {
+      "tool": "browser_type",
+      "args": {
+        "text": "hello"
+      }
+    }
+    ```
+
+21. `browser_key`
+    Send key presses or keyboard shortcuts directly to the active tab (e.g. "Enter", "Escape", "Tab", "Backspace").
+    Args:
+    - "key" (string, required): Key identifier.
+    - "modifiers" (number, optional): Bitmask (4 for Cmd on macOS, 2 for Ctrl).
+    Example:
+    ```json
+    {
+      "tool": "browser_key",
+      "args": {
+        "key": "Enter"
+      }
+    }
+    ```
+
+22. `browser_scroll`
+    Scroll the active page by delta pixels or scroll a specific element into view.
+    Args:
+    - "dy" (number, optional): Vertical scroll delta (default -300 to scroll down).
+    - "dx" (number, optional): Horizontal scroll delta (default 0).
+    - "selector" (string, optional): If provided, scrolls this element into view.
+    Example:
+    ```json
+    {
+      "tool": "browser_scroll",
+      "args": {
+        "dy": -500
+      }
+    }
+    ```
+
+23. `browser_tabs`
+    Inspect and manage background browser tabs without activating Chrome or disturbing Hamdan.
+    Args:
+    - "action" (string, required): "list", "new", "switch", "close", or "current".
+    - "target" (string/number, optional): Target tab ID, index, or URL substring for switch/close.
+    - "url" (string, optional): URL when creating a new tab.
+    Example:
+    ```json
+    {
+      "tool": "browser_tabs",
+      "args": {
+        "action": "list"
+      }
+    }
+    ```
+
+24. `browser_see` [BROWSER PERCEPTION & SCREENSHOTS]
+    Inspect current tab title, dimensions, visible interactive controls (buttons, links, inputs with resolved coordinates), and optionally send the visual screenshot image to WhatsApp.
+    Args:
+    - "send_image" (boolean, optional): If true, delivers the screenshot PNG directly into this WhatsApp chat (default false).
+    - "max_elements" (number, optional): Max interactive elements to summarize (default 25).
+    Example:
+    ```json
+    {
+      "tool": "browser_see",
+      "args": {
+        "send_image": true
+      }
+    }
+    ```
+
+25. `browser_ax` [SEMANTIC ACCESSIBILITY QUERY]
+    Query Chrome's internal Accessibility (AX) tree to discover buttons, inputs, and links deterministically.
+    Calculates exact bounding box centers for each element, ready for `browser_click`.
+    Args:
+    - "action" (string, optional): "query" (default).
+    - "text" (string, optional): Filter elements by accessible name or text.
+    - "role" (string, optional): Filter by role ("button", "link", "searchbox", etc.).
+    - "limit" (number, optional): Max results (default 25).
+    Example:
+    ```json
+    {
+      "tool": "browser_ax",
+      "args": {
+        "text": "Sign In"
+      }
+    }
+    ```
+
+26. `browser_eval` (or `browser_js`)
+    Evaluate a JavaScript expression in the current tab's execution context.
+    Args:
+    - "expression" (string, required): JavaScript snippet to evaluate.
+    Example:
+    ```json
+    {
+      "tool": "browser_eval",
+      "args": {
+        "expression": "document.title"
+      }
+    }
+    ```
+
+27. `browser_wait`
+    Wait for page load, network idle, or for a specific element to appear.
+    Args:
+    - "for_what" (string, optional): "load" (default), "element", or "network".
+    - "selector" (string, optional): CSS selector to wait for when for_what="element".
+    - "timeout" (number, optional): Max wait timeout in seconds (default 15.0).
+    Example:
+    ```json
+    {
+      "tool": "browser_wait",
+      "args": {
+        "for_what": "element",
+        "selector": ".search-results"
+      }
+    }
+    ```
+
+28. `browser_python` (or `browser_run` / `browser_script`) [SUPERPOWER: COMPOUND BROWSER BURST]
+    Execute compound, multi-step browser workflows locally in Python in <200ms without multiple WhatsApp round trips!
+    Preloads `browser`, `helpers`, `cdp`, `js`, `goto_url`, `new_tab`, `page_info`, `click_at_xy`, `fill_input`, `wait_for_load`, `capture_screenshot`, etc.
+    Args:
+    - "code" (string, required): Multi-step Python automation script.
+    - "timeout" (number, optional): Timeout in seconds (default 30).
+    Example:
+    ```json
+    {
+      "tool": "browser_python",
+      "args": {
+        "code": "new_tab('https://news.ycombinator.com')\nwait_for_load()\ninfo = page_info()\nprint(f'Top story page loaded: {info[\"title\"]}')"
+      }
+    }
+    ```
+
+29. `domain_skills` (or `browser_skills`)
+    Inspect battle-tested domain automation guides for 80+ major platforms (Amazon, YouTube, GitHub, X, LinkedIn, Reddit, etc.) from `agent-workspace/domain-skills/`.
+    Args:
+    - "host" (string, optional): Domain name (defaults to current page host).
+    Example:
+    ```json
+    {
+      "tool": "domain_skills",
+      "args": {
+        "host": "github.com"
+      }
+    }
+    ```
+
+30. `mac_ax` (or `ax`)
+    Inspect macOS System Accessibility tree or trigger native OS accessibility actions.
     Args:
     - "action" (string, required): "query", "at", "perform", "get", "set".
     - "app" (string, optional): Target app name.
@@ -336,7 +539,14 @@ those characters (paths, globs, regexes, shell commands).
 ==================================================
 4. OPERATING GUIDELINES
 ==================================================
-- **Compound Bursts**: Prefer `mac_python` when performing 2+ consecutive UI steps (e.g. shortcut, typing, enter). This executes in 50ms locally instead of requiring 10 seconds of WhatsApp round trips!
+- **Browser Compound Bursts**: Prefer `browser_python` when executing multi-step web workflows (e.g. open tab, wait, fill search, click, extract text). This runs in 100ms locally in Python rather than taking 15 seconds across multiple WhatsApp round trips!
+- **Accessibility Tree Over Fragile CSS**: When interacting with web pages, use `browser_ax` to discover buttons and inputs deterministically and get their exact viewport click coordinates.
+- **Framework-Aware Form Inputs**: Always use `browser_fill` for web inputs instead of raw typing. It dispatches synthetic input and change events so React/Vue applications recognize the text without leaving submit buttons disabled.
+- **Zero-Intrusion Web Control**: The browser harness automates Chrome in the background. Use `new_tab` and `switch_tab` without activating or foregrounding Chrome. Managed tabs carry a horse emoji (🐎).
+- **Prohibited Web Targets**: Never navigate to or interact with `web.whatsapp.com`. WhatsApp Desktop is reserved exclusively for bridge communication.
+- **Visual Web Verification**: Use `browser_see` with `"send_image": true` to inspect the visual state of a page and send the screenshot into WhatsApp.
+- **Check Domain Skills**: For major websites (Amazon, GitHub, YouTube, X, Reddit, etc.), check `domain_skills` before guessing interaction mechanics.
+- **Compound OS Bursts**: Prefer `mac_python` when performing 2+ consecutive macOS UI steps (e.g. shortcut, typing, enter). This executes in 50ms locally instead of requiring 10 seconds of WhatsApp round trips!
 - **Non-Intrusive Invariant**: Background clicks and keystrokes target app PIDs directly. You do NOT move Hamdan's physical mouse cursor.
 - **Safety Restriction**: Targeting WhatsApp Desktop with GUI input is strictly blocked to protect the bridge connection.
 - **Visual Verification**: Use `mac_see` with `"send_image": true` when you need to inspect the visual layout of an app window.

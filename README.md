@@ -40,32 +40,32 @@ Running 100% locally on your Mac, OpenAgent intercepts structured tool calls fro
 ┌────────────────────────────────────────────────────────┐
 │                  OpenAgent (The Body)                  │
 │       Voice Pipeline • Safety Guard • Harness IPC      │
-└─────────────┬────────────────────────────┬─────────────┘
-              │                            │
-              ▼                            ▼
-┌──────────────────────────┐  ┌──────────────────────────┐
-│  Headless Dev Harness    │  │ Native Computer-Use      │
-│  (Bun / TypeScript)      │  │ (macOS APIs / CDP)       │
-│  Terminal • Files • Code │  │ UI • Clicks • Chrome • AX│
-└─────────────┬────────────┘  └────────────┬─────────────┘
-              └─────────────┬──────────────┘
-                            ▼
+└──────┬───────────────────────┬──────────────────────┬──┘
+       │                       │                      │
+       ▼                       ▼                      ▼
+┌──────────────┐      ┌─────────────────┐    ┌─────────────────┐
+│ Headless Dev │      │ Native Computer │    │ Real Browser    │
+│ (Bun / TS)   │      │ (macOS APIs)    │    │ (CDP Harness)   │
+│ Shell • Code │      │ Clicks • Vision │    │ Tabs • AX • DOM │
+└──────┬───────┘      └────────┬────────┘    └────────┬────────┘
+       └───────────────────────┼──────────────────────┘
+                               ▼
 ┌────────────────────────────────────────────────────────┐
-│                   macOS (The World)                    │
-│          Your Local System, Apps & Environment         │
+│              macOS & Google Chrome (The World)         │
+│          Your Local System, Apps, Web & Logins         │
 └────────────────────────────────────────────────────────┘
-
 ```
 
 > **Instinct thinks. OpenAgent acts.**
 
 ## Core Features
 
+* **Real Browser Control (CDP Harness)**: Connects directly to your real, authenticated Chrome browser. Operates background tabs (`new_tab`, `switch_tab`), dispatches compositor clicks, queries internal Accessibility trees (`browser_ax`), fills framework-controlled forms cleanly (`browser_fill`), and uses pre-built domain skills for 80+ platforms (Amazon, GitHub, YouTube, X, etc.) without stealing physical focus.
 * **High-Speed Voice Pipeline**: Hold **`F8`** to talk (Push-to-Talk) or use hands-free wake word (*"Wake up Jarvis"*). Features local RMS silence gating, background audio playback, and instant barge-in interruption.
 * **Headless Developer Harness**: Ultra-fast Bun + TypeScript runner providing sandboxed `bash` execution, granular file pagination (`read`), atomic `write`, exact diff patching (`edit`), and fast `ripgrep` search.
-* **Native macOS Computer-Use**: Inspect application windows (`mac_see`), query semantic UI trees (`mac_ax`), issue PID-targeted clicks and keystrokes, and control authenticated Chrome sessions via CDP without stealing physical focus.
-* **Fail-Closed Safety**: Chat-lock verification ensures commands only execute from your authorized Instinct chat. Includes prohibited-target isolation (protects the communication bridge from self-clicking) and append-only deduplication ledgers.
-* **Zero-Cloud Intermediary**: All tool execution, screen parsing, and audio handling happen locally on your hardware.
+* **Native macOS Computer-Use**: Inspect application windows (`mac_see`), query semantic UI trees (`mac_ax`), issue PID-targeted clicks and keystrokes, and capture screenshots sent directly to WhatsApp.
+* **Fail-Closed Safety**: Chat-lock verification ensures commands only execute from your authorized Instinct chat. Prohibited-target isolation protects the communication bridge from self-clicking and blocks automated access to WhatsApp Web.
+* **Zero-Cloud Intermediary**: All tool execution, browser control, screen parsing, and audio handling happen locally on your hardware.
 
 ## Quick Start
 
@@ -98,7 +98,7 @@ curl -fsSL https://bun.sh/install | bash
 # 2. Setup Python environment
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev,voice]' -e ./src/macos-harness
+pip install -e '.[dev,voice]' -e ./src/macos-harness -e ./src/browser-harness
 
 # 3. Install Bun harness dependencies
 cd src/harness && bun install && cd ../..
@@ -181,8 +181,26 @@ Instinct controls your Mac by wrapping structured JSON calls inside a resilient 
 | `mac_apps` | List all running applications with process IDs | *(none)* |
 | `mac_windows` | List open window titles and bounds for an application | `app` |
 | `mac_ax` | Query and interact with macOS Accessibility elements | `action`, `app`, `text` |
-| `mac_browser` | Automate authenticated Chrome sessions via CDP | `action`, `url`, `selector` |
 | `mac_python` | Run compound, multi-step UI workflows locally in Python | `code` |
+
+### Real Browser Control Tools (Browser Harness CDP)
+
+| Tool | Description | Key Arguments |
+| --- | --- | --- |
+| `browser_open` | Navigate or open a new tab in your authenticated Chrome session | `url`, `new_tab` |
+| `browser_info` | Inspect page URL, title, viewport dimensions, and scroll offset | *(none)* |
+| `browser_click` | Composited CDP mouse click bypassing iframes/shadow DOM | `x`, `y`, `selector`, `button`, `click_count` |
+| `browser_fill` | Framework-safe form input (React/Vue synthetic events) | `selector`, `text`, `clear_first`, `timeout` |
+| `browser_type` | Type text into currently focused web element | `text` |
+| `browser_key` | Trigger web keyboard shortcuts (`Enter`, `Escape`, `Tab`, `Backspace`) | `key`, `modifiers` |
+| `browser_scroll` | Scroll by delta pixels or scroll element into view | `dx`, `dy`, `selector` |
+| `browser_tabs` | Background tab management (`list`, `new`, `switch`, `close`, `current`) | `action`, `target`, `url` |
+| `browser_see` | Inspect tab state and send visual screenshot to WhatsApp | `send_image`, `max_elements` |
+| `browser_ax` | Discover buttons/inputs via internal Accessibility Tree | `action`, `text`, `role`, `limit` |
+| `browser_eval` | Evaluate JavaScript in the active tab context | `expression` |
+| `browser_wait` | Wait for page load, network idle, or element appearance | `for_what`, `selector`, `timeout` |
+| `browser_python` | Ultra-fast compound browser burst execution (<200ms) | `code`, `timeout` |
+| `domain_skills` | Retrieve pre-built domain automation skills for 80+ platforms | `host` |
 
 > Full schema specifications and example payloads are available in [`docs/JARVIS_INSTRUCTIONS.md`](docs/JARVIS_INSTRUCTIONS.md).
 
@@ -200,6 +218,9 @@ OpenAgent is configured via `.env` in the project root:
 | `BRIDGE_WHISPER_MODEL` | `models/ggml-base.bin` | Path to offline Whisper model |
 | `BRIDGE_VOICE_MODEL` | `models/vosk-model-...` | Path to offline Vosk wake-word model |
 | `BRIDGE_VOICE_SILENCE_SECONDS` | `2.0` | Silence delay before auto-submitting voice input |
+| `BH_AGENT_WORKSPACE` | `src/browser-harness/agent-workspace` | Directory for agent-editable helpers and domain skills |
+| `BH_DOMAIN_SKILLS` | `1` | Enable site-specific domain skill recipes |
+| `BH_TAB_MARKER` | `1` | Enable horse emoji (`🐎`) marker on agent-managed tabs |
 | `BRIDGE_LOG_FILE` | `~/Library/Logs/OpenAgent/bridge.jsonl` | Diagnostic JSONL event log path |
 
 ## Security & Safety Model

@@ -22,6 +22,11 @@ from typing import Any, Dict, List, Optional, Union
 
 from macos_harness import BrowserHarness, MacOS, MacOSError
 
+try:
+    from .browser_adapter import BrowserAdapter
+except ImportError:
+    BrowserAdapter = None  # type: ignore[assignment,misc]
+
 logger = logging.getLogger("jarvis.mac_adapter")
 
 # Safety guard: Never allow Jarvis to target WhatsApp Desktop with GUI input.
@@ -48,9 +53,14 @@ def _check_target_allowed(app: Optional[str]) -> None:
 class MacAdapter:
     """High-level adapter wrapping MacOS and BrowserHarness for Jarvis Bridge."""
 
-    def __init__(self, mac: Optional[MacOS] = None, browser: Optional[BrowserHarness] = None):
+    def __init__(self, mac: Optional[MacOS] = None, browser: Optional[Any] = None):
         self.mac = mac if mac is not None else MacOS()
-        self.browser = browser if browser is not None else BrowserHarness()
+        if browser is not None:
+            self.browser = browser
+        elif BrowserAdapter is not None:
+            self.browser = BrowserAdapter()
+        else:
+            self.browser = BrowserHarness()
 
     # -----------------------------------------------------------------------
     # 1. Compound Python Burst Execution (Beats WhatsApp Round-Trip Latency)
@@ -395,19 +405,28 @@ class MacAdapter:
         """Execute a browser automation operation via Browser Harness (Chrome CDP)."""
         action = action.strip().lower()
 
+        if hasattr(self.browser, "browser_op"):
+            return self.browser.browser_op(action, **kwargs)
+
         if action == "page_info":
             return self.browser.page_info()
         elif action == "tabs":
-            return self.browser.tabs()
-        elif action == "navigate" or action == "goto":
+            if hasattr(self.browser, "list_tabs"):
+                return self.browser.list_tabs()
+            return getattr(self.browser, "tabs", lambda: [])()
+        elif action in ("navigate", "goto", "open"):
             url = kwargs.get("url")
             if not url:
                 raise ValueError("'url' is required for browser navigate")
+            if hasattr(self.browser, "goto_url"):
+                return self.browser.goto_url(url)
             return self.browser.navigate(url)
-        elif action == "eval":
+        elif action in ("eval", "js"):
             expr = kwargs.get("expression") or kwargs.get("script")
             if not expr:
                 raise ValueError("'expression' is required for browser eval")
+            if hasattr(self.browser, "js"):
+                return self.browser.js(expr)
             return self.browser.eval(expr)
         else:
             # Fallback to direct attribute call on browser

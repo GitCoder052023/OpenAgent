@@ -20,7 +20,13 @@ try:
 except ImportError:
     MacAdapter = None  # type: ignore[assignment,misc]
 
+try:
+    from .browser_adapter import BrowserAdapter
+except ImportError:
+    BrowserAdapter = None  # type: ignore[assignment,misc]
+
 _DEFAULT_MAC_ADAPTER: Optional[Any] = None
+_DEFAULT_BROWSER_ADAPTER: Optional[Any] = None
 
 
 def get_default_mac_adapter() -> Optional[Any]:
@@ -31,6 +37,16 @@ def get_default_mac_adapter() -> Optional[Any]:
         except Exception as exc:
             logger.warning("Could not initialize default MacAdapter: %s", exc)
     return _DEFAULT_MAC_ADAPTER
+
+
+def get_default_browser_adapter() -> Optional[Any]:
+    global _DEFAULT_BROWSER_ADAPTER
+    if _DEFAULT_BROWSER_ADAPTER is None and BrowserAdapter is not None:
+        try:
+            _DEFAULT_BROWSER_ADAPTER = BrowserAdapter()
+        except Exception as exc:
+            logger.warning("Could not initialize default BrowserAdapter: %s", exc)
+    return _DEFAULT_BROWSER_ADAPTER
 
 
 logger = logging.getLogger("jarvis.dispatcher")
@@ -320,8 +336,9 @@ def execute_tool_call(
     harness: Optional[Harness],
     call: Dict[str, Any],
     mac_adapter: Optional[Any] = None,
+    browser_adapter: Optional[Any] = None,
 ) -> Dict[str, Any]:
-    """Execute a parsed tool call using the headless harness or native macOS adapter.
+    """Execute a parsed tool call using the headless harness, native macOS adapter, or browser adapter.
 
     Returns a standardized dictionary:
     {"status": "ok" | "error", "tool": name, "result": ..., "error": ...}
@@ -333,6 +350,12 @@ def execute_tool_call(
 
     if mac_adapter is None:
         mac_adapter = get_default_mac_adapter()
+
+    if browser_adapter is None:
+        if mac_adapter is not None and hasattr(mac_adapter, "browser"):
+            browser_adapter = mac_adapter.browser
+        else:
+            browser_adapter = get_default_browser_adapter()
 
     try:
         # --- Native macOS Computer-Use Primitives (macos-harness) ---
@@ -465,12 +488,169 @@ def execute_tool_call(
             )
             return {"status": "ok", "tool": tool, "result": res}
 
+        # --- Native Chrome Browser-Use Primitives (browser-harness) ---
+        elif tool in ("browser_open", "browser_goto", "browser_navigate"):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            url = args.get("url") or args.get("link")
+            if not url:
+                raise ValueError("Missing 'url' argument for browser_open")
+            new_tab = bool(args.get("new_tab", False))
+            res = browser_adapter.open(url=str(url), new_tab=new_tab)
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_info", "browser_page_info"):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            res = browser_adapter.page_info()
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_click",):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            res = browser_adapter.click(
+                x=args.get("x"),
+                y=args.get("y"),
+                selector=args.get("selector"),
+                button=args.get("button", "left"),
+                clicks=int(args.get("click_count", args.get("clicks", 1))),
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_fill",):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            selector = args.get("selector")
+            text = args.get("text") if "text" in args else args.get("value")
+            if not selector or text is None:
+                raise ValueError("Missing 'selector' or 'text' argument for browser_fill")
+            res = browser_adapter.fill(
+                selector=str(selector),
+                text=str(text),
+                clear_first=bool(args.get("clear_first", True)),
+                timeout=float(args.get("timeout", 5.0)),
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_type",):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            text = args.get("text")
+            if text is None:
+                raise ValueError("Missing 'text' argument for browser_type")
+            res = browser_adapter.type(str(text))
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_key",):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            key = args.get("key")
+            if not key:
+                raise ValueError("Missing 'key' argument for browser_key")
+            res = browser_adapter.key(str(key), modifiers=int(args.get("modifiers", 0)))
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_scroll",):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            res = browser_adapter.scroll(
+                x=float(args.get("x", 0)),
+                y=float(args.get("y", 0)),
+                dx=int(args.get("dx", 0)),
+                dy=int(args.get("dy", -300)),
+                selector=args.get("selector"),
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_tabs",):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            action = args.get("action", "list")
+            res = browser_adapter.tabs(
+                action=str(action),
+                target=args.get("target"),
+                url=args.get("url"),
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_see",):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            res = browser_adapter.see(
+                send_image=bool(args.get("send_image", False)),
+                max_elements=int(args.get("max_elements", 25)),
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_screenshot",):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            res = browser_adapter.screenshot(
+                path=args.get("path"),
+                full=bool(args.get("full", False)),
+                max_dim=args.get("max_dim"),
+                send_image=bool(args.get("send_image", False)),
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_ax",):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            res = browser_adapter.ax(
+                action=args.get("action", "query"),
+                text=args.get("text"),
+                role=args.get("role"),
+                limit=int(args.get("limit", 25)),
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_eval", "browser_js"):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            expr = args.get("expression") or args.get("script") or args.get("code")
+            if not expr:
+                raise ValueError("Missing 'expression' argument for browser_eval")
+            res = browser_adapter.js(str(expr), target_id=args.get("target_id"))
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_wait",):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            res = browser_adapter.wait(
+                for_what=args.get("for_what", "load"),
+                selector=args.get("selector"),
+                timeout=float(args.get("timeout", 15.0)),
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_python", "browser_run", "browser_script"):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            code = args.get("code") or args.get("script")
+            if not code:
+                raise ValueError("Missing 'code' argument for browser_python")
+            timeout = float(args.get("timeout", 30.0))
+            res = browser_adapter.run_python(code=str(code), timeout=timeout)
+            status = res.get("status", "ok")
+            if status == "error":
+                return {"status": "error", "tool": tool, "error": res.get("error", "Browser script failed"), "result": res}
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_skills", "domain_skills"):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            res = browser_adapter.domain_skills(host=args.get("host") or args.get("url"))
+            return {"status": "ok", "tool": tool, "result": res}
+
         elif tool in ("mac_browser", "browser"):
-            if mac_adapter is None:
-                raise RuntimeError("macOS Harness adapter is not available on this system")
             action = args.get("action", "page_info")
             pass_args = {k: v for k, v in args.items() if k != "action"}
-            res = mac_adapter.browser_op(action, **pass_args)
+            if browser_adapter is not None:
+                res = browser_adapter.browser_op(action, **pass_args)
+            elif mac_adapter is not None:
+                res = mac_adapter.browser_op(action, **pass_args)
+            else:
+                raise RuntimeError("Neither Browser Harness nor macOS Harness is available")
             return {"status": "ok", "tool": tool, "result": res}
 
         elif tool in ("mac_doctor", "doctor"):
@@ -710,6 +890,88 @@ def format_tool_response(response: Dict[str, Any], max_length: int = MAX_WHATSAP
     elif tool in ("mac_windows", "windows"):
         wins = [f"• {w.get('title') or '(Untitled)'}: bounds={w.get('bounds')}" for w in result.get("windows", [])]
         body = f"Open Windows ({result.get('total', len(wins))}):\n" + "\n".join(wins[:20])
+
+    elif tool in ("browser_open", "browser_goto", "browser_navigate"):
+        url = result.get("url") or "URL"
+        title = result.get("title") or "(no title)"
+        body = f"Navigated to: {url}\nTitle: {title}"
+        skills = result.get("navigation", {}).get("domain_skills", [])
+        if skills:
+            body += f"\nDomain Skills: {', '.join(skills[:5])}"
+
+    elif tool in ("browser_info", "browser_page_info"):
+        url = result.get("url") or "URL"
+        title = result.get("title") or "(no title)"
+        w = result.get("w", 0)
+        h = result.get("h", 0)
+        sx = result.get("sx", 0)
+        sy = result.get("sy", 0)
+        body = f"Chrome Tab Info:\n• Title: {title}\n• URL: {url}\n• Viewport: {w}x{h} (scroll: {sx},{sy})"
+
+    elif tool in ("browser_click",):
+        sel = f" [{result.get('selector')}]" if result.get("selector") else ""
+        body = f"Clicked ({result.get('x')}, {result.get('y')}){sel} on Chrome [{result.get('button')}, count={result.get('click_count', 1)}]"
+
+    elif tool in ("browser_fill",):
+        body = f"Filled input '{result.get('selector')}' ({result.get('length', 0)} chars)"
+
+    elif tool in ("browser_type",):
+        body = f"Typed {result.get('length', 0)} characters into Chrome"
+
+    elif tool in ("browser_key",):
+        body = f"Sent key '{result.get('key')}' to Chrome"
+
+    elif tool in ("browser_scroll",):
+        if result.get("selector"):
+            body = f"Scrolled element '{result.get('selector')}' into view"
+        else:
+            body = f"Scrolled Chrome at ({result.get('x')}, {result.get('y')}) by (dx={result.get('dx')}, dy={result.get('dy')})"
+
+    elif tool in ("browser_tabs",):
+        action = result.get("action", "tabs")
+        if action == "list":
+            tabs_list = result.get("tabs", [])
+            body = f"Open Chrome Tabs ({len(tabs_list)}):\n"
+            for t in tabs_list[:15]:
+                marker = "🐎 " if t.get("selected") else "• "
+                body += f"{marker}{t.get('title') or '(Untitled)'} ({t.get('url')})\n"
+        else:
+            body = f"Tab {action} performed successfully"
+
+    elif tool in ("browser_see", "browser_screenshot"):
+        title = result.get("title") or "Chrome"
+        url = result.get("url") or ""
+        body = f"Captured Chrome: '{title}' ({url})"
+        if result.get("_send_attachment"):
+            body += "\n[Screenshot attachment queued for WhatsApp delivery]"
+        controls = result.get("interactive_controls", [])
+        if controls:
+            body += "\n\nVisible Controls:\n" + "\n".join(f"• {c}" for c in controls[:15])
+
+    elif tool in ("browser_ax",):
+        elements = result.get("elements", [])
+        body = f"Browser AX Elements ({result.get('total', len(elements))}):\n"
+        for e in elements[:15]:
+            coords = f" at ({e.get('x')}, {e.get('y')})" if "x" in e and "y" in e else ""
+            body += f"• {e.get('role')}: '{e.get('name') or e.get('value')}'{coords}\n"
+
+    elif tool in ("browser_python", "browser_run", "browser_script"):
+        stdout = result.get("stdout") or "(no stdout output)"
+        stderr = result.get("stderr")
+        dur = result.get("duration_s", 0)
+        body = f"Browser burst execution ({dur}s):\n{stdout}"
+        if stderr:
+            body += f"\n[stderr]\n{stderr}"
+
+    elif tool in ("browser_eval", "browser_js"):
+        body = f"JS Evaluation Result:\n{json.dumps(result, indent=2) if isinstance(result, (dict, list)) else str(result)}"
+
+    elif tool in ("browser_wait",):
+        body = f"Wait completed for {result.get('waited_for', 'load')}"
+
+    elif tool in ("browser_skills", "domain_skills"):
+        skills = result if isinstance(result, list) else []
+        body = f"Domain Skills ({len(skills)}):\n" + "\n".join(f"• {s.get('skill')}: {s.get('file')}" for s in skills)
 
     elif tool in ("system_info", "instructions", "system_prompt", "mac_ax", "ax", "mac_browser", "browser", "mac_doctor", "doctor"):
         body = json.dumps(result, indent=2)
