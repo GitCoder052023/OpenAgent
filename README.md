@@ -276,7 +276,7 @@ Contributions, bug reports, and PRs are warmly welcome! Whether you are adding n
 
 OpenAgent is built with gratitude on the shoulders of the open-source agent tooling community:
 - **[OpenCode](https://github.com/anomalyco/opencode)** — Inspiring open-source agentic coding architectures.
-- **[Browser Use](https://github.com/browser-use/browser-use)** & **[macOS Harness](https://github.com/browser-use/macos-harness)** — Pioneering native macOS computer-use foundations.
+- **[Browser Use](https://github.com/browser-use/browser-use)** — Directly integrating **[Browser Harness](https://github.com/browser-use/browser-harness)** for high-speed Chrome CDP automation and domain skills, alongside **[macOS Harness](https://github.com/browser-use/macos-harness)** for pioneering native macOS computer-use foundations.
 - **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** & **[Vosk](https://alphacephei.com/vosk/)** — Lightweight, local, low-latency audio intelligence.
 
 ---
