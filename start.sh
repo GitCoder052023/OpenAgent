@@ -3,7 +3,7 @@
 # Jarvis Bridge Single-Command Mac Launcher
 # ==============================================================================
 # Spins up the complete Jarvis Bridge system:
-# 1. Verifies environment (Python venv, Bun, Ripgrep, Node modules)
+# 1. Verifies environment (uv environment, Bun, Ripgrep, Node modules)
 # 2. Ensures WhatsApp Desktop is open and backgrounded
 # 3. Runs an instant preflight test on the headless execution harness
 # 4. Starts the push-to-talk voice/text bridge with real-time tool execution
@@ -41,10 +41,11 @@ fi
 # 2. Dependency Checks
 echo -e "${BOLD}[1/4] Checking system dependencies...${RESET}"
 
-if ! command -v python3 &>/dev/null; then
-    echo -e "${RED}[ERROR] 'python3' not found. Please install Python 3.11+: brew install python${RESET}"
+if ! command -v uv &>/dev/null; then
+    echo -e "${RED}[ERROR] 'uv' not found. Please install uv: curl -LsSf https://astral.sh/uv/install.sh | sh (or brew install uv)${RESET}"
     exit 1
 fi
+echo -e "  ${GREEN}✓${RESET} uv runtime: $(uv --version)"
 
 if ! command -v bun &>/dev/null; then
     echo -e "${RED}[ERROR] 'bun' not found. Please install Bun: curl -fsSL https://bun.sh/install | bash${RESET}"
@@ -71,33 +72,14 @@ else
     echo -e "  ${GREEN}✓${RESET} Ripgrep: $(rg --version | head -n 1)"
 fi
 
-# 3. Python Virtualenv & Configuration Check
+# 3. Python Environment & Configuration Check
 echo -e "${BOLD}[2/4] Verifying Python environment & configuration...${RESET}"
-if [[ ! -f ".venv/bin/python3" ]]; then
-    echo -e "  ${YELLOW}!${RESET} Virtualenv not found. Creating .venv..."
-    python3 -m venv .venv
-    .venv/bin/pip install --upgrade pip
-    .venv/bin/pip install -e '.[dev,voice]' -e ./src/macos-harness -e ./src/browser-harness
-fi
-echo -e "  ${GREEN}✓${RESET} Python virtualenv: $(.venv/bin/python3 --version)"
+echo -e "  ${BLUE}→${RESET} Syncing Python dependencies with uv..."
+uv sync --all-extras
+echo -e "  ${GREEN}✓${RESET} Python environment synchronized via uv"
 
-# Ensure local macos-harness and browser-harness packages are installed in virtualenv
-if ! .venv/bin/python3 -c "import macos_harness" 2>/dev/null; then
-    echo -e "  ${YELLOW}!${RESET} Installing local macos-harness package..."
-    .venv/bin/pip install -e ./src/macos-harness
-fi
-
-if ! .venv/bin/python3 -c "import browser_harness" 2>/dev/null; then
-    echo -e "  ${YELLOW}!${RESET} Installing local browser-harness package..."
-    .venv/bin/pip install -e ./src/browser-harness
-fi
-
-# If --voice mode is requested, ensure voice dependencies and offline model are present
+# If --voice mode is requested, ensure offline model is present
 if [[ " $* " =~ " --voice " ]]; then
-    if ! .venv/bin/python3 -c "import sounddevice, vosk" 2>/dev/null; then
-        echo -e "  ${YELLOW}!${RESET} Installing voice dependencies (sounddevice, vosk)..."
-        .venv/bin/pip install sounddevice "vosk>=0.3.44"
-    fi
     if [[ ! -d "models/vosk-model-small-en-us-0.15" ]]; then
         echo -e "  ${YELLOW}!${RESET} Downloading offline Vosk model for voice wake-phrase mode..."
         mkdir -p models
@@ -139,7 +121,7 @@ if [[ ! -d "src/cli-harness/node_modules" ]]; then
 fi
 
 # Run instant IPC preflight check for Bun headless harness
-if .venv/bin/python3 -c "from OpenAgent.harness import Harness; h=Harness(); h.system_info(); h.close()" 2>/dev/null; then
+if uv run python -c "from OpenAgent.harness import Harness; h=Harness(); h.system_info(); h.close()" 2>/dev/null; then
     echo -e "  ${GREEN}✓${RESET} Headless Bun harness IPC operational (bash, read, write, edit, applescript, grep, glob)"
 else
     echo -e "${RED}[ERROR] Failed to start execution harness over stdio IPC.${RESET}"
@@ -147,26 +129,26 @@ else
 fi
 
 # Run preflight check for native macOS computer-use harness
-if .venv/bin/python3 -c "from OpenAgent.mac_adapter import MacAdapter; MacAdapter()" 2>/dev/null; then
+if uv run python -c "from OpenAgent.mac_adapter import MacAdapter; MacAdapter()" 2>/dev/null; then
     echo -e "  ${GREEN}✓${RESET} Native macOS computer-use harness operational (vision, clicks, keys, AX inspection)"
 else
     echo -e "  ${YELLOW}[WARN] Native macOS computer-use harness could not initialize.${RESET}"
 fi
 
 # Run preflight check for Browser Harness CDP
-if .venv/bin/python3 -c "import browser_harness; from OpenAgent.browser_adapter import BrowserAdapter; BrowserAdapter()" 2>/dev/null; then
+if uv run python -c "import browser_harness; from OpenAgent.browser_adapter import BrowserAdapter; BrowserAdapter()" 2>/dev/null; then
     echo -e "  ${GREEN}✓${RESET} Browser Harness CDP operational (Chrome background control, AX tree, domain skills)"
 else
     echo -e "  ${YELLOW}[WARN] Browser Harness CDP could not initialize.${RESET}"
 fi
 
 # Check macOS Accessibility permission (required to inspect WhatsApp UI and capture hotkeys)
-if ! .venv/bin/python3 -c "from ApplicationServices import AXIsProcessTrusted; assert AXIsProcessTrusted() is True" 2>/dev/null; then
+if ! uv run python -c "from ApplicationServices import AXIsProcessTrusted; assert AXIsProcessTrusted() is True" 2>/dev/null; then
     echo -e "  ${RED}✗ [PERMISSION REQUIRED]${RESET} Accessibility permission is missing for this terminal!"
     echo -e "    macOS blocks untrusted processes from inspecting WhatsApp UI and intercepting tool calls."
     echo -e "    ${BOLD}Grant access in:${RESET} System Settings → Privacy & Security → Accessibility"
     echo -e "    Toggle ON ${BOLD}${TERM_PROGRAM:-Terminal}${RESET} (or add your terminal app with '+')."
-    .venv/bin/python3 -c "from ApplicationServices import AXIsProcessTrustedWithOptions, kAXTrustedCheckOptionPrompt; AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: True})" 2>/dev/null || true
+    uv run python -c "from ApplicationServices import AXIsProcessTrustedWithOptions, kAXTrustedCheckOptionPrompt; AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: True})" 2>/dev/null || true
     echo -e "    ${YELLOW}After enabling, restart: ./start.sh${RESET}"
     exit 1
 fi
@@ -199,4 +181,5 @@ echo -e "• Harness: Intercepting & executing incoming tool calls automatically
 echo -e "--------------------------------------------------------\n"
 
 # Execute bridge runner with any extra arguments passed into this script
-exec .venv/bin/python3 -m OpenAgent.main run "$@"
+exec uv run python -m OpenAgent.main run "$@"
+

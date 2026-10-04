@@ -236,7 +236,7 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None):
         import sounddevice as sd
         from vosk import Model, KaldiRecognizer, SetLogLevel
     except ImportError as exc:
-        raise RuntimeError("Voice mode needs pip install '.[voice]' (vosk and sounddevice)") from exc
+        raise RuntimeError("Voice mode needs uv sync --extra voice (vosk and sounddevice)") from exc
 
     model_path = Path(cfg.voice_model).expanduser()
     if not model_path.is_absolute() and not model_path.is_dir():

@@ -10,6 +10,7 @@ OpenAgent interacts directly with macOS system APIs, audio subsystems, and Whats
 
 * **Hardware / OS**: macOS 14 (Sonoma) or macOS 15 (Sequoia) running on Apple Silicon or Intel.
 * **Python**: 3.11 or newer.
+* **uv**: Astral Python package and project manager ([astral.sh/uv](https://astral.sh/uv)).
 * **Bun**: Modern JavaScript/TypeScript runtime ([bun.sh](https://bun.sh)).
 * **Homebrew Utilities**: `sox`, `ffmpeg`, `ripgrep`, and `whisper-cpp`.
 * **macOS Permissions**: Accessibility, Input Monitoring, Microphone, and Automation granted to your terminal application.
@@ -22,11 +23,9 @@ OpenAgent interacts directly with macOS system APIs, audio subsystems, and Whats
    cd OpenAgent
    ```
 
-2. **Set up Python virtual environment**:
+2. **Synchronize Python dependencies with uv**:
    ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -e '.[dev,voice]' -e ./src/macos-harness -e ./src/browser-harness
+   uv sync --all-extras
    ```
 
 3. **Install CLI harness dependencies**:
@@ -38,7 +37,7 @@ OpenAgent interacts directly with macOS system APIs, audio subsystems, and Whats
 
 4. **Verify local test suite**:
    ```bash
-   .venv/bin/pytest
+   uv run pytest
    ```
    All tests should pass before you begin making changes.
 
@@ -76,7 +75,7 @@ When adding features or modifying existing code, you **must preserve the followi
 * **Unit Tests Required**: Any new tool, parser modification, or routing logic must be accompanied by corresponding unit tests in `tests/`.
 * **Run Test Suite**:
   ```bash
-  .venv/bin/pytest -v
+  uv run pytest -v
   ```
 * **Linting & Code Quality**:
   * Python: Format and check code using standard tools (`ruff` or `flake8`).
@@ -89,7 +88,7 @@ When adding features or modifying existing code, you **must preserve the followi
 
 1. **Create a branch**: `git checkout -b feature/your-feature-name`
 2. **Make your changes** following the architectural invariants above.
-3. **Verify tests pass**: Run `.venv/bin/pytest`.
+3. **Verify tests pass**: Run `uv run pytest`.
 4. **Commit with clear messages**: Write descriptive commit messages explaining *why* the change was made.
 5. **Open a Pull Request**: Provide a clear explanation of your changes, how they were tested, and any relevant configuration requirements.
 

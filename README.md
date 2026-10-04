@@ -6,10 +6,12 @@
 
 [![macOS](https://img.shields.io/badge/platform-macOS%20Darwin-lightgrey.svg?style=flat-square&logo=apple)](https://apple.com)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
+[![uv](https://img.shields.io/badge/package%20manager-uv-blueviolet.svg?style=flat-square)](https://astral.sh/uv)
 [![Bun](https://img.shields.io/badge/runtime-bun-black.svg?style=flat-square&logo=bun)](https://bun.sh)
-[![Tests](https://img.shields.io/badge/tests-125%20passing-brightgreen.svg?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/tests-136%20passing-brightgreen.svg?style=flat-square)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-purple.svg?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20beta-orange.svg?style=flat-square)]()
+
 
 <p align="center">
   <a href="#quick-start">Quick Start</a> •
@@ -72,6 +74,7 @@ Running 100% locally on your Mac, OpenAgent intercepts structured tool calls fro
 ### Prerequisites
 
 * macOS 14 (Sonoma) or macOS 15 (Sequoia) on Apple Silicon or Intel
+* [uv](https://astral.sh/uv) (Astral Python package and project manager)
 * [Homebrew](https://brew.sh/) & [Bun](https://bun.sh/)
 * Official **WhatsApp Desktop** installed and logged in
 
@@ -85,20 +88,17 @@ cd OpenAgent
 
 chmod +x start.sh
 ./start.sh
-
 ```
 
-`start.sh` automatically checks dependencies, creates the Python virtualenv, installs the native harness, configures `.env`, tests stdio IPC, and spins up the runtime.
+`start.sh` automatically checks dependencies, synchronizes the Python environment via `uv`, installs the native harness, configures `.env`, tests stdio IPC, and spins up the runtime.
 
 ```bash
 # 1. Install system utilities
-brew install python sox ffmpeg ripgrep whisper-cpp
+brew install uv sox ffmpeg ripgrep whisper-cpp
 curl -fsSL https://bun.sh/install | bash
 
-# 2. Setup Python environment
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e '.[dev,voice]' -e ./src/macos-harness -e ./src/browser-harness
+# 2. Setup Python environment with uv
+uv sync --all-extras
 
 # 3. Install Bun CLI harness dependencies
 cd src/cli-harness && bun install && cd ../..
@@ -107,8 +107,7 @@ cd src/cli-harness && bun install && cd ../..
 cp .env.example .env
 
 # 5. Start OpenAgent
-.venv/bin/python3 -m OpenAgent.main run
-
+uv run python -m OpenAgent.main run
 ```
 
 
@@ -136,9 +135,9 @@ Instinct will recognize the `JARVIS_CALL` protocol and begin executing tasks on 
 
 ### Push-to-Talk (Default)
 
-1. Run `./start.sh` (or `.venv/bin/python3 -m OpenAgent.main run`).
-2. **Hold `F8**` and speak your request.
-3. **Release `F8**` to encode and dispatch the request to Instinct.
+1. Run `./start.sh` (or `uv run python -m OpenAgent.main run`).
+2. **Hold `F8`** and speak your request.
+3. **Release `F8`** to encode and dispatch the request to Instinct.
 4. Press `Esc` anytime to cancel or exit.
 
 ### Hands-Free Wake-Word Mode
@@ -239,15 +238,13 @@ For security reports and guidelines, read [`SECURITY.md`](SECURITY.md).
 Run the comprehensive pytest suite:
 
 ```bash
-.venv/bin/pytest
-
+uv run pytest
 ```
 
 Run the macOS native adapter health check:
 
 ```bash
-.venv/bin/python3 -c "from OpenAgent.mac_adapter import MacAdapter; print(MacAdapter().doctor())"
-
+uv run python -c "from OpenAgent.mac_adapter import MacAdapter; print(MacAdapter().doctor())"
 ```
 
 Stream live runtime logs:

@@ -25,7 +25,7 @@ def test_harness_read_file():
         assert res["type"] == "file"
         assert res["offset"] == 1
         assert res["limit"] == 2
-        assert "[project]" in res["content"]
+        assert "[build-system]" in res["content"]
 
 
 def test_harness_write_and_edit_cycle(tmp_path: Path):
