@@ -25,13 +25,16 @@ _INVISIBLE_CHARS = ("\u200b", "\u200c", "\u200d", "\u200e", "\u200f", "\u2060", 
 #   ", yesterday at 10:50 AM, Received from ..."
 #   ", 10:50 AM" (truncated description without sender info)
 _DESC_TIMESTAMP_METADATA_RE = re.compile(
-    r",\s*([^,]+?)\s*,\s*(?:\u200e)?(?:Received from|Sent to|Read|Delivered)\b.*$",
-    re.IGNORECASE,
+    r",\s*([^,\n]+?)\s*,\s*(?:\u200e)?(?:Received from|Sent to|Read|Delivered)\b.*$",
+    re.IGNORECASE | re.DOTALL,
 )
 _DESC_TIMESTAMP_FALLBACK_RE = re.compile(
-    r",\s*(\d{1,2}:\d{2}(?:\s*[AP]M)?)\s*$",
-    re.IGNORECASE,
+    r",\s*(\d{1,2}:\d{2}(?:\s*[AP]M)?)(?:\s*,.*|\s*$)",
+    re.IGNORECASE | re.DOTALL,
 )
+# Prefix injected when a message is a reply to a previous message:
+# "Replying to You.\n" or "Replying to <Contact>.\n"
+_REPLY_PREFIX_RE = re.compile(r"^replying to [^\n]+\n", re.IGNORECASE)
 
 
 def _strip_invisible(text):
@@ -47,6 +50,8 @@ def _body_from_description(desc):
     whose AXDescription has the format:
         ‎message, <BODY>, <HH:MM> <AM/PM>, ‎Received from <NUMBER>
         ‎Your message, <BODY>, <HH:MM> <AM/PM>, ‎Sent to <NUMBER>, ‎Delivered
+    When replying to a previous message:
+        ‎Replying to ‎You.\n‎message, <BODY>, <HH:MM>, ‎Received from ...\n‎Quoted message.\n...
 
     Returns the body text, or '' if the description doesn't match.
     """
@@ -54,20 +59,17 @@ def _body_from_description(desc):
     if not clean:
         return ""
 
+    stripped = _REPLY_PREFIX_RE.sub("", clean).strip()
+
     # Incoming text: starts with "message, " (NOT "Your message")
-    lc = clean.lower()
-    if lc.startswith("your ") or lc.startswith("voice message"):
+    lc = stripped.lower()
+    if lc.startswith("your ") or lc.startswith("voice message") or lc.startswith("document, "):
         return ""
-    prefix = ""
-    if lc.startswith("message, "):
-        prefix = clean[:len("message, ")]
-    elif lc.startswith("document, "):
-        # Incoming document descriptions - don't extract body (filename, not text)
-        return ""
-    else:
+    if not lc.startswith("message, "):
         return ""
 
-    rest = clean[len(prefix):]
+    prefix = stripped[:len("message, ")]
+    rest = stripped[len(prefix):]
     # Strip trailing timestamp + direction suffix
     m = _DESC_TIMESTAMP_METADATA_RE.search(rest)
     if not m:
@@ -87,10 +89,11 @@ def _timestamp_from_description(desc):
     Returns a normalised time string like '10:50 AM' or '14:35', or '' if none found.
     """
     clean = _strip_invisible(desc).strip()
-    m = _DESC_TIMESTAMP_METADATA_RE.search(clean)
+    stripped = _REPLY_PREFIX_RE.sub("", clean).strip()
+    m = _DESC_TIMESTAMP_METADATA_RE.search(stripped)
     if m:
         return re.sub(r"\s+", " ", m.group(1)).strip()
-    m2 = _DESC_TIMESTAMP_FALLBACK_RE.search(clean)
+    m2 = _DESC_TIMESTAMP_FALLBACK_RE.search(stripped)
     if m2:
         return re.sub(r"\s+", " ", m2.group(1)).strip()
     return ""
@@ -231,10 +234,18 @@ def incoming_texts(rows, cfg):
         return []
     parents = [r for r in rows if r.get("path") == cfg.message_list_path and r.get("role") in ("AXList", "AXScrollArea", "AXGroup")]
     if len(parents) != 1:
-        event("text_scan_unavailable", level="warning", reason="list_missing_or_ambiguous", matches=len(parents))
-        return []
-    children = [r for r in rows if under(r.get("path", ""), cfg.message_list_path)]
-    groups = [r for r in children if r.get("path", "").count("/") == cfg.message_list_path.count("/") + 1]
+        parents = [
+            r for r in rows
+            if r.get("role") in ("AXList", "AXScrollArea", "AXGroup")
+            and ("messages in chat" in _strip_invisible(r.get("description", "")).lower()
+                 or "list of messages" in _strip_invisible(r.get("description", "")).lower())
+        ]
+        if len(parents) != 1:
+            event("text_scan_unavailable", level="warning", reason="list_missing_or_ambiguous", matches=len(parents))
+            return []
+    list_path = parents[0].get("path", cfg.message_list_path)
+    children = [r for r in rows if under(r.get("path", ""), list_path)]
+    groups = [r for r in children if r.get("path", "").count("/") == list_path.count("/") + 1]
     event("text_scan", level="debug", groups=len(groups))
     result = []
     skipped = []
@@ -252,7 +263,8 @@ def incoming_texts(rows, cfg):
 
         # Skip outgoing messages (check both metadata label and group description)
         grp_desc_clean = _strip_invisible(group.get("description", "")).lower()
-        if any(out in meta_label for out in ("your message", "outgoing", "you:")) or grp_desc_clean.startswith("your "):
+        grp_desc_stripped = _REPLY_PREFIX_RE.sub("", grp_desc_clean).strip()
+        if any(out in meta_label for out in ("your message", "outgoing", "you:")) or grp_desc_stripped.startswith("your "):
             if "jarvis_call" in meta_label or "jarvis_call" in grp_desc_clean or any("jarvis_call" in _strip_invisible(r.get("value") or "").casefold() for r in descendants):
                 event("text_group_skip", level="warning", reason="outgoing_filter", meta=meta_label[:120], sample=_group_sample(descendants, group))
             skipped.append(("outgoing_filter", _group_sample(descendants, group)))
@@ -270,7 +282,7 @@ def incoming_texts(rows, cfg):
             is_incoming = True
         # WhatsApp 2.26+ flat nodes: incoming text starts with "message, "
         # (not "Your message") and has no "Sent to" suffix.
-        elif grp_desc_clean.startswith("message, ") and "sent to" not in grp_desc_clean:
+        elif grp_desc_stripped.startswith("message, ") and "sent to" not in grp_desc_clean:
             is_incoming = True
         elif not cfg.safe_mode:
             is_incoming = True
@@ -352,9 +364,17 @@ def voice_groups(rows, cfg, include_playing=False):
         raise RuntimeError("Play and pause labels must differ")
     parent = [r for r in rows if r["path"] == cfg.message_list_path and r["role"] in ("AXList", "AXScrollArea", "AXGroup")]
     if len(parent) != 1:
-        raise RuntimeError("Message list path missing or ambiguous")
-    children = [r for r in rows if under(r["path"], cfg.message_list_path)]
-    groups = [r for r in children if r["path"].count("/") == cfg.message_list_path.count("/") + 1]
+        parent = [
+            r for r in rows
+            if r.get("role") in ("AXList", "AXScrollArea", "AXGroup")
+            and ("messages in chat" in _strip_invisible(r.get("description", "")).lower()
+                 or "list of messages" in _strip_invisible(r.get("description", "")).lower())
+        ]
+        if len(parent) != 1:
+            raise RuntimeError("Message list path missing or ambiguous")
+    list_path = parent[0]["path"]
+    children = [r for r in rows if under(r["path"], list_path)]
+    groups = [r for r in children if r["path"].count("/") == list_path.count("/") + 1]
     result = []
     for group in groups:
         descendants = [r for r in children if r["path"] == group["path"] or under(r["path"], group["path"])]

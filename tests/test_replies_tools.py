@@ -835,5 +835,80 @@ def test_voice_note_startup_baseline_never_queued():
     assert len(state.get("queue", [])) == 0
 
 
+def test_body_from_description_quoted_reply():
+    """Verify that incoming messages quoting a previous message are properly extracted."""
+    from bridge.replies import _body_from_description, _timestamp_from_description
+
+    # Incoming tool call replying to user
+    desc = (
+        "\u200eReplying to \u200eYou.\n"
+        "\u200emessage, JARVIS_CALL:eyJ0b29sIjogIm1hY19hcHBzIiwgImFyZ3MiOiB7fX0=:END, 11:33\u202fAM, "
+        "\u200eReceived from + 1,6 5 0,8 7 0,2 8 9 2.\n"
+        "\u200eQuoted message.\ntry to play the Triangle Violin Song of DJ Muratti on my spotify, by operating my mac"
+    )
+    assert _body_from_description(desc) == "JARVIS_CALL:eyJ0b29sIjogIm1hY19hcHBzIiwgImFyZ3MiOiB7fX0=:END"
+    assert _timestamp_from_description(desc) == "11:33 AM"
+
+    # Incoming reply with named contact
+    desc_contact = (
+        "Replying to Hamdan.\n"
+        "message, git status, 14:05, Received from +16508702892.\n"
+        "Quoted message.\nwhat is the status"
+    )
+    assert _body_from_description(desc_contact) == "git status"
+    assert _timestamp_from_description(desc_contact) == "14:05"
+
+    # Outgoing reply (user replying to someone) must NOT extract
+    desc_out_reply = (
+        "\u200eReplying to \u200eInstinct.\n"
+        "\u200eYour message, abort, 11:34\u202fAM, \u200eSent to + 1,6 5 0,8 7 0,2 8 9 2, \u200eDelivered"
+    )
+    assert _body_from_description(desc_out_reply) == ""
+
+
+def test_incoming_texts_with_quoted_reply_and_dynamic_fallback():
+    """Verify incoming_texts correctly extracts JARVIS_CALL from quoted reply and handles list fallback."""
+    from bridge.config import Config
+    from bridge.replies import incoming_texts
+
+    # Calibrated list path intentionally wrong/shifted to test dynamic fallback
+    cfg = Config(
+        header_path="/0/1",
+        message_list_path="/0/999/wrong/path",
+        number="+16508702892",
+        incoming_marker="Received from",
+        safe_mode=False,
+    )
+
+    rows = [
+        {"path": "/0/1", "role": "AXButton", "title": "+1 (650) 870-2892", "description": "", "value": ""},
+        # Dynamic message list matching "Messages in chat with Instinct"
+        {"path": "/0/2/1/0/0", "role": "AXGroup", "title": "", "description": "\u200eMessages in chat with Instinct", "value": ""},
+        # Outgoing message
+        {"path": "/0/2/1/0/0/0", "role": "AXStaticText", "title": "", "description": "\u200eYour message, try spotify, 11:30 AM", "value": ""},
+        # Incoming quoted reply containing JARVIS_CALL
+        {
+            "path": "/0/2/1/0/0/1",
+            "role": "AXStaticText",
+            "title": "",
+            "description": (
+                "\u200eReplying to \u200eYou.\n"
+                "\u200emessage, JARVIS_CALL:eyJ0b29sIjogIm1hY19hcHBzIiwgImFyZ3MiOiB7fX0=:END, 11:33\u202fAM, "
+                "\u200eReceived from + 1,6 5 0,8 7 0,2 8 9 2.\n"
+                "\u200eQuoted message.\ntry spotify"
+            ),
+            "value": "",
+        },
+    ]
+
+    results = incoming_texts(rows, cfg)
+    assert len(results) == 1
+    grp_path, text, sig = results[0]
+    assert grp_path == "/0/2/1/0/0/1"
+    assert text == "JARVIS_CALL:eyJ0b29sIjogIm1hY19hcHBzIiwgImFyZ3MiOiB7fX0=:END"
+    assert "11:33 AM" in sig
+
+
+
 
 
