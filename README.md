@@ -1,6 +1,6 @@
-<div align="center">
+<img src="https://raw.githubusercontent.com/browser-use/macos-harness/main/static/banner-ink.svg" alt="macOS Harness" width="100%" />
 
-# ⚡ OpenAgent
+# OpenAgent ⌘
 
 **The open-source, local macOS computer-use body for AI agents.**
 
@@ -20,10 +20,6 @@
   <a href="#documentation">Docs</a> •
   <a href="#contributing">Contributing</a>
 </p>
-
-</div>
-
----
 
 ## What is OpenAgent?
 
@@ -58,28 +54,26 @@ Running 100% locally on your Mac, OpenAgent intercepts structured tool calls fro
 │                   macOS (The World)                    │
 │          Your Local System, Apps & Environment         │
 └────────────────────────────────────────────────────────┘
+
 ```
 
-> **Instinct thinks. OpenAgent acts. macOS is the environment.**
+> **Instinct thinks. OpenAgent acts.**
 
----
+## Core Features
 
-## ⚡ Core Features
+* **High-Speed Voice Pipeline**: Hold **`F8`** to talk (Push-to-Talk) or use hands-free wake word (*"Wake up Jarvis"*). Features local RMS silence gating, background audio playback, and instant barge-in interruption.
+* **Headless Developer Harness**: Ultra-fast Bun + TypeScript runner providing sandboxed `bash` execution, granular file pagination (`read`), atomic `write`, exact diff patching (`edit`), and fast `ripgrep` search.
+* **Native macOS Computer-Use**: Inspect application windows (`mac_see`), query semantic UI trees (`mac_ax`), issue PID-targeted clicks and keystrokes, and control authenticated Chrome sessions via CDP without stealing physical focus.
+* **Fail-Closed Safety**: Chat-lock verification ensures commands only execute from your authorized Instinct chat. Includes prohibited-target isolation (protects the communication bridge from self-clicking) and append-only deduplication ledgers.
+* **Zero-Cloud Intermediary**: All tool execution, screen parsing, and audio handling happen locally on your hardware.
 
-- 🎙️ **High-Speed Voice Pipeline**: Hold **`F8`** to talk (Push-to-Talk) or use hands-free wake word (*"Wake up Jarvis"*). Features local RMS silence gating, background audio playback, and instant barge-in interruption.
-- 💻 **Headless Developer Harness**: Ultra-fast Bun + TypeScript runner providing sandboxed `bash` execution, granular file pagination (`read`), atomic `write`, exact diff patching (`edit`), and fast `ripgrep` search.
-- 🖥️ **Native macOS Computer-Use**: Inspect application windows (`mac_see`), query semantic UI trees (`mac_ax`), issue PID-targeted clicks and keystrokes, and control authenticated Chrome sessions via CDP without stealing physical focus.
-- 🛡️ **Fail-Closed Safety**: Chat-lock verification ensures commands only execute from your authorized Instinct chat. Includes prohibited-target isolation (protects the communication bridge from self-clicking) and append-only deduplication ledgers.
-- 🚀 **Zero-Cloud Intermediary**: All tool execution, screen parsing, and audio handling happen locally on your hardware.
-
----
-
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
-- macOS 14 (Sonoma) or macOS 15 (Sequoia) on Apple Silicon or Intel
-- [Homebrew](https://brew.sh/) & [Bun](https://bun.sh/)
-- Official **WhatsApp Desktop** installed and logged in
+
+* macOS 14 (Sonoma) or macOS 15 (Sequoia) on Apple Silicon or Intel
+* [Homebrew](https://brew.sh/) & [Bun](https://bun.sh/)
+* Official **WhatsApp Desktop** installed and logged in
 
 ### 1. One-Command Setup & Launch
 
@@ -91,12 +85,10 @@ cd OpenAgent
 
 chmod +x start.sh
 ./start.sh
+
 ```
 
 `start.sh` automatically checks dependencies, creates the Python virtualenv, installs the native harness, configures `.env`, tests stdio IPC, and spins up the runtime.
-
-<details>
-<summary><b>Manual Step-by-Step Installation</b></summary>
 
 ```bash
 # 1. Install system utilities
@@ -116,21 +108,19 @@ cp .env.example .env
 
 # 5. Start OpenAgent
 .venv/bin/python3 -m bridge.main run
-```
-</details>
 
----
+```
+
 
 ### 2. Grant macOS Permissions
 
 Open **System Settings → Privacy & Security** and verify permissions for your terminal application:
-- **Accessibility**: UI inspection and desktop automation
-- **Input Monitoring**: Global push-to-talk hotkey (`F8`)
-- **Microphone**: Audio recording via SoX
-- **Screen Recording**: Window capture (`mac_see`)
-- **Automation**: System Events and AppleScript app control
 
----
+* **Accessibility**: UI inspection and desktop automation
+* **Input Monitoring**: Global push-to-talk hotkey (`F8`)
+* **Microphone**: Audio recording via SoX
+* **Screen Recording**: Window capture (`mac_see`)
+* **Automation**: System Events and AppleScript app control
 
 ### 3. Connect Instinct (One-Time)
 
@@ -142,32 +132,33 @@ Once OpenAgent is running, initialize Instinct with its capabilities:
 
 Instinct will recognize the `JARVIS_CALL` protocol and begin executing tasks on your Mac!
 
----
-
-## 🎮 How to Operate
+## How to Operate
 
 ### Push-to-Talk (Default)
+
 1. Run `./start.sh` (or `.venv/bin/python3 -m bridge.main run`).
-2. **Hold `F8`** and speak your request.
-3. **Release `F8`** to encode and dispatch the request to Instinct.
+2. **Hold `F8**` and speak your request.
+3. **Release `F8**` to encode and dispatch the request to Instinct.
 4. Press `Esc` anytime to cancel or exit.
 
 ### Hands-Free Wake-Word Mode
+
 ```bash
 ./start.sh --voice --send-mode audio
+
 ```
+
 Say *"Wakeup Jarvis"*, pause, and state your instruction. OpenAgent listens and submits the command automatically once you stop speaking. Say *"Jarvis stand by"* to return to idle.
 
----
-
-## 🛠️ Tool Suite
+## Tool Suite
 
 Instinct controls your Mac by wrapping structured JSON calls inside a resilient transport envelope:
 `JARVIS_CALL:<base64-encoded-JSON>:END`.
 
 ### Developer Harness Tools
+
 | Tool | Description | Key Arguments |
-| :--- | :--- | :--- |
+| --- | --- | --- |
 | `bash` | Execute shell commands in `zsh` | `command`, `cwd`, `timeout_ms` |
 | `read` | Read file contents or list directories with pagination | `path`, `offset`, `limit` |
 | `write` | Atomically write or overwrite files | `path`, `content` |
@@ -178,8 +169,9 @@ Instinct controls your Mac by wrapping structured JSON calls inside a resilient 
 | `system_info` | Inspect local OS version, hardware, and runtime status | *(none)* |
 
 ### Native macOS Computer-Use Tools
+
 | Tool | Description | Key Arguments |
-| :--- | :--- | :--- |
+| --- | --- | --- |
 | `mac_see` | Capture window screenshot and extract interactive UI elements | `app`, `send_image`, `include_summary` |
 | `mac_click` | PID-targeted mouse click without stealing focus | `x`, `y`, `app`, `button`, `click_count` |
 | `mac_type` | Type text directly into a target application | `text`, `app` |
@@ -194,14 +186,12 @@ Instinct controls your Mac by wrapping structured JSON calls inside a resilient 
 
 > Full schema specifications and example payloads are available in [`docs/JARVIS_INSTRUCTIONS.md`](docs/JARVIS_INSTRUCTIONS.md).
 
----
-
-## ⚙️ Configuration
+## Configuration
 
 OpenAgent is configured via `.env` in the project root:
 
 | Variable | Default | Description |
-| :--- | :--- | :--- |
+| --- | --- | --- |
 | `BRIDGE_WHATSAPP_NUMBER` | `+16508702892` | WhatsApp phone number for your Instinct agent |
 | `BRIDGE_SAFE_MODE` | `true` | Restrict execution strictly to the verified chat header |
 | `BRIDGE_HOTKEY` | `f8` | Push-to-talk hotkey (`f8`, `f6`, `right_shift`, etc.) |
@@ -212,43 +202,43 @@ OpenAgent is configured via `.env` in the project root:
 | `BRIDGE_VOICE_SILENCE_SECONDS` | `2.0` | Silence delay before auto-submitting voice input |
 | `BRIDGE_LOG_FILE` | `~/Library/Logs/OpenAgent/bridge.jsonl` | Diagnostic JSONL event log path |
 
----
-
-## 🔒 Security & Safety Model
+## Security & Safety Model
 
 Giving an AI assistant access to your Mac requires rigorous guardrails:
 
-- **Fail-Closed Execution**: If chat header verification fails or the target window is ambiguous, OpenAgent halts immediately.
-- **Prohibited Target Isolation**: OpenAgent prevents synthetic clicks and keystrokes on the WhatsApp bridge itself, blocking recursive self-activation loops.
-- **Persistent Idempotency**: Processed tool signatures are written to an append-only JSONL ledger (`processed.jsonl`) to prevent accidental replays across restarts.
-- **Non-Disruptive Interaction**: Window operations and inputs target specific Process IDs (`CGEventPostToPid`) whenever possible, minimizing physical mouse hijacking.
+* **Fail-Closed Execution**: If chat header verification fails or the target window is ambiguous, OpenAgent halts immediately.
+* **Prohibited Target Isolation**: OpenAgent prevents synthetic clicks and keystrokes on the WhatsApp bridge itself, blocking recursive self-activation loops.
+* **Persistent Idempotency**: Processed tool signatures are written to an append-only JSONL ledger (`processed.jsonl`) to prevent accidental replays across restarts.
+* **Non-Disruptive Interaction**: Window operations and inputs target specific Process IDs (`CGEventPostToPid`) whenever possible, minimizing physical mouse hijacking.
 
 For security reports and guidelines, read [`SECURITY.md`](SECURITY.md).
 
----
-
-## 🧪 Testing & Diagnostics
+## Testing & Diagnostics
 
 Run the comprehensive pytest suite:
+
 ```bash
 .venv/bin/pytest
+
 ```
 
 Run the macOS native adapter health check:
+
 ```bash
 .venv/bin/python3 -c "from bridge.mac_adapter import MacAdapter; print(MacAdapter().doctor())"
+
 ```
 
 Stream live runtime logs:
+
 ```bash
 tail -f ~/Library/Logs/OpenAgent/bridge.jsonl
+
 ```
 
 For advanced Accessibility tree inspection and calibration, see [`docs/CALIBRATION.md`](docs/CALIBRATION.md).
 
----
-
-## 📖 Documentation
+## Documentation
 
 - [Setup Prompt & Tool Instructions](docs/JARVIS_INSTRUCTIONS.md) — Initialization block to connect Instinct.
 - [Accessibility & Calibration Guide](docs/CALIBRATION.md) — Deep calibration for AX trees, audio routing, and debug states.
@@ -257,13 +247,11 @@ For advanced Accessibility tree inspection and calibration, see [`docs/CALIBRATI
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions, bug reports, and PRs are warmly welcome! Whether you are adding new macOS harness primitives, improving voice latency, or expanding developer tools, check out [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) to get started.
 
----
-
-## 💛 Credits & Acknowledgments
+## Credits & Acknowledgments
 
 OpenAgent is built with gratitude on the shoulders of the open-source agent tooling community:
 - **[OpenCode](https://github.com/anomalyco/opencode)** — Inspiring open-source agentic coding architectures.
