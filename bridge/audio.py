@@ -3,11 +3,22 @@ from pathlib import Path
 
 
 def transcribe(path, cfg):
-    cmd = [cfg.whisper_cli, "-m", cfg.model, "-f", str(path), "-nt"]
+    model_path = Path(cfg.model).expanduser()
+    if not model_path.is_absolute():
+        repo_root = Path(__file__).resolve().parents[1]
+        model_path = repo_root / model_path
+    cmd = [cfg.whisper_cli, "-m", str(model_path), "-f", str(path), "-nt"]
     if cfg.language != "auto": cmd += ["-l", cfg.language]
     out = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=90).stdout
     # whisper-cli often prefixes timestamps; -nt requests no timestamps.
-    lines = [line.strip() for line in out.splitlines() if line.strip() and not line.startswith("whisper_")]
+    lines = []
+    for line in out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if any(line.startswith(p) for p in ("whisper_", "system_info:", "main:", "[BLAS]", "AVX", "NEON", "metal :")):
+            continue
+        lines.append(line)
     return " ".join(lines).strip()
 
 

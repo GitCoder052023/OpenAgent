@@ -10,13 +10,18 @@ on run argv
       if not (exists window 1) then error "No WhatsApp window"
       -- Do not navigate by contact name. Operator must manually open and lock the exact chat.
       set frontmost to true
-      if (count of text areas of window 1) is 1 then
-        set focused of text area 1 of window 1 to true
+      set taCount to (count of text areas of window 1)
+      if taCount > 0 then
+        set focused of text area taCount of window 1 to true
       end if
     end tell
+    set oldClip to the clipboard
     set the clipboard to theText
     keystroke "v" using command down
     delay 0.15
+    try
+      set the clipboard to oldClip
+    end try
     -- Keep send separate so the Python caller can re-check the chat after paste.
   end tell
 end run

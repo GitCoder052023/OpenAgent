@@ -78,17 +78,49 @@ class MacAdapter:
         }
 
         t_start = time.monotonic()
+        exec_exc = None
         try:
-            with contextlib.redirect_stdout(stdout_buf), contextlib.redirect_stderr(stderr_buf):
-                compiled = compile(code, "<jarvis-mac>", "exec")
-                exec(compiled, namespace, namespace)  # noqa: S102
-        except Exception as exc:
+            compiled = compile(code, "<jarvis-mac>", "exec")
+        except Exception as compile_err:
+            return {
+                "status": "error",
+                "error": f"{type(compile_err).__name__}: {compile_err}",
+                "stdout": "",
+                "stderr": "",
+                "duration_s": 0.0,
+            }
+
+        import threading
+
+        def worker():
+            nonlocal exec_exc
+            try:
+                with contextlib.redirect_stdout(stdout_buf), contextlib.redirect_stderr(stderr_buf):
+                    exec(compiled, namespace, namespace)  # noqa: S102
+            except Exception as exc:
+                exec_exc = exc
+
+        th = threading.Thread(target=worker, daemon=True)
+        th.start()
+        th.join(timeout=timeout)
+
+        if th.is_alive():
+            duration = round(time.monotonic() - t_start, 3)
+            return {
+                "status": "error",
+                "error": f"TimeoutExpired: Python script exceeded timeout of {timeout}s",
+                "stdout": stdout_buf.getvalue().strip(),
+                "stderr": stderr_buf.getvalue().strip(),
+                "duration_s": duration,
+            }
+
+        if exec_exc:
             duration = round(time.monotonic() - t_start, 3)
             err_output = stderr_buf.getvalue().strip()
             out_output = stdout_buf.getvalue().strip()
             return {
                 "status": "error",
-                "error": f"{type(exc).__name__}: {exc}",
+                "error": f"{type(exec_exc).__name__}: {exec_exc}",
                 "stdout": out_output,
                 "stderr": err_output,
                 "duration_s": duration,

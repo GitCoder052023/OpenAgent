@@ -73,35 +73,45 @@ class Desktop:
             self.assert_locked()
             activate_whatsapp()
             time.sleep(0.15)
-            # Open file picker using direct AX clicks; fail closed if they miss.
-            if not click_element_by_description(attach):
-                raise RuntimeError(f"Attach control '{attach}' not found; no send")
-            event("picker_step", step="attach", ok=True, label=attach)
+            try:
+                # Open file picker using direct AX clicks; fail closed if they miss.
+                if not click_element_by_description(attach):
+                    raise RuntimeError(f"Attach control '{attach}' not found; no send")
+                event("picker_step", step="attach", ok=True, label=attach)
 
-            # Poll briefly for the document menu item to appear in the popover
-            t0 = time.monotonic()
-            clicked_doc = False
-            while time.monotonic() - t0 < 3.0:
-                if click_element_by_description(doc):
-                    clicked_doc = True
-                    break
-                time.sleep(0.1)
-            if not clicked_doc:
-                event("picker_step", level="warning", step="document", ok=False, label=doc)
-                raise RuntimeError(f"Document menu item '{doc}' not found; no send")
-            event("picker_step", step="document", ok=True, label=doc)
-            time.sleep(0.35)
-            subprocess.run(["osascript", str(SCRIPTS / "attach.scpt"), str(path)], check=True, timeout=25)
-            event("picker_step", step="chooser", ok=True)
+                # Poll briefly for the document menu item to appear in the popover
+                t0 = time.monotonic()
+                clicked_doc = False
+                while time.monotonic() - t0 < 3.0:
+                    if click_element_by_description(doc, role="AXMenuItem"):
+                        clicked_doc = True
+                        break
+                    time.sleep(0.1)
+                if not clicked_doc:
+                    event("picker_step", level="warning", step="document", ok=False, label=doc)
+                    raise RuntimeError(f"Document menu item '{doc}' not found; no send")
+                event("picker_step", step="document", ok=True, label=doc)
+                time.sleep(0.35)
+                subprocess.run(["osascript", str(SCRIPTS / "attach.scpt"), str(path)], check=True, timeout=25)
+                event("picker_step", step="chooser", ok=True)
 
-            # In preview, the chat header is replaced by the attachment preview window.
-            # Click the preview Send button or press Enter, then immediately hide WhatsApp.
-            if not click_preview_send(timeout=5.0):
-                subprocess.run(["osascript", str(SCRIPTS / "commit-audio.scpt"),
-                                send_btn], check=True, timeout=15)
-            event("picker_step", step="dispatch", ok=True)
-            time.sleep(0.4)
-            hide_whatsapp()
+                # In preview, the chat header is replaced by the attachment preview window.
+                # Click the preview Send button or press Enter, then immediately hide WhatsApp.
+                if not click_preview_send(timeout=5.0):
+                    subprocess.run(["osascript", str(SCRIPTS / "commit-audio.scpt"),
+                                    send_btn], check=True, timeout=15)
+                event("picker_step", step="dispatch", ok=True)
+                time.sleep(0.8)
+            except Exception:
+                # Emergency recovery: dismiss modal preview/sheet so WhatsApp isn't wedged
+                try:
+                    subprocess.run(["osascript", "-e", 'tell application "System Events" to tell process "WhatsApp" to key code 53'], check=False, timeout=1.0)
+                except Exception:
+                    pass
+                hide_whatsapp()
+                raise
+            finally:
+                hide_whatsapp()
 
     def send_audio(self, path):
         """Prepare an M4A as a document attachment, dispatch it, then immediately hide WhatsApp."""

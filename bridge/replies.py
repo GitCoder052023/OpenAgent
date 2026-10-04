@@ -29,8 +29,8 @@ _DESC_TIMESTAMP_METADATA_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _DESC_TIMESTAMP_FALLBACK_RE = re.compile(
-    r",\s*(\d{1,2}:\d{2}(?:\s*[AP]M)?)(?:\s*,.*|\s*$)",
-    re.IGNORECASE | re.DOTALL,
+    r",\s*(\d{1,2}:\d{2}(?:\s*[AP]M)?)\s*$",
+    re.IGNORECASE,
 )
 # Prefix injected when a message is a reply to a previous message:
 # "Replying to You.\n" or "Replying to <Contact>.\n"
@@ -330,7 +330,7 @@ def incoming_texts(rows, cfg):
             continue
 
         # Prevent loop: never process our own tool response
-        if full_text.startswith("[Jarvis Tool Response:"):
+        if full_text.startswith("[Jarvis Tool Response:") or full_text.startswith("[Jarvis Tool Response"):
             skipped.append(("echo_guard", repr(full_text[:100])))
             continue
 
@@ -398,16 +398,37 @@ def voice_groups(rows, cfg, include_playing=False):
 
 
 def parse_duration(desc):
-    """Read the voice-note total, including WhatsApp's 0:09 / 1:02 display."""
+    """Read the voice-note total, ignoring trailing message timestamps."""
+    if not desc:
+        return 0
     m_min = re.search(r"(\d+)\s*minute", desc, re.IGNORECASE)
     m_sec = re.search(r"(\d+)\s*second", desc, re.IGNORECASE)
     if m_min or m_sec:
         return (int(m_min.group(1)) if m_min else 0) * 60 + (int(m_sec.group(1)) if m_sec else 0)
-    clock = re.findall(r"(?<!\d)(\d{1,2}):(\d{2})(?!\d)", desc)
-    if clock:
-        minutes, seconds = clock[-1]  # "0:03 of 0:09": use the total.
+
+    # WhatsApp progress display: "0:03 of 0:09" or "0:03 / 0:09"
+    progress_match = re.search(r"(?<!\d)(\d{1,2}):(\d{2})\s*(?:of|/)\s*(\d{1,2}):(\d{2})(?!\d)", desc, re.IGNORECASE)
+    if progress_match:
+        return int(progress_match.group(3)) * 60 + int(progress_match.group(4))
+
+    cleaned = _strip_invisible(desc)
+    m_meta = _DESC_TIMESTAMP_METADATA_RE.search(cleaned)
+    if m_meta:
+        cleaned = cleaned[:m_meta.start()]
+
+    clock = re.findall(r"(?<!\d)(\d{1,2}):(\d{2})(?!\d)", cleaned)
+    if not clock:
+        return 0
+
+    if len(clock) == 1:
+        if re.search(r"\b\d{1,2}:\d{2}\s*[AP]M\b", cleaned, re.IGNORECASE):
+            return 0  # Timestamp only, unknown duration
+        minutes, seconds = clock[0]
         return int(minutes) * 60 + int(seconds)
-    return 0  # Unknown duration: wait for a real pause-to-play transition.
+
+    # Multiple timestamps: the first is audio duration, following is time-of-day
+    minutes, seconds = clock[0]
+    return int(minutes) * 60 + int(seconds)
 
 
 def voice_signature(row):
@@ -420,7 +441,7 @@ def voice_signature(row):
     return cleaned or row.get("path", "")
 
 
-def canonical_voice_signature(ctrl, group=None, cfg=None):
+def canonical_voice_signature(ctrl, group=None, cfg=None, occurrence=0):
     """Build a stable, position-independent signature for an incoming voice note.
 
     Combines the group timestamp with the audio duration so the signature
@@ -440,13 +461,14 @@ def canonical_voice_signature(ctrl, group=None, cfg=None):
             cleaned = re.sub(re.escape(cfg.voice_pause_marker), '', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'\b(play|pause)\b(?:\s+voice\s+message)?', '', cleaned, flags=re.IGNORECASE).strip()
 
+    occ_suffix = f":{occurrence}" if occurrence else ""
     if ts and dur:
-        return f"voice:{ts}:{dur}s"
+        return f"voice:{ts}:{dur}s{occ_suffix}"
     if dur:
-        return f"voice:{dur}s:{cleaned}"
+        return f"voice:{dur}s:{cleaned}{occ_suffix}"
     if ts:
-        return f"voice:{ts}:{cleaned}"
-    return f"voice:{cleaned}" if cleaned else ctrl.get("path", "")
+        return f"voice:{ts}:{cleaned}{occ_suffix}"
+    return f"voice:{cleaned}{occ_suffix}" if cleaned else ctrl.get("path", "")
 
 
 def resolve_voice_control(rows, cfg, target_sig, fallback_path=None):
@@ -596,12 +618,18 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
             init = get_initial()
             row_map = {r["path"]: r for r in init}
             initial_voice = voice_groups(init, cfg, include_playing=True)
+            v_occ = {}
             for grp_path, ctrl_path in initial_voice:
                 ctrl = row_map.get(ctrl_path)
                 grp = row_map.get(grp_path)
                 if ctrl:
+                    dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
+                    grp_desc = grp.get("description", "") if isinstance(grp, dict) else ""
+                    ts = _timestamp_from_description(grp_desc)
+                    occ = v_occ.get((ts, dur), 0)
+                    v_occ[(ts, dur)] = occ + 1
                     played_signatures.add(voice_signature(ctrl))
-                    played_signatures.add(canonical_voice_signature(ctrl, grp, cfg))
+                    played_signatures.add(canonical_voice_signature(ctrl, grp, cfg, occurrence=occ))
             event("voice_baseline", count=len(initial_voice), ledger_total=len(played_signatures))
         except Exception as v_exc:
             logging.getLogger("jarvis.watcher").warning("Voice baseline deferred: %s", v_exc)
@@ -668,8 +696,13 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                 print("[Voice note playback finished]")
             except Exception as exc:
                 fail_counts[sig] = fail_counts.get(sig, 0) + 1
-                print(f"Playback trigger failed for {button_path} (attempt {fail_counts[sig]}/3): {exc}")
-                if fail_counts[sig] >= 3:
+                attempts = fail_counts[sig]
+                print(f"Playback trigger failed for {button_path} (attempt {attempts}/3): {exc}")
+                if attempts < 3:
+                    queue.insert(0, (sig, button_path, dur))
+                    if stop is not None: stop.wait(0.5)
+                    else: time.sleep(0.5)
+                else:
                     print(f"Skipping voice note after 3 failed play attempts: {sig[:80]}")
             finally:
                 if playing is not None:
@@ -706,16 +739,22 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                 try:
                     current_groups = voice_groups(rows, cfg, include_playing=False)
                     warned_missing = False
+                    voice_occ = {}
                     for grp_path, ctrl_path in current_groups:
                         ctrl = row_map.get(ctrl_path)
                         grp = row_map.get(grp_path)
                         if not ctrl: continue
+                        dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
+                        grp_desc = grp.get("description", "") if isinstance(grp, dict) else ""
+                        ts = _timestamp_from_description(grp_desc)
+                        occ = voice_occ.get((ts, dur), 0)
+                        voice_occ[(ts, dur)] = occ + 1
+
                         sig = voice_signature(ctrl)
-                        canon_sig = canonical_voice_signature(ctrl, grp, cfg)
+                        canon_sig = canonical_voice_signature(ctrl, grp, cfg, occurrence=occ)
                         if sig in played_signatures or canon_sig in played_signatures or any(q[0] in (sig, canon_sig) for q in queue):
                             continue
 
-                        dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
                         queue.append((sig, ctrl_path, dur))
                         # Immediately mark as played so it can NEVER be queued again!
                         played_signatures.add(sig)

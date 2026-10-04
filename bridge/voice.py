@@ -165,7 +165,7 @@ def gate_pcm(pcm, source="voice", recognized=None):
     reason = "ok"
     if recognized is not None and not words:
         reason = "no_recognition"
-    elif peak < 500 or active_s < 0.7:
+    elif peak < 400 or active_s < 0.7:
         reason = "low_energy"
     elif max_run < 4 or sustained_s < 0.15:
         reason = "impulse_noise"
@@ -409,34 +409,43 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None):
                     print("\n[Mic warning] Audio level near 0. If you are speaking, ensure Terminal has Microphone permission:")
                     print("  → macOS System Settings > Privacy & Security > Microphone > Enable Terminal/Python\n")
 
+            partial = ""
             if state.awake:
                 phrase.append(data)
                 phrase_frames += len(data) // 2
-                # Cap speculative pre-roll when no speech has been recognized yet.
-                # Keep the last ~2.5 seconds so speech onset is preserved without accumulating
-                # long typing/idle noise before speech begins.
-                if not clip_frames and phrase_frames > RATE * 3:
-                    target_frames = int(RATE * 2.5)
-                    while phrase and phrase_frames > target_frames:
-                        dropped = phrase.pop(0)
-                        phrase_frames -= len(dropped) // 2
-                if level >= 200:
-                    last_voice_at = now
-                if now - last_buffer_log >= 1.0:
-                    last_buffer_log = now
-                    event("capture_buffer", phrase_s=round(phrase_frames / RATE, 2),
-                          clip_s=round(clip_frames / RATE, 2), audio_level=level)
 
             # Speech recognition
             if recognizer.AcceptWaveform(data):
                 res_text = json.loads(recognizer.Result()).get("text", "").strip()
                 if res_text:
                     finish(res_text, now)
-            elif not state.awake:
-                # Catch wake words in real-time partial results without waiting for phrase silence
-                partial = json.loads(recognizer.PartialResult()).get("partial", "").strip()
-                if partial and is_wake_phrase(partial):
+            else:
+                try:
+                    partial = json.loads(recognizer.PartialResult()).get("partial", "").strip()
+                except Exception:
+                    partial = ""
+                if not state.awake and partial and is_wake_phrase(partial):
                     finish(partial, now)
+
+            if state.awake:
+                # Active speech indicator: words in partial recognition or active voicing
+                is_speaking = bool(partial) or (level >= 200 and last_voice_at and (now - last_voice_at < 1.0))
+                if is_speaking:
+                    if user_recording is not None and not user_recording.is_set():
+                        user_recording.set()
+                elif not clip_frames and phrase_frames > RATE * 3:
+                    # Cap speculative pre-roll only when no speech has begun yet (pure ambient idle)
+                    target_frames = int(RATE * 2.5)
+                    while phrase and phrase_frames > target_frames:
+                        dropped = phrase.pop(0)
+                        phrase_frames -= len(dropped) // 2
+
+                if level >= 180 or partial:
+                    last_voice_at = now
+                if now - last_buffer_log >= 1.0:
+                    last_buffer_log = now
+                    event("capture_buffer", phrase_s=round(phrase_frames / RATE, 2),
+                          clip_s=round(clip_frames / RATE, 2), audio_level=level)
 
             if not state.awake:
                 continue

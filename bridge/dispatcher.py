@@ -110,10 +110,14 @@ def _normalize_call(obj: Any) -> Optional[Dict[str, Any]]:
         fn = obj["function"]
         tool = fn.get("name")
         raw_args = fn.get("arguments", {})
+    # Anthropic format: {"type": "tool_use", "name": "...", "input": {...}}
+    elif obj.get("type") == "tool_use" and "name" in obj:
+        tool = obj.get("name")
+        raw_args = obj.get("input", {})
     else:
         # Standard formats: {"tool": ..., "args": ...} or {"name": ..., "arguments": ...}
         tool = obj.get("tool") or obj.get("name")
-        raw_args = obj.get("args") if "args" in obj else obj.get("arguments", obj.get("parameters", {}))
+        raw_args = obj.get("args") if "args" in obj else obj.get("arguments", obj.get("parameters", obj.get("input", {})))
 
     if not tool or not isinstance(tool, str):
         return None
@@ -200,24 +204,17 @@ def parse_tool_calls(text: str) -> List[Dict[str, Any]]:
         return []
 
     calls: List[Dict[str, Any]] = []
-    seen = set()
 
     def add_candidate(cand: Any):
         if isinstance(cand, list):
             for item in cand:
                 norm = _normalize_call(item)
                 if norm:
-                    key = json.dumps(norm, sort_keys=True)
-                    if key not in seen:
-                        seen.add(key)
-                        calls.append(norm)
+                    calls.append(norm)
         elif isinstance(cand, dict):
             norm = _normalize_call(cand)
             if norm:
-                key = json.dumps(norm, sort_keys=True)
-                if key not in seen:
-                    seen.add(key)
-                    calls.append(norm)
+                calls.append(norm)
 
     cleaned = text.strip()
 

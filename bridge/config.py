@@ -23,8 +23,8 @@ class Config:
     model: str = "models/ggml-base.bin"
     whisper_cli: str = "whisper-cli"
     recorder: str = "rec"
-    min_send_interval: float = 8.0
-    max_record_seconds: int = 30
+    min_send_interval: float = 2.0
+    max_record_seconds: int = 1000
     reply_timeout: int = 90
     language: str = "auto"
     header_path: str = ""
@@ -32,7 +32,7 @@ class Config:
     incoming_marker: str = ""
     voice_play_marker: str = ""
     voice_pause_marker: str = ""
-    max_voice_seconds: int = 300
+    max_voice_seconds: int = 1000
     attach_label: str = ""
     document_label: str = ""
     attachment_send_label: str = ""

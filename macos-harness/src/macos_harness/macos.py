@@ -985,11 +985,18 @@ class MacOS:
             ) from exc
 
         if path is None:
+            old_temp = getattr(self, "_last_temp_screenshot", None)
+            if old_temp and Path(old_temp).exists():
+                try:
+                    Path(old_temp).unlink(missing_ok=True)
+                except Exception:
+                    pass
             with tempfile.NamedTemporaryFile(
                 prefix="macos-harness-", suffix=".png", delete=False
             ) as handle:
                 output = Path(handle.name)
             output.unlink(missing_ok=True)
+            self._last_temp_screenshot = str(output)
         else:
             output = Path(path).expanduser().resolve()
             output.parent.mkdir(parents=True, exist_ok=True)

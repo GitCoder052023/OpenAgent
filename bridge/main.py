@@ -214,14 +214,17 @@ def main():
             except subprocess.TimeoutExpired: proc.kill(); proc.wait()
             if stop.is_set(): return
             if not recorded_path.exists() or recorded_path.stat().st_size < 1000: raise RuntimeError("No audio captured")
-            if recorded_path.stat().st_size < 32000: raise RuntimeError("Recording too short (<1s); not sending")
-            if time.monotonic() - last_send < cfg.min_send_interval: raise RuntimeError("Rate limit: wait before sending again")
+            if time.monotonic() - last_send < cfg.min_send_interval:
+                rem = cfg.min_send_interval - (time.monotonic() - last_send)
+                if rem > 0:
+                    time.sleep(rem)
             with wave.open(str(recorded_path), "rb") as wav:
                 if wav.getnchannels() != 1 or wav.getsampwidth() != 2 or wav.getframerate() != 16000:
                     raise RuntimeError("Unexpected recording format; not sending")
                 pcm = wav.readframes(wav.getnframes())
-            if not gate_pcm(pcm, source="voice" if recorded_path.name.startswith("jarvis-voice-") else "hotkey"):
-                raise RuntimeError("Audio gate rejected silent or mostly quiet clip; not sending")
+            if not recorded_path.name.startswith("jarvis-voice-"):
+                if not gate_pcm(pcm, source="hotkey"):
+                    raise RuntimeError("Audio gate rejected silent or mostly quiet clip; not sending")
 
             # Clear playing so send proceeds cleanly
             if playing.is_set():
@@ -234,6 +237,10 @@ def main():
                 print(f"Transcript: \"{text}\"")
                 if not text:
                     raise RuntimeError("Empty transcription; not sending.")
+                if len(text) > 1000:
+                    text = text[:990] + "..."
+                if "\n" in text:
+                    text = " ".join(text.splitlines())
                 desk.send(text)
                 print("Text message sent to WhatsApp.")
             else:
@@ -249,7 +256,11 @@ def main():
             event("send_failed", level="warning", reason=str(exc)[:180])
         finally:
             recorded_path.unlink(missing_ok=True)
-            if attachment: attachment.unlink(missing_ok=True)
+            if attachment:
+                def _cleanup(att):
+                    time.sleep(2.0)
+                    att.unlink(missing_ok=True)
+                threading.Thread(target=_cleanup, args=(attachment,), daemon=True).start()
             sending.clear()
             user_recording.clear()
             busy.release()
@@ -284,7 +295,20 @@ def main():
             threading.Thread(target=process_recording, args=(FinishedRecording(), recorded_path), daemon=True).start()
         from .voice import listen
         try:
-            with keyboard.Listener(on_press=lambda key: (stop.set(), False)[1] if key == keyboard.Key.esc else None):
+            def on_voice_key(key):
+                if key == keyboard.Key.esc:
+                    stop.set()
+                    return False
+                if is_hotkey(key, cfg.hotkey):
+                    if playing.is_set():
+                        playing.clear()
+                        try:
+                            from .replies import pause_active_playback
+                            pause_active_playback(snapshot(safe_mode=cfg.safe_mode), cfg)
+                        except Exception:
+                            pass
+                        print("\n[Playback interrupted: user hotkey...]")
+            with keyboard.Listener(on_press=on_voice_key):
                 listen(cfg, on_voice_audio, stop, playing=playing, user_recording=user_recording)
         finally:
             stop.set()

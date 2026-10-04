@@ -413,9 +413,9 @@ def click_preview_send(timeout=4.0):
 
         if preview_open:
             saw_preview = True
-            # 1. Focus the caption text field
-            if captions:
-                path = captions[0]["path"]
+            # 1. Prefer direct AXPress on the preview Send button
+            if send_btns:
+                path = send_btns[0]["path"]
                 indexes = [int(p) for p in path.split("/")[1:]]
                 el = root
                 for idx in indexes:
@@ -424,11 +424,14 @@ def click_preview_send(timeout=4.0):
                         el = None
                         break
                     el = ch[idx]
-                if el:
-                    AXUIElementSetAttributeValue(el, "AXFocused", True)
-                    time.sleep(0.05)
+                if el and AXUIElementPerformAction(el, "AXPress") == 0:
+                    time.sleep(0.2)
+                    rows_after = snapshot(safe_mode=False)
+                    still_preview = any(r["role"] == "AXButton" and "cancel" in (r.get("description") or "").lower() for r in rows_after)
+                    if not still_preview:
+                        return True
 
-            # 2. Press Enter (key code 36) in WhatsApp
+            # 2. Press Enter in WhatsApp window (without focusing caption, which inserts newlines)
             subprocess.run(["osascript", "-e", 'tell application "System Events" to tell process "WhatsApp" to key code 36'], check=False)
             time.sleep(0.2)
 
