@@ -9,7 +9,7 @@ LOGGER = logging.getLogger("jarvis")
 
 
 def setup_logging(verbose=False):
-    path = Path(os.getenv("BRIDGE_LOG_FILE", "~/Library/Logs/jarvis-bridge/bridge.jsonl")).expanduser()
+    path = Path(os.getenv("BRIDGE_LOG_FILE", "~/Library/Logs/OpenAgent/bridge.jsonl")).expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
     LOGGER.setLevel(logging.DEBUG if verbose else logging.INFO)
     LOGGER.handlers.clear()

@@ -1,14 +1,14 @@
-# Integrating Peekaboo with jarvis-bridge
+# Integrating Peekaboo with OpenAgent
 
 Draft proposal, 2026-09-27. Research and design only; no code changes yet.
 
 ## 1. The short version
 
-Peekaboo (https://github.com/openclaw/Peekaboo, originally steipete/Peekaboo) is a native macOS CLI for screen capture, accessibility inspection, and UI automation. Adding it to jarvis-bridge gives Instinct eyes and hands on the Mac: today the harness can only run shell commands and AppleScript, which means Instinct is blind. With Peekaboo, a voice request like "Jarvis, what's on my screen" or "open Safari and search for X" becomes a real end-to-end flow: Peekaboo captures and inspects the screen, the harness returns a compact text answer, and the bridge speaks it back.
+Peekaboo (https://github.com/openclaw/Peekaboo, originally steipete/Peekaboo) is a native macOS CLI for screen capture, accessibility inspection, and UI automation. Adding it to OpenAgent gives Instinct eyes and hands on the Mac: today the harness can only run shell commands and AppleScript, which means Instinct is blind. With Peekaboo, a voice request like "Jarvis, what's on my screen" or "open Safari and search for X" becomes a real end-to-end flow: Peekaboo captures and inspects the screen, the harness returns a compact text answer, and the bridge speaks it back.
 
-## 2. What jarvis-bridge has today
+## 2. What OpenAgent has today
 
-From the current repo (private, GitCoder052023/jarvis-bridge):
+From the current repo (private, GitCoder052023/OpenAgent):
 
 - Harness tools (bridge/harness.py, harness/harness-bridge.ts): `bash`, `file_read`, `file_write`, `edit_file`, `list_directory`, `grep`, `glob`, `system_info`, `applescript`.
 - Transport: `JARVIS_CALL:<base64 JSON>:END` envelopes over WhatsApp (bridge/dispatcher.py). Responses are capped at 3500 chars (`MAX_WHATSAPP_RESPONSE_LEN`), and envelopes over roughly 1500 chars risk being cut by the AX read limit, so calls already go out small and step-by-step.
@@ -115,4 +115,4 @@ The flow reuses everything already built: wake phrase, clip send, Instinct reaso
 - Peekaboo repo and README: https://github.com/openclaw/Peekaboo
 - Peekaboo docs site: https://peekaboo.sh/
 - Command index: https://github.com/openclaw/Peekaboo/tree/main/docs (docs/commands/README.md)
-- jarvis-bridge (private): README.md, bridge/dispatcher.py, bridge/harness.py, docs/setup.md, docs/voice-routing-design.md
+- OpenAgent (private): README.md, bridge/dispatcher.py, bridge/harness.py, docs/setup.md, docs/voice-routing-design.md

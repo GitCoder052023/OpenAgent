@@ -121,7 +121,7 @@ def _text_signature(body_text, desc, occurrence=0):
 # ---------------------------------------------------------------------------
 _DEFAULT_LEDGER_PATH = Path(
     os.getenv("BRIDGE_LEDGER_FILE",
-              os.path.expanduser("~/Library/Logs/jarvis-bridge/processed.jsonl"))
+              os.path.expanduser("~/Library/Logs/OpenAgent/processed.jsonl"))
 )
 
 

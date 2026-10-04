@@ -183,7 +183,7 @@ def main():
                     print("\n[Playback interrupted: user speaking...]")
 
                 user_recording.set()
-                fd, name = tempfile.mkstemp(suffix=".wav", prefix="jarvis-bridge-")
+                fd, name = tempfile.mkstemp(suffix=".wav", prefix="OpenAgent-")
                 os.close(fd)
                 path = Path(name)
                 path.unlink()  # SoX creates its own WAV

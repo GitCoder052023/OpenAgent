@@ -1,5 +1,5 @@
 [project]
-name = "jarvis-bridge"
+name = "OpenAgent"
 version = "0.1.0"
 description = "Local push-to-talk bridge for WhatsApp Desktop on macOS"
 requires-python = ">=3.11"
@@ -13,7 +13,7 @@ dependencies = [
 dev = ["pytest>=8"]
 voice = ["vosk>=0.3.45", "sounddevice>=0.4.6"]
 [project.scripts]
-jarvis-bridge = "bridge.main:main"
+OpenAgent = "bridge.main:main"
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]

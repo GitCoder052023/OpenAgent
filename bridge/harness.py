@@ -1,4 +1,4 @@
-"""Connection channel between jarvis-bridge and the headless harness.
+"""Connection channel between OpenAgent and the headless harness.
 
 Spawns the headless execution harness over stdio IPC and exposes type-safe operational tools:
 - bash: Execute shell commands with timeout and output capture

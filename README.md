@@ -1,4 +1,4 @@
-# jarvis-bridge
+# OpenAgent
 
 [![macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)](https://apple.com)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
@@ -7,7 +7,7 @@
 
 A high-speed, local push-to-talk voice and autonomous tool execution bridge connecting macOS to **Jarvis** on WhatsApp Desktop (`+16508702892`).
 
-`jarvis-bridge` turns WhatsApp Desktop into a full-duplex conversational voice interface and headless Mac execution agent: speak to Jarvis with push-to-talk (F8) or hands-free wake word, receive incoming voice notes in the background, and allow Jarvis to autonomously execute shell commands and file edits on your Mac with sub-second turnaround times.
+`OpenAgent` turns WhatsApp Desktop into a full-duplex conversational voice interface and headless Mac execution agent: speak to Jarvis with push-to-talk (F8) or hands-free wake word, receive incoming voice notes in the background, and allow Jarvis to autonomously execute shell commands and file edits on your Mac with sub-second turnaround times.
 
 ---
 
@@ -46,7 +46,7 @@ A high-speed, local push-to-talk voice and autonomous tool execution bridge conn
 ## Project Structure
 
 ```text
-jarvis-bridge/
+OpenAgent/
 ├── bridge/                         # Core Python bridge package
 │   ├── main.py                     # Entry point, CLI flags, hotkey loop & orchestration
 │   ├── replies.py                  # Message watcher, non-blocking playback, tool dispatch
@@ -156,12 +156,12 @@ To run with specific flags (e.g. Whisper text mode):
 
 6. **Inspect WhatsApp Accessibility layout**:
    ```bash
-   jarvis-bridge inspect > ax-tree.json
+   OpenAgent inspect > ax-tree.json
    ```
 
 7. **Run the bridge**:
    ```bash
-   jarvis-bridge run
+   OpenAgent run
    ```
 
 ---
@@ -176,7 +176,7 @@ Hold **`F8`** (or configured hotkey) to speak. When you release the key:
 
 ### 2. Hands-Free Always-Listening Voice Mode (`--voice`)
 ```bash
-jarvis-bridge run --voice --send-mode audio
+OpenAgent run --voice --send-mode audio
 ```
 - The microphone stays open in memory.
 - Say **"Wakeup Jarvis"** as a separate phrase to activate listening.
@@ -202,7 +202,7 @@ See [docs/JARVIS_INSTRUCTIONS.md](docs/JARVIS_INSTRUCTIONS.md) for the complete 
 ## Safety & Security
 
 - **Strict Chat Lock**: By default, `BRIDGE_SAFE_MODE=true` enforces that every action verifies the active WhatsApp chat header matches the calibrated target number before sending or clicking.
-- **Append-Only Ledger**: The bridge maintains an on-disk ledger (`~/.cache/jarvis-bridge/processed_texts.json`) of processed message signatures. Old chat history and previously executed tool envelopes will **never** re-execute across restarts.
+- **Append-Only Ledger**: The bridge maintains an on-disk ledger (`~/.cache/OpenAgent/processed_texts.json`) of processed message signatures. Old chat history and previously executed tool envelopes will **never** re-execute across restarts.
 - **Background Operation**: WhatsApp Desktop remains completely hidden from your screen, preventing accidental UI clicks or screen clutter.
 
 ---
