@@ -100,11 +100,19 @@ fi
 
 # Run instant IPC preflight check
 if .venv/bin/python3 -c "from bridge.harness import Harness; h=Harness(); h.system_info(); h.close()" 2>/dev/null; then
-    echo -e "  ${GREEN}✓${RESET} Headless harness IPC operational (bash, read, write, edit, applescript, grep, glob)"
+    echo -e "  ${GREEN}✓${RESET} Headless Bun harness IPC operational (bash, read, write, edit, applescript, grep, glob)"
 else
     echo -e "${RED}[ERROR] Failed to start execution harness over stdio IPC.${RESET}"
     exit 1
 fi
+
+# Verify macOS Harness (vision, computer use, background input, Chrome CDP)
+if .venv/bin/python3 -c "from bridge.mac_adapter import MacAdapter; a=MacAdapter(); a.doctor()" 2>/dev/null; then
+    echo -e "  ${GREEN}✓${RESET} macOS Harness operational (see, click, type, key, ax, Chrome CDP, compound bursts)"
+else
+    echo -e "  ${YELLOW}!${RESET} macOS Harness partially available (check permissions with: .venv/bin/macos-harness doctor)"
+fi
+
 
 # 5. WhatsApp Desktop Status
 echo -e "${BOLD}[4/4] Ensuring WhatsApp Desktop is active...${RESET}"

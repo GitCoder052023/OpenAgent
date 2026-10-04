@@ -13,11 +13,20 @@ A high-speed, local push-to-talk voice and autonomous tool execution bridge conn
 
 ## Key Features
 
-- **Autonomous Tool Execution Harness**:
-  Intercepts `JARVIS_CALL` envelopes from WhatsApp messages, executes tools locally via a sandboxed Bun/TypeScript execution harness (`harness/`), and replies with execution output in <1.5s total round-trip time. Supported tools include:
+- **Full macOS GUI & Browser Computer Use**:
+  Integrated with **macOS Harness** (`macos-harness/`), giving Jarvis eyes and hands to operate macOS applications and real Google Chrome just like you do:
+  - `mac_python` / `burst`: Compound Python scripts executing multi-step UI workflows locally in <50ms without WhatsApp latency.
+  - `mac_see` (Perception): Background window screenshots via CoreGraphics with virtual pointer overlay; optionally sent straight to WhatsApp as image attachments.
+  - `mac_click` / `mac_type` / `mac_key`: Direct background PID input targeting via `CGEventPostToPid` (never steals focus or moves your physical mouse cursor).
+  - `mac_ax`: Apple Accessibility tree inspections, button presses, and coordinate queries.
+  - `mac_browser`: Real Google Chrome automation via Chrome DevTools Protocol (CDP) in your logged-in profile.
+- **Autonomous Headless Code & Shell Harness**:
+  Intercepts `JARVIS_CALL` envelopes from WhatsApp messages, executes tools locally via Bun/TypeScript (`harness/`) and Python (`bridge/mac_adapter.py`):
   - `bash`: Full zsh/bash command execution on macOS
-  - `file_read` / `file_write` / `edit_file`: Local file manipulation
-  - `list_directory`: Directory browsing and inspection
+  - `read` / `write` / `edit`: Local file manipulation with unified diffs
+  - `grep` / `glob`: Fast Ripgrep pattern matching and file discovery
+  - `applescript`: Native macOS AppleScript execution
+
 - **Non-Blocking Concurrent Architecture**:
   Voice-note playback runs in a dedicated background worker (`playback_thread`), completely decoupled from the watcher loop. When Jarvis invokes a tool while an incoming voice note is playing, the tool call is detected and executed immediately without waiting for playback to finish.
 - **Intelligent Playback Hold & Barge-In**:

@@ -15,6 +15,24 @@ import re
 from typing import Any, Dict, List, Optional
 from .harness import Harness, HarnessError, OpenCodeHarness
 
+try:
+    from .mac_adapter import MacAdapter
+except ImportError:
+    MacAdapter = None  # type: ignore[assignment,misc]
+
+_DEFAULT_MAC_ADAPTER: Optional[Any] = None
+
+
+def get_default_mac_adapter() -> Optional[Any]:
+    global _DEFAULT_MAC_ADAPTER
+    if _DEFAULT_MAC_ADAPTER is None and MacAdapter is not None:
+        try:
+            _DEFAULT_MAC_ADAPTER = MacAdapter()
+        except Exception as exc:
+            logger.warning("Could not initialize default MacAdapter: %s", exc)
+    return _DEFAULT_MAC_ADAPTER
+
+
 logger = logging.getLogger("jarvis.dispatcher")
 
 MAX_WHATSAPP_RESPONSE_LEN = 3500
@@ -301,8 +319,12 @@ def parse_tool_call(text: str) -> Optional[Dict[str, Any]]:
     return calls[0] if calls else None
 
 
-def execute_tool_call(harness: Harness, call: Dict[str, Any]) -> Dict[str, Any]:
-    """Execute a parsed tool call using the harness.
+def execute_tool_call(
+    harness: Optional[Harness],
+    call: Dict[str, Any],
+    mac_adapter: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Execute a parsed tool call using the headless harness or native macOS adapter.
 
     Returns a standardized dictionary:
     {"status": "ok" | "error", "tool": name, "result": ..., "error": ...}
@@ -312,8 +334,158 @@ def execute_tool_call(harness: Harness, call: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(args, dict):
         args = {}
 
+    if mac_adapter is None:
+        mac_adapter = get_default_mac_adapter()
+
     try:
-        if tool == "bash":
+        # --- Native macOS Computer-Use Primitives (macos-harness) ---
+        if tool in ("mac_python", "mac_run", "python", "mac_script"):
+            if mac_adapter is None:
+                raise RuntimeError("macOS Harness adapter is not available on this system")
+            code = args.get("code") or args.get("script") or args.get("command")
+            if not code:
+                raise ValueError("Missing 'code' argument for mac_python tool")
+            timeout = float(args.get("timeout", args.get("timeout_s", 30.0)))
+            res = mac_adapter.run_python(code=code, timeout=timeout)
+            status = res.get("status", "ok")
+            if status == "error":
+                return {"status": "error", "tool": tool, "error": res.get("error", "Python script failed"), "result": res}
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("mac_see", "see"):
+            if mac_adapter is None:
+                raise RuntimeError("macOS Harness adapter is not available on this system")
+            res = mac_adapter.see(
+                app=args.get("app"),
+                window_index=int(args.get("window_index", 0)),
+                max_width=int(args.get("max_width", 1280)),
+                max_height=int(args.get("max_height", 1280)),
+                send_image=bool(args.get("send_image", False)),
+                include_summary=bool(args.get("include_summary", True)),
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("mac_click", "click"):
+            if mac_adapter is None:
+                raise RuntimeError("macOS Harness adapter is not available on this system")
+            x = args.get("x")
+            y = args.get("y")
+            if x is None or y is None:
+                raise ValueError("Missing 'x' or 'y' coordinates for mac_click")
+            res = mac_adapter.click(
+                x=float(x),
+                y=float(y),
+                app=args.get("app"),
+                button=args.get("button", "left"),
+                click_count=int(args.get("click_count", 1)),
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("mac_move", "move"):
+            if mac_adapter is None:
+                raise RuntimeError("macOS Harness adapter is not available on this system")
+            x = args.get("x")
+            y = args.get("y")
+            if x is None or y is None:
+                raise ValueError("Missing 'x' or 'y' coordinates for mac_move")
+            res = mac_adapter.move(x=float(x), y=float(y), app=args.get("app"))
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("mac_type", "type"):
+            if mac_adapter is None:
+                raise RuntimeError("macOS Harness adapter is not available on this system")
+            text = args.get("text")
+            if text is None:
+                raise ValueError("Missing 'text' argument for mac_type")
+            res = mac_adapter.type(text=str(text), app=args.get("app"))
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("mac_key", "key"):
+            if mac_adapter is None:
+                raise RuntimeError("macOS Harness adapter is not available on this system")
+            key = args.get("key")
+            if not key:
+                raise ValueError("Missing 'key' argument for mac_key")
+            res = mac_adapter.key(key=str(key), app=args.get("app"))
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("mac_drag", "drag"):
+            if mac_adapter is None:
+                raise RuntimeError("macOS Harness adapter is not available on this system")
+            start_x = args.get("start_x", args.get("from_x"))
+            start_y = args.get("start_y", args.get("from_y"))
+            end_x = args.get("end_x", args.get("to_x"))
+            end_y = args.get("end_y", args.get("to_y"))
+            if any(v is None for v in (start_x, start_y, end_x, end_y)):
+                raise ValueError("Missing start or end coordinates for mac_drag")
+            res = mac_adapter.drag(
+                start_x=float(start_x),
+                start_y=float(start_y),
+                end_x=float(end_x),
+                end_y=float(end_y),
+                app=args.get("app"),
+                duration=float(args.get("duration", 0.35)),
+                button=args.get("button", "left"),
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("mac_scroll", "scroll"):
+            if mac_adapter is None:
+                raise RuntimeError("macOS Harness adapter is not available on this system")
+            x = float(args.get("x", 0))
+            y = float(args.get("y", 0))
+            dx = int(args.get("dx", 0))
+            dy = int(args.get("dy", 0))
+            res = mac_adapter.scroll(x=x, y=y, dx=dx, dy=dy, app=args.get("app"))
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("mac_apps", "apps"):
+            if mac_adapter is None:
+                raise RuntimeError("macOS Harness adapter is not available on this system")
+            res = mac_adapter.list_apps()
+            return {"status": "ok", "tool": tool, "result": {"apps": res, "total": len(res)}}
+
+        elif tool in ("mac_windows", "windows"):
+            if mac_adapter is None:
+                raise RuntimeError("macOS Harness adapter is not available on this system")
+            res = mac_adapter.windows(app=args.get("app"))
+            return {"status": "ok", "tool": tool, "result": {"windows": res, "total": len(res)}}
+
+        elif tool in ("mac_ax", "ax"):
+            if mac_adapter is None:
+                raise RuntimeError("macOS Harness adapter is not available on this system")
+            res = mac_adapter.ax(
+                action=args.get("action", "query"),
+                app=args.get("app"),
+                x=args.get("x"),
+                y=args.get("y"),
+                text=args.get("text"),
+                element_index=args.get("element_index"),
+                element_action=args.get("element_action", "AXPress"),
+                attribute=args.get("attribute", "AXValue"),
+                value=args.get("value"),
+                limit=int(args.get("limit", 20)),
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("mac_browser", "browser"):
+            if mac_adapter is None:
+                raise RuntimeError("macOS Harness adapter is not available on this system")
+            action = args.get("action", "page_info")
+            pass_args = {k: v for k, v in args.items() if k != "action"}
+            res = mac_adapter.browser_op(action, **pass_args)
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("mac_doctor", "doctor"):
+            if mac_adapter is None:
+                raise RuntimeError("macOS Harness adapter is not available on this system")
+            res = mac_adapter.doctor()
+            return {"status": "ok", "tool": tool, "result": res}
+
+        # --- Headless Bun Harness Primitives ---
+        elif tool == "bash":
+            if harness is None:
+                raise RuntimeError("Headless Bun harness is not initialized")
             cmd = args.get("command")
             if not cmd:
                 raise ValueError("Missing 'command' argument for bash tool")
@@ -325,6 +497,8 @@ def execute_tool_call(harness: Harness, call: Dict[str, Any]) -> Dict[str, Any]:
             return {"status": "ok", "tool": tool, "result": res}
 
         elif tool == "read":
+            if harness is None:
+                raise RuntimeError("Headless Bun harness is not initialized")
             path = args.get("path")
             if not path:
                 raise ValueError("Missing 'path' argument for read tool")
@@ -338,6 +512,8 @@ def execute_tool_call(harness: Harness, call: Dict[str, Any]) -> Dict[str, Any]:
             return {"status": "ok", "tool": tool, "result": res}
 
         elif tool == "write":
+            if harness is None:
+                raise RuntimeError("Headless Bun harness is not initialized")
             path = args.get("path")
             content = args.get("content")
             if not path or content is None:
@@ -346,6 +522,8 @@ def execute_tool_call(harness: Harness, call: Dict[str, Any]) -> Dict[str, Any]:
             return {"status": "ok", "tool": tool, "result": res}
 
         elif tool == "edit":
+            if harness is None:
+                raise RuntimeError("Headless Bun harness is not initialized")
             path = args.get("path")
             old_str = args.get("oldString") or args.get("old_string")
             new_str = args.get("newString") or args.get("new_string")
@@ -360,6 +538,8 @@ def execute_tool_call(harness: Harness, call: Dict[str, Any]) -> Dict[str, Any]:
             return {"status": "ok", "tool": tool, "result": res}
 
         elif tool == "grep":
+            if harness is None:
+                raise RuntimeError("Headless Bun harness is not initialized")
             pattern = args.get("pattern")
             if not pattern:
                 raise ValueError("Missing 'pattern' argument for grep tool")
@@ -371,6 +551,8 @@ def execute_tool_call(harness: Harness, call: Dict[str, Any]) -> Dict[str, Any]:
             return {"status": "ok", "tool": tool, "result": res}
 
         elif tool == "glob":
+            if harness is None:
+                raise RuntimeError("Headless Bun harness is not initialized")
             pattern = args.get("pattern")
             if not pattern:
                 raise ValueError("Missing 'pattern' argument for glob tool")
@@ -381,18 +563,32 @@ def execute_tool_call(harness: Harness, call: Dict[str, Any]) -> Dict[str, Any]:
             script = args.get("script")
             if not script:
                 raise ValueError("Missing 'script' argument for applescript tool")
-            output = harness.applescript(script=script)
+            if harness is not None:
+                output = harness.applescript(script=script)
+            elif mac_adapter is not None:
+                output = mac_adapter.mac.script(script)
+            else:
+                raise RuntimeError("Neither harness nor mac_adapter is available for applescript")
             return {"status": "ok", "tool": tool, "result": {"output": output}}
 
         elif tool == "system_info":
-            res = harness.system_info()
+            if harness is not None:
+                res = harness.system_info()
+            elif mac_adapter is not None:
+                res = mac_adapter.doctor()
+            else:
+                raise RuntimeError("No harness available for system_info")
             return {"status": "ok", "tool": tool, "result": res}
 
         elif tool == "instructions":
+            if harness is None:
+                raise RuntimeError("Headless Bun harness is not initialized")
             res = harness.instructions(directory=args.get("directory"))
             return {"status": "ok", "tool": tool, "result": res}
 
         elif tool == "system_prompt":
+            if harness is None:
+                raise RuntimeError("Headless Bun harness is not initialized")
             res = harness.system_prompt(
                 model=args.get("model", "default"),
                 agent=args.get("agent"),
@@ -408,6 +604,7 @@ def execute_tool_call(harness: Harness, call: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as exc:
         logger.exception("Unexpected execution error for tool '%s': %s", tool, exc)
         return {"status": "error", "tool": tool, "error": str(exc)}
+
 
 
 def format_tool_response(response: Dict[str, Any], max_length: int = MAX_WHATSAPP_RESPONSE_LEN, prefix_header: str = "") -> str:
@@ -466,7 +663,58 @@ def format_tool_response(response: Dict[str, Any], max_length: int = MAX_WHATSAP
     elif tool == "applescript":
         body = result.get("output", "(success, no output)")
 
-    elif tool in ("system_info", "instructions", "system_prompt"):
+    elif tool in ("mac_python", "mac_run", "python", "mac_script"):
+        stdout = result.get("stdout") or "(no stdout output)"
+        stderr = result.get("stderr")
+        dur = result.get("duration_s", 0)
+        body = f"Burst execution ({dur}s):\n{stdout}"
+        if stderr:
+            body += f"\n[stderr]\n{stderr}"
+        if result.get("last_screenshot"):
+            shot = result["last_screenshot"]
+            body += f"\n[Screenshot: {shot.get('app')} ({shot.get('width')}x{shot.get('height')})]"
+
+    elif tool in ("mac_see", "see"):
+        app_name = result.get("app", "frontmost")
+        w = result.get("width", 0)
+        h = result.get("height", 0)
+        body = f"Captured '{app_name}' (window {result.get('window_index', 0)}, {w}x{h})"
+        if result.get("_send_attachment"):
+            body += "\n[Screenshot attachment queued for WhatsApp delivery]"
+        controls = result.get("interactive_controls", [])
+        if controls:
+            body += "\n\nVisible Interactive Controls:\n" + "\n".join(f"• {c}" for c in controls[:15])
+
+    elif tool in ("mac_click", "click"):
+        app_name = result.get("app") or "target app"
+        body = f"Clicked ({result.get('x')}, {result.get('y')}) on {app_name} [{result.get('button')}, count={result.get('click_count', 1)}]"
+
+    elif tool in ("mac_move", "move"):
+        body = f"Moved pointer overlay to ({result.get('x')}, {result.get('y')})"
+
+    elif tool in ("mac_type", "type"):
+        app_name = result.get("app") or "target app"
+        body = f"Typed {result.get('length', 0)} characters into {app_name}"
+
+    elif tool in ("mac_key", "key"):
+        app_name = result.get("app") or "target app"
+        body = f"Sent key '{result.get('key')}' to {app_name}"
+
+    elif tool in ("mac_drag", "drag"):
+        body = f"Dragged from {result.get('from')} to {result.get('to')} on {result.get('app') or 'target'}"
+
+    elif tool in ("mac_scroll", "scroll"):
+        body = f"Scrolled at ({result.get('x')}, {result.get('y')}) by (dx={result.get('dx')}, dy={result.get('dy')})"
+
+    elif tool in ("mac_apps", "apps"):
+        apps_list = [f"• {a.get('name')} (PID {a.get('pid')})" for a in result.get("apps", [])]
+        body = f"Running Applications ({result.get('total', len(apps_list))}):\n" + "\n".join(apps_list[:30])
+
+    elif tool in ("mac_windows", "windows"):
+        wins = [f"• {w.get('title') or '(Untitled)'}: bounds={w.get('bounds')}" for w in result.get("windows", [])]
+        body = f"Open Windows ({result.get('total', len(wins))}):\n" + "\n".join(wins[:20])
+
+    elif tool in ("system_info", "instructions", "system_prompt", "mac_ax", "ax", "mac_browser", "browser", "mac_doctor", "doctor"):
         body = json.dumps(result, indent=2)
 
     else:

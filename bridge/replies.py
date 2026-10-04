@@ -541,7 +541,7 @@ def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot, user_recordi
     event("echo_guard", state="playback_wait_expired", level="warning", elapsed_s=round(time.monotonic() - started, 2), duration_s=dur, saw_pause=saw_pause)
 
 
-def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None, pause=None, desk=None, harness=None, playing=None, ledger_path=None, user_recording=None):
+def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None, pause=None, desk=None, harness=None, playing=None, ledger_path=None, user_recording=None, mac_adapter=None):
     """Play new inbound notes and/or dispatch incoming tool calls over WhatsApp.
 
     WhatsApp remains completely hidden in the background while running.
@@ -717,7 +717,7 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                         print(f"Voice scan paused (unlocked mode): {exc}")
 
             # 2. Text tool call check (FAST: executes and responds immediately!)
-            if desk is not None and harness is not None:
+            if desk is not None and (harness is not None or mac_adapter is not None):
                 try:
                     current_texts = incoming_texts(rows, cfg)
                     for grp_path, msg_text, sig in current_texts:
@@ -733,10 +733,14 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                         print(f"\n[Incoming tool call detected from Jarvis ({len(tool_calls)} call{'s' if len(tool_calls) > 1 else ''})]")
                         t_start = time.monotonic()
                         responses = []
+                        attachments_to_send = []
                         for call in tool_calls:
                             t_name = call.get("tool", "unknown")
-                            res = execute_tool_call(harness, call)
+                            res = execute_tool_call(harness, call, mac_adapter=mac_adapter)
                             responses.append(res)
+                            inner = res.get("result")
+                            if isinstance(inner, dict) and inner.get("_send_attachment"):
+                                attachments_to_send.append(inner["_send_attachment"])
                         t_exec = time.monotonic() - t_start
 
                         reply_text = format_tool_responses(responses)
@@ -755,6 +759,15 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                         t_total = time.monotonic() - t_start
                         event("tool_response_sent", calls=len(tool_calls), exec_s=round(t_exec, 3), total_s=round(t_total, 3))
                         print(f"[Tool response sent in {t_total:.2f}s (exec: {t_exec:.2f}s)]")
+
+                        # Dispatch any attachments (e.g. screenshots from mac_see)
+                        for att_path in attachments_to_send:
+                            try:
+                                desk.send_file(att_path)
+                                event("tool_attachment_sent", path=str(att_path))
+                                print(f"[Attachment sent to WhatsApp: {Path(att_path).name}]")
+                            except Exception as att_err:
+                                logging.getLogger("jarvis.watcher").warning("Failed to send attachment %s: %s", att_path, att_err)
                 except Exception as exc:
                     print(f"[Tool dispatch error] {exc}")
                     logging.getLogger("jarvis.watcher").exception("Tool dispatch failed")

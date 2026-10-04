@@ -52,16 +52,11 @@ class Desktop:
             time.sleep(0.05)
             hide_whatsapp()
 
-    def send_audio(self, path):
-        """Prepare an M4A as a document attachment, dispatch it, then immediately hide WhatsApp.
-
-        File-picker input system restored verbatim from commit c8d938d8 (the
-        last state where it worked on Hamdan's build), plus the shared send
-        lock and picker_step log breadcrumbs.
-        """
+    def send_file(self, path):
+        """Prepare any file (PNG screenshot, M4A audio, etc.) as a document attachment, dispatch it, then immediately hide WhatsApp."""
         path = Path(path).resolve()
-        if not path.is_file() or path.suffix.lower() != ".m4a" or path.stat().st_size < 1000:
-            raise ValueError("Audio must be an M4A file of at least 1 KB")
+        if not path.is_file() or path.stat().st_size == 0:
+            raise ValueError(f"File must be an existing, non-empty file: {path}")
         if not all((self.cfg.attach_label, self.cfg.document_label, self.cfg.attachment_send_label)):
             if self.cfg.safe_mode:
                 raise RuntimeError("Attachment UI labels not calibrated; no send")
@@ -107,3 +102,11 @@ class Desktop:
             event("picker_step", step="dispatch", ok=True)
             time.sleep(0.4)
             hide_whatsapp()
+
+    def send_audio(self, path):
+        """Prepare an M4A as a document attachment, dispatch it, then immediately hide WhatsApp."""
+        path = Path(path).resolve()
+        if not path.is_file() or path.suffix.lower() != ".m4a" or path.stat().st_size < 1000:
+            raise ValueError("Audio must be an M4A file of at least 1 KB")
+        return self.send_file(path)
+
