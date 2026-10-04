@@ -106,12 +106,17 @@ else
     exit 1
 fi
 
-# Verify macOS Harness (vision, computer use, background input, Chrome CDP)
-if .venv/bin/python3 -c "from bridge.mac_adapter import MacAdapter; a=MacAdapter(); a.doctor()" 2>/dev/null; then
-    echo -e "  ${GREEN}✓${RESET} macOS Harness operational (see, click, type, key, ax, Chrome CDP, compound bursts)"
-else
-    echo -e "  ${YELLOW}!${RESET} macOS Harness partially available (check permissions with: .venv/bin/macos-harness doctor)"
+# Check macOS Accessibility permission (required to inspect WhatsApp UI and capture hotkeys)
+if ! .venv/bin/python3 -c "from ApplicationServices import AXIsProcessTrusted; assert AXIsProcessTrusted() is True" 2>/dev/null; then
+    echo -e "  ${RED}✗ [PERMISSION REQUIRED]${RESET} Accessibility permission is missing for this terminal!"
+    echo -e "    macOS blocks untrusted processes from inspecting WhatsApp UI and intercepting tool calls."
+    echo -e "    ${BOLD}Grant access in:${RESET} System Settings → Privacy & Security → Accessibility"
+    echo -e "    Toggle ON ${BOLD}${TERM_PROGRAM:-Ghostty}${RESET} (or add your terminal app with '+')."
+    .venv/bin/python3 -c "from ApplicationServices import AXIsProcessTrustedWithOptions, kAXTrustedCheckOptionPrompt; AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: True})" 2>/dev/null || true
+    echo -e "    ${YELLOW}After enabling, restart: ./start.sh${RESET}"
+    exit 1
 fi
+echo -e "  ${GREEN}✓${RESET} macOS Accessibility trusted (WhatsApp UI inspection online)"
 
 
 # 5. WhatsApp Desktop Status

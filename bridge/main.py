@@ -77,6 +77,20 @@ def main():
     if args.hotkey:
         cfg = dataclasses.replace(cfg, hotkey=args.hotkey)
 
+    try:
+        from ApplicationServices import AXIsProcessTrusted, AXIsProcessTrustedWithOptions, kAXTrustedCheckOptionPrompt
+        if not AXIsProcessTrusted():
+            print("\n" + "=" * 60)
+            print("⚠️  [ACCESSIBILITY PERMISSION REQUIRED] ⚠️")
+            print("This terminal process is NOT trusted by macOS Accessibility.")
+            print("macOS blocks reading WhatsApp messages and keyboard hotkeys.")
+            print("Please enable your terminal app in:")
+            print("  System Settings → Privacy & Security → Accessibility")
+            print("=" * 60 + "\n")
+            AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: True})
+    except Exception:
+        pass
+
     desk = Desktop(cfg)
     if args.command == "inspect":
         print(dump(snapshot(safe_mode=cfg.safe_mode)))
