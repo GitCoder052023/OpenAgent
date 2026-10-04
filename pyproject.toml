@@ -8,10 +8,11 @@ dependencies = [
     "pynput>=1.7.7",
     "pillow>=11.3",
     "browser-harness>=0.1.9",
+    "macos-harness>=0.1.2",
 ]
 [project.optional-dependencies]
 dev = ["pytest>=8"]
-voice = ["vosk>=0.3.45", "sounddevice>=0.4.6"]
+voice = ["vosk>=0.3.44", "sounddevice>=0.4.6"]
 [project.scripts]
 OpenAgent = "bridge.main:main"
 [tool.pytest.ini_options]

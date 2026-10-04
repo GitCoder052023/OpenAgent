@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/browser-use/macos-harness/main/static/banner-ink.svg" alt="OpenAgent" width="100%" />
+
 # OpenAgent
 
 > **The local Mac computer-use body specifically built for Instinct.**
@@ -372,8 +374,10 @@ cd OpenAgent
 
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev,voice]'
+pip install -e '.[dev,voice]' -e ./macos-harness
 ```
+> [!NOTE]
+> Installing `-e ./macos-harness` installs OpenAgent's native macOS computer-use engine in editable mode alongside the bridge.
 
 #### 3. Install Headless Harness Dependencies
 ```bash
@@ -410,7 +414,7 @@ unzip models/vosk.zip -d models/ && rm models/vosk.zip
 #### 6. Inspect WhatsApp Accessibility Layout
 Before starting, verify that macOS Accessibility can read WhatsApp Desktop:
 ```bash
-.venv/bin/python3 -m bridge.main inspect > ax_dump.json
+.venv/bin/python3 -m bridge.main inspect > ax-tree.json
 ```
 If this succeeds, your Accessibility permissions are correctly configured.
 
@@ -479,7 +483,7 @@ When sending recorded M4A audio files, OpenAgent supports two routes via `BRIDGE
   * Set `BRIDGE_SEND_ROUTE=auto` in `.env` to attempt clipboard paste first with automatic picker fallback.
 
 #### 7. Phase 2: Hands-Free Voice Mode Trial
-* Install voice dependencies: `pip install -e '.[voice]'`.
+* Install voice dependencies: `pip install -e '.[voice]' -e ./macos-harness`.
 * Download and extract a Vosk model to `models/vosk-model-small-en-us-0.15` and set `BRIDGE_VOICE_MODEL`.
 * Run `OpenAgent run --voice --send-mode audio` with a headset in a quiet room.
 * **Test Sequence:**
@@ -523,11 +527,16 @@ OpenAgent reads configuration from environment variables or a root `.env` file:
 | :--- | :--- | :--- |
 | `BRIDGE_WHATSAPP_NUMBER` | `+16508702892` | Target phone number for your Instinct assistant. |
 | `BRIDGE_SAFE_MODE` | `true` | When `true`, enforces strict chat header verification before typing or sending. |
+| `BRIDGE_UNLOCKED` | `false` | When `true`, unlocks safe mode dynamically. |
 | `BRIDGE_SEND_MODE` | `audio` | `audio` (sends AAC/M4A voice notes) or `text` (transcribes locally via Whisper). |
 | `BRIDGE_SEND_ROUTE`| `picker` | Route for sending audio attachments: `picker`, `auto`, or `clipboard`. |
 | `BRIDGE_HOTKEY` | `f8` | Push-to-talk hotkey (`f8`, `f6`, `right_shift`, `ctrl_r`, etc.). |
+| `BRIDGE_LANGUAGE` | `auto` | Language code for Whisper transcription (e.g. `en`, `es`, `auto`). |
 | `BRIDGE_WHISPER_MODEL` | `models/ggml-base.bin` | Path to the local Whisper GGML model file. |
+| `BRIDGE_WHISPER_CLI` | `whisper-cli` | Name or path of the whisper.cpp CLI executable. |
+| `BRIDGE_RECORDER` | `rec` | Binary used for microphone audio recording (from `sox`). |
 | `BRIDGE_VOICE_MODEL` | `models/vosk-model-small-en-us-0.15` | Path to extracted Vosk model for offline wake-word detection. |
+| `BRIDGE_VOICE_SILENCE_SECONDS` | `2.0` | Silence threshold in seconds before auto-sending in wake-word mode. |
 | `BRIDGE_LOG_FILE` | `~/Library/Logs/OpenAgent/bridge.jsonl` | Rotating JSONL event diagnostics log file path. |
 | `BRIDGE_LEDGER_FILE` | `~/Library/Logs/OpenAgent/processed.jsonl` | Append-only ledger file recording processed message signatures. |
 | `BRIDGE_MESSAGE_LIST_PATH`| *empty* | Calibrated AX path for WhatsApp message list. |
@@ -602,3 +611,19 @@ Contributions and discussions are welcome!
 ## License
 
 OpenAgent is open-source software licensed under the [MIT License](LICENSE).
+
+## Credits
+
+OpenAgent would not have been possible without the excellent open-source work that preceded it.
+
+A significant part of OpenAgent's native macOS computer-use capabilities is built upon and directly incorporates code and implementation ideas from the following projects and teams:
+
+- **[OpenCode](https://github.com/anomalyco/opencode)** — for their work on agentic coding infrastructure and computer-use tooling.
+- **[Browser Use](https://github.com/browser-use/browser-use)** — for their work on browser automation and agentic computer interaction.
+- **[Browser Use macOS Harness](https://github.com/browser-use/macos-harness)** — OpenAgent directly incorporates code from this project as the foundation for its native macOS computer-use harness, including functionality for macOS Accessibility, window interaction, keyboard and mouse control, visual perception, and browser automation.
+
+These projects and their contributors deserve credit for the underlying work that made this part of OpenAgent possible. OpenAgent builds on that foundation and adapts, integrates, and extends it for its specific role as the local macOS execution body for Instinct.
+
+Please refer to the respective upstream repositories and their licenses for the original implementations and attribution requirements.
+
+**Thank you to the maintainers and contributors of these projects for making their work available to the open-source community.**

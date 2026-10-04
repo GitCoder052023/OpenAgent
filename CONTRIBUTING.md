@@ -26,7 +26,7 @@ OpenAgent interacts directly with macOS system APIs, audio subsystems, and Whats
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate
-   pip install -e '.[dev,voice]'
+   pip install -e '.[dev,voice]' -e ./macos-harness
    ```
 
 3. **Install headless harness dependencies**:

@@ -37,7 +37,7 @@ class Config:
     document_label: str = ""
     attachment_send_label: str = ""
     safe_mode: bool = True
-    send_mode: str = "text"
+    send_mode: str = "audio"
     send_route: str = "picker"
     hotkey: str = "f8"
     voice_model: str = "models/vosk-model-small-en-us-0.15"
@@ -56,9 +56,9 @@ class Config:
         else:
             safe_mode = True
 
-        send_mode = os.getenv("BRIDGE_SEND_MODE", "text").strip().lower()
+        send_mode = os.getenv("BRIDGE_SEND_MODE", "audio").strip().lower()
         if send_mode not in ("text", "audio"):
-            send_mode = "text"
+            send_mode = "audio"
 
         send_route = os.getenv("BRIDGE_SEND_ROUTE", "picker").strip().lower()
         if send_route not in ("auto", "clipboard", "picker"):

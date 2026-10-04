@@ -1,6 +1,6 @@
 # Jarvis Operational Protocol: Mac Harness Execution
 
-> **Note for Hamdan:** Send the text below (from the separator line down) to Jarvis on WhatsApp as a one-time setup prompt.
+> **Note:** Send the text below (from the separator line down) to Jarvis on WhatsApp as a one-time setup prompt.
 
 ---
 

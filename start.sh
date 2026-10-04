@@ -34,18 +34,35 @@ echo -e "${RESET}"
 
 # 1. OS Check
 if [[ "$(uname -s)" != "Darwin" ]]; then
-    echo -e "${RED}[ERROR] Jarvis Bridge requires macOS Darwin for AX automation.${RESET}"
+    echo -e "${RED}[ERROR] OpenAgent requires macOS Darwin for AX automation.${RESET}"
     exit 1
 fi
 
 # 2. Dependency Checks
 echo -e "${BOLD}[1/4] Checking system dependencies...${RESET}"
 
+if ! command -v python3 &>/dev/null; then
+    echo -e "${RED}[ERROR] 'python3' not found. Please install Python 3.11+: brew install python${RESET}"
+    exit 1
+fi
+
 if ! command -v bun &>/dev/null; then
     echo -e "${RED}[ERROR] 'bun' not found. Please install Bun: curl -fsSL https://bun.sh/install | bash${RESET}"
     exit 1
 fi
 echo -e "  ${GREEN}✓${RESET} Bun runtime: $(bun --version)"
+
+if ! command -v rec &>/dev/null && ! command -v sox &>/dev/null; then
+    echo -e "${RED}[ERROR] 'sox'/'rec' not found. Audio recording requires SoX: brew install sox${RESET}"
+    exit 1
+fi
+echo -e "  ${GREEN}✓${RESET} SoX audio recording utility operational"
+
+if ! command -v ffmpeg &>/dev/null; then
+    echo -e "${RED}[ERROR] 'ffmpeg' not found. Voice note encoding requires ffmpeg: brew install ffmpeg${RESET}"
+    exit 1
+fi
+echo -e "  ${GREEN}✓${RESET} ffmpeg: $(ffmpeg -version 2>/dev/null | head -n 1)"
 
 if ! command -v rg &>/dev/null; then
     echo -e "${YELLOW}[WARN] 'rg' (Ripgrep) not found in PATH. File search might be degraded.${RESET}"
@@ -60,15 +77,21 @@ if [[ ! -f ".venv/bin/python3" ]]; then
     echo -e "  ${YELLOW}!${RESET} Virtualenv not found. Creating .venv..."
     python3 -m venv .venv
     .venv/bin/pip install --upgrade pip
-    .venv/bin/pip install -e .
+    .venv/bin/pip install -e '.[dev,voice]' -e ./macos-harness
 fi
 echo -e "  ${GREEN}✓${RESET} Python virtualenv: $(.venv/bin/python3 --version)"
+
+# Ensure local macos-harness package is installed in virtualenv
+if ! .venv/bin/python3 -c "import macos_harness" 2>/dev/null; then
+    echo -e "  ${YELLOW}!${RESET} Installing local macos-harness package..."
+    .venv/bin/pip install -e ./macos-harness
+fi
 
 # If --voice mode is requested, ensure voice dependencies and offline model are present
 if [[ " $* " =~ " --voice " ]]; then
     if ! .venv/bin/python3 -c "import sounddevice, vosk" 2>/dev/null; then
         echo -e "  ${YELLOW}!${RESET} Installing voice dependencies (sounddevice, vosk)..."
-        .venv/bin/pip install sounddevice vosk
+        .venv/bin/pip install sounddevice "vosk>=0.3.44"
     fi
     if [[ ! -d "models/vosk-model-small-en-us-0.15" ]]; then
         echo -e "  ${YELLOW}!${RESET} Downloading offline Vosk model for voice wake-phrase mode..."
@@ -78,6 +101,18 @@ if [[ " $* " =~ " --voice " ]]; then
         rm -f models/vosk-model.zip
     fi
     echo -e "  ${GREEN}✓${RESET} Voice mode offline model & audio libraries ready"
+fi
+
+# If text send mode is requested or configured, verify whisper-cli and model
+if [[ " $* " =~ " --send-mode text " ]] || grep -qE '^BRIDGE_SEND_MODE=text' .env 2>/dev/null; then
+    if ! command -v whisper-cli &>/dev/null; then
+        echo -e "${YELLOW}[WARN] 'whisper-cli' not found in PATH for on-device STT.${RESET}"
+        echo -e "       Install via: brew install whisper-cpp"
+    fi
+    if [[ ! -f "models/ggml-base.bin" ]]; then
+        echo -e "  ${YELLOW}!${RESET} Whisper model (models/ggml-base.bin) not found. Downloading base model..."
+        bash scripts/download-model.sh base || true
+    fi
 fi
 
 if [[ ! -f ".env" ]]; then
@@ -92,13 +127,13 @@ fi
 echo -e "  ${GREEN}✓${RESET} Configuration (.env) loaded"
 
 # 4. Harness & TypeScript Modules
-echo -e "${BOLD}[3/4] Testing headless execution harness...${RESET}"
+echo -e "${BOLD}[3/4] Testing execution harnesses...${RESET}"
 if [[ ! -d "harness/node_modules" ]]; then
     echo -e "  ${YELLOW}!${RESET} Installing harness dependencies with Bun..."
     (cd harness && bun install)
 fi
 
-# Run instant IPC preflight check
+# Run instant IPC preflight check for Bun headless harness
 if .venv/bin/python3 -c "from bridge.harness import Harness; h=Harness(); h.system_info(); h.close()" 2>/dev/null; then
     echo -e "  ${GREEN}✓${RESET} Headless Bun harness IPC operational (bash, read, write, edit, applescript, grep, glob)"
 else
@@ -106,12 +141,19 @@ else
     exit 1
 fi
 
+# Run preflight check for native macOS computer-use harness
+if .venv/bin/python3 -c "from bridge.mac_adapter import MacAdapter; MacAdapter()" 2>/dev/null; then
+    echo -e "  ${GREEN}✓${RESET} Native macOS computer-use harness operational (vision, clicks, keys, Chrome CDP)"
+else
+    echo -e "  ${YELLOW}[WARN] Native macOS computer-use harness could not initialize.${RESET}"
+fi
+
 # Check macOS Accessibility permission (required to inspect WhatsApp UI and capture hotkeys)
 if ! .venv/bin/python3 -c "from ApplicationServices import AXIsProcessTrusted; assert AXIsProcessTrusted() is True" 2>/dev/null; then
     echo -e "  ${RED}✗ [PERMISSION REQUIRED]${RESET} Accessibility permission is missing for this terminal!"
     echo -e "    macOS blocks untrusted processes from inspecting WhatsApp UI and intercepting tool calls."
     echo -e "    ${BOLD}Grant access in:${RESET} System Settings → Privacy & Security → Accessibility"
-    echo -e "    Toggle ON ${BOLD}${TERM_PROGRAM:-Ghostty}${RESET} (or add your terminal app with '+')."
+    echo -e "    Toggle ON ${BOLD}${TERM_PROGRAM:-Terminal}${RESET} (or add your terminal app with '+')."
     .venv/bin/python3 -c "from ApplicationServices import AXIsProcessTrustedWithOptions, kAXTrustedCheckOptionPrompt; AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: True})" 2>/dev/null || true
     echo -e "    ${YELLOW}After enabling, restart: ./start.sh${RESET}"
     exit 1
@@ -128,8 +170,13 @@ if ! pgrep -il "whatsapp" >/dev/null 2>&1; then
 fi
 
 # Ensure WhatsApp is hidden to keep user screen clean
-osascript -e 'tell application "System Events" to set visible of (every process whose name contains "WhatsApp") to false' 2>/dev/null || true
-echo -e "  ${GREEN}✓${RESET} WhatsApp Desktop ready & backgrounded"
+if pgrep -il "whatsapp" >/dev/null 2>&1; then
+    osascript -e 'tell application "System Events" to set visible of (every process whose name contains "WhatsApp") to false' 2>/dev/null || true
+    echo -e "  ${GREEN}✓${RESET} WhatsApp Desktop ready & backgrounded"
+else
+    echo -e "  ${YELLOW}[WARN] WhatsApp Desktop is not running.${RESET}"
+    echo -e "         Please start WhatsApp Desktop, log in, and open the chat with your assistant."
+fi
 
 echo -e "\n${BOLD}${GREEN}========================================================"
 echo "          🚀 SYSTEM ONLINE & READY FOR JARVIS          "
