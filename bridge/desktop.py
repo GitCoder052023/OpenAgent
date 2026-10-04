@@ -52,8 +52,39 @@ class Desktop:
             time.sleep(0.05)
             hide_whatsapp()
 
+    def _stage_clipboard(self, path):
+        """Put the file on macOS clipboard as both file URL and legacy filenames flavor."""
+        try:
+            from AppKit import NSPasteboard
+            from Foundation import NSURL
+            board = NSPasteboard.generalPasteboard()
+            board.clearContents()
+            ok = bool(board.writeObjects_([NSURL.fileURLWithPath_(str(path))]))
+            try:
+                board.setPropertyList_forType_([str(path)], "NSFilenamesPboardType")
+            except Exception:
+                pass
+            return ok
+        except Exception:
+            return False
+
+    def _send_file_clipboard(self, path):
+        """Send file directly via clipboard paste (Cmd+V), bypassing the entire filepicker UI."""
+        if not self._stage_clipboard(path):
+            return False
+        focus_composer()
+        time.sleep(0.04)
+        subprocess.run(
+            ["osascript", str(SCRIPTS / "paste-file.scpt")],
+            check=False, timeout=4.0
+        )
+        if click_preview_send(timeout=4.0):
+            event("picker_step", step="dispatch", ok=True, method="clipboard")
+            return True
+        return False
+
     def send_file(self, path):
-        """Prepare any file (PNG screenshot, M4A audio, etc.) as a document attachment, dispatch it, then immediately hide WhatsApp."""
+        """Send any file (audio M4A, image PNG, doc) directly via clipboard paste without opening filepicker, with fallback to picker."""
         path = Path(path).resolve()
         if not path.is_file() or path.stat().st_size == 0:
             raise ValueError(f"File must be an existing, non-empty file: {path}")
@@ -69,55 +100,62 @@ class Desktop:
             send_btn = self.cfg.attachment_send_label
 
         with self._lock:
-            # If a stale preview modal is lingering from an earlier attempt, dismiss it
+            # Dismiss any stale modal/preview from an earlier attempt
             if click_element_by_description("Cancel"):
-                time.sleep(0.3)
-            ensure_whatsapp_ready(self.cfg.number, hide_after=False)
-            self.assert_locked(quick=True)
+                time.sleep(0.05)
             activate_whatsapp()
-            time.sleep(0.2)
+            ensure_whatsapp_ready(self.cfg.number, hide_after=False)
+            self.assert_locked()
+
             try:
-                # Open file picker using direct AX clicks with polling to absorb unhide animation.
+                # 1. DIRECT CLIPBOARD ATTACHMENT (Instant, zero filepicker UI, no dialog hanging)
+                if self._send_file_clipboard(path):
+                    time.sleep(0.05)
+                    return True
+
+                # 2. FALLBACK PICKER ROUTE (Used only if clipboard paste did not open preview)
+                event("picker_step", step="fallback_to_picker", reason="clipboard_unhandled")
                 t0 = time.monotonic()
                 clicked_attach = False
                 while time.monotonic() - t0 < 3.0:
                     if click_element_by_description(attach):
                         clicked_attach = True
                         break
-                    time.sleep(0.1)
+                    time.sleep(0.02)
                 if not clicked_attach:
-                    raise RuntimeError(f"Attach control '{attach}' not found; no send")
+                    if click_element_by_description("Cancel"):
+                        time.sleep(0.05)
+                        if click_element_by_description(attach):
+                            clicked_attach = True
+                    if not clicked_attach:
+                        raise RuntimeError(f"Attach control '{attach}' not found; no send")
                 event("picker_step", step="attach", ok=True, label=attach)
 
-                # Poll briefly for the document/file button to appear in the popover
                 t0 = time.monotonic()
                 clicked_doc = False
                 while time.monotonic() - t0 < 3.0:
                     if click_element_by_description(doc):
                         clicked_doc = True
                         break
-                    time.sleep(0.1)
+                    time.sleep(0.02)
                 if not clicked_doc:
                     event("picker_step", level="warning", step="document", ok=False, label=doc)
                     raise RuntimeError(f"Document menu item '{doc}' not found; no send")
                 event("picker_step", step="document", ok=True, label=doc)
-                time.sleep(0.35)
+
+                time.sleep(0.1)
                 subprocess.run(["osascript", str(SCRIPTS / "attach.scpt"), str(path)], check=True, timeout=25)
                 event("picker_step", step="chooser", ok=True)
 
-                # In preview, the chat header is replaced by the attachment preview window.
-                # Click the preview Send button or press Enter, then immediately hide WhatsApp.
                 if not click_preview_send(timeout=5.0):
                     subprocess.run(["osascript", str(SCRIPTS / "commit-audio.scpt"),
                                     send_btn], check=True, timeout=15)
-                event("picker_step", step="dispatch", ok=True)
-                time.sleep(0.8)
+                event("picker_step", step="dispatch", ok=True, method="picker")
+                time.sleep(0.05)
+                return True
             except Exception:
-                # Emergency recovery: dismiss modal preview/sheet/popover so WhatsApp isn't wedged
                 try:
-                    subprocess.run(["osascript", "-e", 'tell application "System Events" to tell process "WhatsApp" to key code 53'], check=False, timeout=1.0)
-                    time.sleep(0.1)
-                    subprocess.run(["osascript", "-e", 'tell application "System Events" to tell process "WhatsApp" to key code 53'], check=False, timeout=1.0)
+                    click_element_by_description("Cancel")
                 except Exception:
                     pass
                 hide_whatsapp()

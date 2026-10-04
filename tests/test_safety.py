@@ -186,4 +186,84 @@ def test_click_element_by_description_popover_vs_menubar(monkeypatch):
     assert clicked[0][1] == "AXPress"
 
 
+def test_desktop_send_file_clipboard_direct(monkeypatch, tmp_path):
+    from bridge.desktop import Desktop
+    from bridge.config import Config
+
+    test_file = tmp_path / "test.png"
+    test_file.write_bytes(b"PNGDATA" * 10)
+
+    cfg = Config(
+        number="+16508702892",
+        safe_mode=False,
+        attach_label="Share media",
+        document_label="File",
+        attachment_send_label="Send",
+    )
+    desk = Desktop(cfg)
+
+    events_recorded = []
+    monkeypatch.setattr("bridge.desktop.event", lambda name, **kw: events_recorded.append((name, kw)))
+    monkeypatch.setattr(desk, "assert_locked", lambda quick=True: True)
+    monkeypatch.setattr("bridge.desktop.activate_whatsapp", lambda: True)
+    monkeypatch.setattr("bridge.desktop.ensure_whatsapp_ready", lambda num, hide_after=False: True)
+    monkeypatch.setattr("bridge.desktop.hide_whatsapp", lambda: True)
+    monkeypatch.setattr(desk, "_stage_clipboard", lambda path: True)
+    monkeypatch.setattr("bridge.desktop.focus_composer", lambda: True)
+
+    subproc_calls = []
+    monkeypatch.setattr("subprocess.run", lambda cmd, **kw: subproc_calls.append(cmd) or True)
+    monkeypatch.setattr("bridge.desktop.click_preview_send", lambda timeout=4.0: True)
+
+    assert desk.send_file(test_file) is True
+    # Verify no filepicker attach.scpt was executed
+    assert not any("attach.scpt" in str(c) for c in subproc_calls)
+    steps = [kw["step"] for name, kw in events_recorded if name == "picker_step"]
+    assert "dispatch" in steps
+
+
+def test_desktop_send_file_picker_fallback(monkeypatch, tmp_path):
+    from bridge.desktop import Desktop
+    from bridge.config import Config
+
+    test_file = tmp_path / "test.png"
+    test_file.write_bytes(b"PNGDATA" * 10)
+
+    cfg = Config(
+        number="+16508702892",
+        safe_mode=False,
+        attach_label="Share media",
+        document_label="File",
+        attachment_send_label="Send",
+    )
+    desk = Desktop(cfg)
+
+    events_recorded = []
+    monkeypatch.setattr("bridge.desktop.event", lambda name, **kw: events_recorded.append((name, kw)))
+    monkeypatch.setattr(desk, "assert_locked", lambda quick=True: True)
+    monkeypatch.setattr("bridge.desktop.activate_whatsapp", lambda: True)
+    monkeypatch.setattr("bridge.desktop.ensure_whatsapp_ready", lambda num, hide_after=False: True)
+    monkeypatch.setattr("bridge.desktop.hide_whatsapp", lambda: True)
+    # Simulate clipboard failure so it takes fallback
+    monkeypatch.setattr(desk, "_send_file_clipboard", lambda path: False)
+
+    clicked = []
+    monkeypatch.setattr("bridge.desktop.click_element_by_description", lambda label, **kw: clicked.append(label) or True)
+
+    subproc_calls = []
+    monkeypatch.setattr("subprocess.run", lambda cmd, **kw: subproc_calls.append(cmd) or True)
+    monkeypatch.setattr("bridge.desktop.click_preview_send", lambda timeout=5.0: True)
+
+    assert desk.send_file(test_file) is True
+    assert "Share media" in clicked
+    assert "File" in clicked
+    assert any("attach.scpt" in str(c) for call in subproc_calls for c in call)
+    steps = [kw["step"] for name, kw in events_recorded if name == "picker_step"]
+    assert "attach" in steps
+    assert "document" in steps
+    assert "chooser" in steps
+    assert "dispatch" in steps
+
+
+
 

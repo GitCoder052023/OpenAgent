@@ -45,6 +45,7 @@ def get_whatsapp_pid():
 
 def activate_whatsapp():
     if sys.platform != "darwin": return False
+    activated = False
     try:
         from AppKit import NSRunningApplication, NSApplicationActivateIgnoringOtherApps
         apps = NSRunningApplication.runningApplicationsWithBundleIdentifier_("net.whatsapp.WhatsApp")
@@ -52,26 +53,30 @@ def activate_whatsapp():
             if a.isHidden():
                 a.unhide()
             a.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
+            activated = True
     except Exception:
         pass
-    try:
-        from AppKit import NSWorkspace, NSApplicationActivateIgnoringOtherApps
-        running = [a for a in NSWorkspace.sharedWorkspace().runningApplications()
-                   if _is_whatsapp_process(a)]
-        for app in running:
-            if app.isHidden():
-                app.unhide()
-            app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
-    except Exception:
-        pass
-    try:
-        import subprocess
-        subprocess.run(
-            ["osascript", "-e", 'tell application "System Events" to set visible of process "WhatsApp" to true\ntell application "WhatsApp" to activate'],
-            check=False, capture_output=True, timeout=1.0
-        )
-    except Exception:
-        pass
+    if not activated:
+        try:
+            from AppKit import NSWorkspace, NSApplicationActivateIgnoringOtherApps
+            running = [a for a in NSWorkspace.sharedWorkspace().runningApplications()
+                       if _is_whatsapp_process(a)]
+            for app in running:
+                if app.isHidden():
+                    app.unhide()
+                app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
+                activated = True
+        except Exception:
+            pass
+    if not activated:
+        try:
+            import subprocess
+            subprocess.run(
+                ["osascript", "-e", 'tell application "System Events" to set visible of process "WhatsApp" to true\ntell application "WhatsApp" to activate'],
+                check=False, capture_output=True, timeout=1.0
+            )
+        except Exception:
+            pass
     return True
 
 
@@ -89,24 +94,26 @@ def hide_whatsapp():
             hidden = True
     except Exception:
         pass
-    try:
-        from AppKit import NSWorkspace
-        running = [a for a in NSWorkspace.sharedWorkspace().runningApplications()
-                   if _is_whatsapp_process(a)]
-        for app in running:
-            if not app.isHidden():
-                app.hide()
-            hidden = True
-    except Exception:
-        pass
-    try:
-        import subprocess
-        subprocess.run(
-            ["osascript", "-e", 'tell application "System Events" to set visible of (every process whose name contains "WhatsApp" or bundle identifier is "net.whatsapp.WhatsApp") to false'],
-            check=False, capture_output=True, timeout=1.0
-        )
-    except Exception:
-        pass
+    if not hidden:
+        try:
+            from AppKit import NSWorkspace
+            running = [a for a in NSWorkspace.sharedWorkspace().runningApplications()
+                       if _is_whatsapp_process(a)]
+            for app in running:
+                if not app.isHidden():
+                    app.hide()
+                hidden = True
+        except Exception:
+            pass
+    if not hidden:
+        try:
+            import subprocess
+            subprocess.run(
+                ["osascript", "-e", 'tell application "System Events" to set visible of (every process whose name contains "WhatsApp" or bundle identifier is "net.whatsapp.WhatsApp") to false'],
+                check=False, capture_output=True, timeout=1.0
+            )
+        except Exception:
+            pass
     return hidden
 
 
@@ -165,6 +172,11 @@ def snapshot(safe_mode=True, auto_open=True):
     if sys.platform != "darwin":
         raise RuntimeError("macOS required")
     from ApplicationServices import AXUIElementCreateApplication, AXUIElementCopyAttributeValue
+    try:
+        from ApplicationServices import AXUIElementCopyMultipleAttributeValues
+        _can_multi = True
+    except Exception:
+        _can_multi = False
     pid = get_whatsapp_pid()
     if not pid and auto_open:
         pid = launch_whatsapp(hide=True)
@@ -175,11 +187,32 @@ def snapshot(safe_mode=True, auto_open=True):
         return []
     root = AXUIElementCreateApplication(pid)
     rows = []
+    _attrs = ("AXRole", "AXTitle", "AXValue", "AXDescription", "AXChildren")
     def value(el, attr):
         err, val = AXUIElementCopyAttributeValue(el, attr, None)
         return val if err == 0 else None
     def walk(el, path="", depth=0):
         if depth > 24 or len(rows) > 2500: return
+        if _can_multi:
+            try:
+                err, vals = AXUIElementCopyMultipleAttributeValues(el, _attrs, 0, None)
+                if err == 0 and vals and len(vals) == 5:
+                    role, title, val, desc, children = vals
+                    row = {
+                        "path": path,
+                        "depth": depth,
+                        "role": str(role) if isinstance(role, str) else "",
+                        "title": str(title)[:1500] if isinstance(title, str) else "",
+                        "value": str(val)[:1500] if isinstance(val, str) else "",
+                        "description": str(desc)[:1500] if isinstance(desc, str) else "",
+                    }
+                    rows.append(row)
+                    if children and hasattr(children, "__iter__"):
+                        for i, child in enumerate(list(children)[:300]):
+                            walk(child, f"{path}/{i}", depth + 1)
+                    return
+            except Exception:
+                pass
         row = {"path": path, "depth": depth}
         for attr in ("Role", "Title", "Value", "Description"):
             raw = value(el, "AX" + attr)
@@ -426,96 +459,64 @@ def click_element_by_description(target_substr, role=None, window_only=True):
     return AXUIElementPerformAction(el, "AXPress") == 0
 
 
-def click_preview_send(timeout=5.0):
-    """Wait for WhatsApp attachment preview, click Send via AXPress or Enter, and verify dispatch."""
-    if sys.platform != "darwin": return False
-    from ApplicationServices import (AXUIElementCreateApplication, AXUIElementCopyAttributeValue,
-                                     AXUIElementPerformAction, AXUIElementSetAttributeValue,
-                                     AXValueGetValue, kAXValueTypeCGPoint, kAXValueTypeCGSize)
-    import subprocess, time, Quartz
+def click_preview_send(timeout=4.0):
+    """Wait for WhatsApp attachment preview modal, fire Enter key (key code 36) to send, and verify dismissal."""
+    if sys.platform != "darwin":
+        return False
+    import subprocess, time
     pid = get_whatsapp_pid()
     if not pid:
         pid = launch_whatsapp(hide=True)
-    if not pid: return False
-    root = AXUIElementCreateApplication(pid)
+    if not pid:
+        return False
 
     saw_preview = False
     t0 = time.monotonic()
+
+    # 1. Wait for WhatsApp attachment preview modal to appear
     while time.monotonic() - t0 < timeout:
         rows = snapshot(safe_mode=False)
-        captions = [r for r in rows if r["role"] == "AXTextArea" and "caption" in _strip_invisible(r.get("description") or "").lower()]
-        cancel_btns = [r for r in rows if r["role"] == "AXButton" and "cancel" in _strip_invisible((r.get("description") or "") + " " + (r.get("title") or "")).lower()]
-        preview_open = bool(captions or cancel_btns)
-        send_btns = [r for r in rows if r["role"] == "AXButton" and "send" in _strip_invisible((r.get("description") or "") + " " + (r.get("title") or "")).lower() and "voice" not in _strip_invisible(r.get("description") or "").lower()] if preview_open else []
-
+        preview_open = any(
+            (r["role"] == "AXButton" and "cancel" in _strip_invisible((r.get("description") or "") + " " + (r.get("title") or "")).lower()) or
+            (r["role"] == "AXTextArea" and "caption" in _strip_invisible(r.get("description") or "").lower())
+            for r in rows
+        )
         if preview_open:
             saw_preview = True
-            # 1. Prefer direct AXPress on the preview Send button
-            if send_btns:
-                path = send_btns[0]["path"]
-                indexes = [int(p) for p in path.split("/")[1:]]
-                el = root
-                for idx in indexes:
-                    _, ch = AXUIElementCopyAttributeValue(el, "AXChildren", None)
-                    if not ch or idx >= len(ch):
-                        el = None
-                        break
-                    el = ch[idx]
-                if el and AXUIElementPerformAction(el, "AXPress") == 0:
-                    # WhatsApp takes ~0.3-1.0s to upload/send audio and dismiss preview
-                    for _ in range(20):
-                        time.sleep(0.15)
-                        rows_after = snapshot(safe_mode=False)
-                        still_preview = any(r["role"] == "AXButton" and "cancel" in _strip_invisible((r.get("description") or "") + " " + (r.get("title") or "")).lower() for r in rows_after)
-                        if not still_preview:
-                            return True
+            break
+        time.sleep(0.02)
 
-            # 2. Press Enter in WhatsApp window (without focusing caption, which inserts newlines)
-            subprocess.run(["osascript", "-e", 'tell application "System Events" to tell process "WhatsApp" to key code 36'], check=False)
-            for _ in range(10):
-                time.sleep(0.15)
-                rows_after = snapshot(safe_mode=False)
-                still_preview = any(r["role"] == "AXButton" and "cancel" in _strip_invisible((r.get("description") or "") + " " + (r.get("title") or "")).lower() for r in rows_after)
-                if not still_preview:
-                    return True
+    if not saw_preview:
+        return False
 
-            # 3. Fallback: Click Send button by screen coordinates
-            if send_btns:
-                path = send_btns[0]["path"]
-                indexes = [int(p) for p in path.split("/")[1:]]
-                el = root
-                for idx in indexes:
-                    _, ch = AXUIElementCopyAttributeValue(el, "AXChildren", None)
-                    if not ch or idx >= len(ch):
-                        el = None
-                        break
-                    el = ch[idx]
-                if el:
-                    _, pos_val = AXUIElementCopyAttributeValue(el, "AXPosition", None)
-                    _, size_val = AXUIElementCopyAttributeValue(el, "AXSize", None)
-                    if pos_val and size_val:
-                        res1 = AXValueGetValue(pos_val, kAXValueTypeCGPoint, None)
-                        res2 = AXValueGetValue(size_val, kAXValueTypeCGSize, None)
-                        ok1, point = (res1 if isinstance(res1, tuple) and len(res1) == 2 else (False, None))
-                        ok2, size = (res2 if isinstance(res2, tuple) and len(res2) == 2 else (False, None))
-                        if ok1 and ok2 and point is not None and size is not None:
-                            x = point.x + size.width / 2.0
-                            y = point.y + size.height / 2.0
-                            down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, Quartz.CGPoint(x, y), Quartz.kCGMouseButtonLeft)
-                            up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, Quartz.CGPoint(x, y), Quartz.kCGMouseButtonLeft)
-                            Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
-                            time.sleep(0.05)
-                            Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-                            time.sleep(0.3)
-                            rows_after = snapshot(safe_mode=False)
-                            still_preview = any(r["role"] == "AXButton" and "cancel" in _strip_invisible((r.get("description") or "") + " " + (r.get("title") or "")).lower() for r in rows_after)
-                            if not still_preview:
-                                return True
-        elif saw_preview:
-            # Preview was open on an earlier poll and is now gone: dispatched.
+    # 2. Fire Enter (key code 36) to send attachment and verify preview modal dismisses
+    t_enter = time.monotonic()
+    last_press = 0.0
+    while time.monotonic() - t_enter < 3.0:
+        now = time.monotonic()
+        if now - last_press >= 0.35:
+            subprocess.run([
+                "osascript", "-e",
+                'tell application "WhatsApp" to activate\n'
+                'tell application "System Events" to tell process "WhatsApp"\n'
+                '    set frontmost to true\n'
+                '    key code 36\n'
+                'end tell'
+            ], check=False, timeout=1.0)
+            last_press = now
+
+        time.sleep(0.04)
+        rows_after = snapshot(safe_mode=False)
+        still_preview = any(
+            (r["role"] == "AXButton" and "cancel" in _strip_invisible((r.get("description") or "") + " " + (r.get("title") or "")).lower()) or
+            (r["role"] == "AXTextArea" and "caption" in _strip_invisible(r.get("description") or "").lower())
+            for r in rows_after
+        )
+        if not still_preview:
             return True
-        time.sleep(0.1)
 
+    # 3. If preview is still stuck after 3s, safely dismiss Cancel button so WhatsApp is not left blocked
+    click_element_by_description("Cancel")
     return False
 
 
