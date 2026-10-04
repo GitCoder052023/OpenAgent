@@ -1,7 +1,7 @@
 """Capture guard regression tests. No mic, WhatsApp, or Vosk required."""
 import struct
-from bridge.config import Config
-from bridge.voice import RATE, prepare_clip, gate_pcm
+from OpenAgent.config import Config
+from OpenAgent.voice import RATE, prepare_clip, gate_pcm
 
 
 def pcm(seconds, level=0):

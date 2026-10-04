@@ -1,8 +1,8 @@
 import pytest
-from bridge.ax import verify_header
-from bridge.desktop import Desktop
-from bridge.config import Config
-from bridge.replies import incoming
+from OpenAgent.ax import verify_header
+from OpenAgent.desktop import Desktop
+from OpenAgent.config import Config
+from OpenAgent.replies import incoming
 
 def test_header_requires_exact_path_and_number():
     rows=[{"path":"/0/1","role":"AXStaticText","title":"+1 (650) 870-2892","value":"","description":""}]
@@ -28,7 +28,7 @@ def test_send_rejects_multiline():
     with pytest.raises(ValueError): Desktop(Config()).send("hello\nworld")
 
 
-from bridge.replies import voice_groups, watch
+from OpenAgent.replies import voice_groups, watch
 
 def voice_fixture():
     return [
@@ -85,7 +85,7 @@ def test_unlocked_mode_from_env(monkeypatch):
 
 
 def test_snapshot_auto_open_mock(monkeypatch):
-    from bridge import ax
+    from OpenAgent import ax
     monkeypatch.setattr(ax, "get_whatsapp_pid", lambda: None)
     launched = []
     monkeypatch.setattr(ax, "launch_whatsapp", lambda hide=True: launched.append(True) or 12345)
@@ -101,7 +101,7 @@ def test_snapshot_auto_open_mock(monkeypatch):
 
 def test_is_hotkey_supports_f8_and_digit_8():
     from pynput import keyboard
-    from bridge.main import is_hotkey
+    from OpenAgent.main import is_hotkey
     # Test F8 Key
     assert is_hotkey(keyboard.Key.f8, "f8")
     assert is_hotkey(keyboard.Key.media_play_pause, "f8")
@@ -117,21 +117,21 @@ def test_is_hotkey_supports_f8_and_digit_8():
 
 
 def test_verify_header_relaxed_instinct():
-    from bridge.ax import verify_header
+    from OpenAgent.ax import verify_header
     rows = [{"path": "/0/1", "role": "AXButton", "title": "", "value": "", "description": "Instinct"}]
     # In unlocked mode, if header contains "Instinct", it passes without warning spam
     assert verify_header(rows, "+16508702892", "/0/1", safe_mode=False)
 
 
 def test_audioop_fallback_rms():
-    from bridge.voice import audioop
+    from OpenAgent.voice import audioop
     dummy = b"\x00\x01" * 1000
     assert audioop.rms(dummy, 2) == 256
     assert audioop.rms(b"", 2) == 0
 
 
 def test_voice_state_wake_and_sleep():
-    from bridge.voice import VoiceState
+    from OpenAgent.voice import VoiceState
     vs = VoiceState()
     assert not vs.awake
     assert vs.accept("hello world") == "ignore"
@@ -155,7 +155,7 @@ def test_voice_state_wake_and_sleep():
 
 
 def test_click_element_by_description_popover_vs_menubar(monkeypatch):
-    from bridge import ax
+    from OpenAgent import ax
     mock_rows = [
         # Menubar item that matches "file"
         {"path": "/1/4/0/17/0/1", "role": "AXMenuItem", "title": "\u200eSend file...", "value": "", "description": ""},
@@ -187,8 +187,8 @@ def test_click_element_by_description_popover_vs_menubar(monkeypatch):
 
 
 def test_desktop_send_file_clipboard_direct(monkeypatch, tmp_path):
-    from bridge.desktop import Desktop
-    from bridge.config import Config
+    from OpenAgent.desktop import Desktop
+    from OpenAgent.config import Config
 
     test_file = tmp_path / "test.png"
     test_file.write_bytes(b"PNGDATA" * 10)
@@ -203,17 +203,17 @@ def test_desktop_send_file_clipboard_direct(monkeypatch, tmp_path):
     desk = Desktop(cfg)
 
     events_recorded = []
-    monkeypatch.setattr("bridge.desktop.event", lambda name, **kw: events_recorded.append((name, kw)))
+    monkeypatch.setattr("OpenAgent.desktop.event", lambda name, **kw: events_recorded.append((name, kw)))
     monkeypatch.setattr(desk, "assert_locked", lambda quick=True: True)
-    monkeypatch.setattr("bridge.desktop.activate_whatsapp", lambda: True)
-    monkeypatch.setattr("bridge.desktop.ensure_whatsapp_ready", lambda num, hide_after=False: True)
-    monkeypatch.setattr("bridge.desktop.hide_whatsapp", lambda: True)
+    monkeypatch.setattr("OpenAgent.desktop.activate_whatsapp", lambda: True)
+    monkeypatch.setattr("OpenAgent.desktop.ensure_whatsapp_ready", lambda num, hide_after=False: True)
+    monkeypatch.setattr("OpenAgent.desktop.hide_whatsapp", lambda: True)
     monkeypatch.setattr(desk, "_stage_clipboard", lambda path: True)
-    monkeypatch.setattr("bridge.desktop.focus_composer", lambda: True)
+    monkeypatch.setattr("OpenAgent.desktop.focus_composer", lambda: True)
 
     subproc_calls = []
     monkeypatch.setattr("subprocess.run", lambda cmd, **kw: subproc_calls.append(cmd) or True)
-    monkeypatch.setattr("bridge.desktop.click_preview_send", lambda timeout=4.0: True)
+    monkeypatch.setattr("OpenAgent.desktop.click_preview_send", lambda timeout=4.0: True)
 
     assert desk.send_file(test_file) is True
     # Verify no filepicker attach.scpt was executed
@@ -223,8 +223,8 @@ def test_desktop_send_file_clipboard_direct(monkeypatch, tmp_path):
 
 
 def test_desktop_send_file_picker_fallback(monkeypatch, tmp_path):
-    from bridge.desktop import Desktop
-    from bridge.config import Config
+    from OpenAgent.desktop import Desktop
+    from OpenAgent.config import Config
 
     test_file = tmp_path / "test.png"
     test_file.write_bytes(b"PNGDATA" * 10)
@@ -239,20 +239,20 @@ def test_desktop_send_file_picker_fallback(monkeypatch, tmp_path):
     desk = Desktop(cfg)
 
     events_recorded = []
-    monkeypatch.setattr("bridge.desktop.event", lambda name, **kw: events_recorded.append((name, kw)))
+    monkeypatch.setattr("OpenAgent.desktop.event", lambda name, **kw: events_recorded.append((name, kw)))
     monkeypatch.setattr(desk, "assert_locked", lambda quick=True: True)
-    monkeypatch.setattr("bridge.desktop.activate_whatsapp", lambda: True)
-    monkeypatch.setattr("bridge.desktop.ensure_whatsapp_ready", lambda num, hide_after=False: True)
-    monkeypatch.setattr("bridge.desktop.hide_whatsapp", lambda: True)
+    monkeypatch.setattr("OpenAgent.desktop.activate_whatsapp", lambda: True)
+    monkeypatch.setattr("OpenAgent.desktop.ensure_whatsapp_ready", lambda num, hide_after=False: True)
+    monkeypatch.setattr("OpenAgent.desktop.hide_whatsapp", lambda: True)
     # Simulate clipboard failure so it takes fallback
     monkeypatch.setattr(desk, "_send_file_clipboard", lambda path: False)
 
     clicked = []
-    monkeypatch.setattr("bridge.desktop.click_element_by_description", lambda label, **kw: clicked.append(label) or True)
+    monkeypatch.setattr("OpenAgent.desktop.click_element_by_description", lambda label, **kw: clicked.append(label) or True)
 
     subproc_calls = []
     monkeypatch.setattr("subprocess.run", lambda cmd, **kw: subproc_calls.append(cmd) or True)
-    monkeypatch.setattr("bridge.desktop.click_preview_send", lambda timeout=5.0: True)
+    monkeypatch.setattr("OpenAgent.desktop.click_preview_send", lambda timeout=5.0: True)
 
     assert desk.send_file(test_file) is True
     assert "Share media" in clicked

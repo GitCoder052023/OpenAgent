@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from macos_harness.macos import MacOSError
-from bridge.mac_adapter import MacAdapter, _check_target_allowed, PROHIBITED_TARGETS
+from OpenAgent.mac_adapter import MacAdapter, _check_target_allowed, PROHIBITED_TARGETS
 
 
 def test_whatsapp_target_protection():

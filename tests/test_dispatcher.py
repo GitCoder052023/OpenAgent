@@ -2,7 +2,7 @@ import re
 
 import pytest
 from unittest.mock import MagicMock
-from bridge.dispatcher import (
+from OpenAgent.dispatcher import (
     encode_tool_call,
     parse_tool_call,
     parse_tool_calls,
@@ -11,7 +11,7 @@ from bridge.dispatcher import (
     format_tool_responses,
     MAX_WHATSAPP_RESPONSE_LEN,
 )
-from bridge.harness import Harness, HarnessError
+from OpenAgent.harness import Harness, HarnessError
 
 
 def test_parse_tool_call_markdown_fenced():

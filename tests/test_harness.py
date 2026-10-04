@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from bridge.harness import Harness, OpenCodeHarness, HarnessError
+from OpenAgent.harness import Harness, OpenCodeHarness, HarnessError
 
 
 def test_harness_system_info():
@@ -56,7 +56,7 @@ def test_harness_edit_missing_target_fails(tmp_path: Path):
 
 def test_harness_grep():
     with Harness() as h:
-        res = h.grep("class Harness", path="bridge/harness.py")
+        res = h.grep("class Harness", path="src/OpenAgent/harness.py")
         assert res["total_matches"] >= 1
         assert any("class Harness" in m["text"] for m in res["matches"])
 
@@ -64,7 +64,7 @@ def test_harness_grep():
 def test_harness_grep_invalid_regex_raises():
     with Harness() as h:
         with pytest.raises(HarnessError, match="Invalid regex pattern"):
-            h.grep("[unclosed_bracket", path="bridge/harness.py")
+            h.grep("[unclosed_bracket", path="src/OpenAgent/harness.py")
 
 
 def test_harness_glob_matches():

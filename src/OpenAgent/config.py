@@ -4,7 +4,14 @@ import os
 
 
 def load_env_file(path=None):
-    env_file = Path(path) if path else Path(__file__).resolve().parents[1] / ".env"
+    if path:
+        env_file = Path(path)
+    else:
+        here = Path(__file__).resolve()
+        repo = here.parents[2] if len(here.parents) > 2 and here.parents[1].name == "src" else here.parents[1]
+        env_file = repo / ".env"
+        if not env_file.is_file():
+            env_file = here.parents[1] / ".env"
     if env_file.is_file():
         with open(env_file, "r", encoding="utf-8") as f:
             for line in f:

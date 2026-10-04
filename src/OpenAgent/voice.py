@@ -239,6 +239,11 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None):
         raise RuntimeError("Voice mode needs pip install '.[voice]' (vosk and sounddevice)") from exc
 
     model_path = Path(cfg.voice_model).expanduser()
+    if not model_path.is_absolute() and not model_path.is_dir():
+        here = Path(__file__).resolve()
+        repo_root = here.parents[2] if len(here.parents) > 2 and here.parents[1].name == "src" else here.parents[1]
+        if (repo_root / model_path).is_dir():
+            model_path = repo_root / model_path
     if not model_path.is_dir():
         raise RuntimeError(f"Voice model directory missing: {model_path}. Set BRIDGE_VOICE_MODEL.")
 

@@ -39,13 +39,24 @@ class Harness:
     ):
         root = harness_root or opencode_root
         if root is None:
-            self.root = Path(__file__).resolve().parent.parent / "harness"
+            src_dir = Path(__file__).resolve().parent.parent
+            if (src_dir / "harness").exists():
+                self.root = src_dir / "harness"
+            elif (src_dir.parent / "harness").exists():
+                self.root = src_dir.parent / "harness"
+            else:
+                self.root = src_dir / "harness"
         else:
             self.root = Path(root)
 
         self.script_path = self.root / "harness-bridge.ts"
         if not self.script_path.exists():
             raise FileNotFoundError(f"Harness bridge script not found at {self.script_path}")
+
+        if self.root.parent.name == "src":
+            self.project_root = self.root.parent.parent
+        else:
+            self.project_root = self.root.parent
 
         self._proc: Optional[subprocess.Popen] = None
         self._lock = threading.Lock()
@@ -58,7 +69,7 @@ class Harness:
         cmd = ["bun", "run", str(self.script_path)]
         self._proc = subprocess.Popen(
             cmd,
-            cwd=str(self.root.parent),
+            cwd=str(self.project_root),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

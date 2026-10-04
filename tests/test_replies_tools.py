@@ -2,10 +2,10 @@ import pytest
 import threading
 import time
 from unittest.mock import MagicMock
-from bridge.config import Config
-from bridge.replies import incoming_texts, watch
-from bridge.desktop import Desktop
-from bridge.harness import Harness
+from OpenAgent.config import Config
+from OpenAgent.replies import incoming_texts, watch
+from OpenAgent.desktop import Desktop
+from OpenAgent.harness import Harness
 
 
 def test_incoming_texts_filters_outgoing():
@@ -132,7 +132,7 @@ def test_watch_dispatches_new_tool_call_and_deduplicates():
 
 def test_body_from_description_incoming_text():
     """Test body extraction from WhatsApp 2.26+ flat AXDescription format."""
-    from bridge.replies import _body_from_description
+    from OpenAgent.replies import _body_from_description
 
     # Standard incoming text
     desc = "\u200emessage, JARVIS_CALL:eyJ0b29sIjoic3lzdGVtX2luZm8iLCJhcmdzIjp7fX0=:END, 10:50\u202fAM, \u200eReceived from + 1,6 5 0,8 7 0,2 8 9 2"
@@ -428,7 +428,7 @@ def test_cross_restart_persistence(tmp_path):
 
 def test_voice_note_held_while_user_recording_and_played_after():
     """Incoming voice note must be held while user is recording, and played only after user finishes."""
-    from bridge.replies import resolve_voice_control
+    from OpenAgent.replies import resolve_voice_control
 
     cfg = Config(
         number="+16508702892",
@@ -496,7 +496,7 @@ def test_voice_note_held_while_user_recording_and_played_after():
 
 def test_dynamic_voice_path_resolution():
     """Verify resolve_voice_control locates play button by signature even when paths shift."""
-    from bridge.replies import resolve_voice_control
+    from OpenAgent.replies import resolve_voice_control
 
     cfg = Config(
         message_list_path="/0/2",
@@ -531,7 +531,7 @@ def test_dynamic_voice_path_resolution():
 
 def test_pause_active_playback_helper():
     """Verify pause_active_playback locates active pause button and clicks it."""
-    from bridge.replies import pause_active_playback
+    from OpenAgent.replies import pause_active_playback
 
     cfg = Config(
         message_list_path="/0/2",
@@ -552,7 +552,7 @@ def test_pause_active_playback_helper():
 
 def test_wait_for_completion_interrupted_by_user_recording():
     """Playback wait must exit early and pause audio when user starts recording."""
-    from bridge.replies import _wait_for_completion
+    from OpenAgent.replies import _wait_for_completion
 
     cfg = Config(
         voice_play_marker="Play",
@@ -837,7 +837,7 @@ def test_voice_note_startup_baseline_never_queued():
 
 def test_body_from_description_quoted_reply():
     """Verify that incoming messages quoting a previous message are properly extracted."""
-    from bridge.replies import _body_from_description, _timestamp_from_description
+    from OpenAgent.replies import _body_from_description, _timestamp_from_description
 
     # Incoming tool call replying to user
     desc = (
@@ -868,8 +868,8 @@ def test_body_from_description_quoted_reply():
 
 def test_incoming_texts_with_quoted_reply_and_dynamic_fallback():
     """Verify incoming_texts correctly extracts JARVIS_CALL from quoted reply and handles list fallback."""
-    from bridge.config import Config
-    from bridge.replies import incoming_texts
+    from OpenAgent.config import Config
+    from OpenAgent.replies import incoming_texts
 
     # Calibrated list path intentionally wrong/shifted to test dynamic fallback
     cfg = Config(

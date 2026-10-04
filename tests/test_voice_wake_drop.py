@@ -1,5 +1,5 @@
 """Regression checks: awake capture must not drop real messages that mention Jarvis."""
-from bridge.voice import VoiceState, _bare_wake_or_confirm, normalized
+from OpenAgent.voice import VoiceState, _bare_wake_or_confirm, normalized
 
 
 def awake_state():

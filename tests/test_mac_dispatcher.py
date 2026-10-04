@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import MagicMock
-from bridge.dispatcher import (
+from OpenAgent.dispatcher import (
     parse_tool_call,
     parse_tool_calls,
     execute_tool_call,

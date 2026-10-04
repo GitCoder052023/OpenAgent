@@ -89,7 +89,7 @@ those characters (paths, globs, regexes, shell commands).
    {
      "tool": "read",
      "args": {
-       "path": "bridge/main.py",
+       "path": "src/OpenAgent/main.py",
        "offset": 1,
        "limit": 50
      }

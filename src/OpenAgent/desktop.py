@@ -6,7 +6,9 @@ from pathlib import Path
 from .ax import (snapshot, verify_header, focus_composer, ensure_whatsapp_ready,
                  click_element_by_description, click_preview_send, hide_whatsapp, activate_whatsapp)
 
-SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+_here = Path(__file__).resolve()
+_repo = _here.parents[2] if len(_here.parents) > 2 and _here.parents[1].name == "src" else _here.parents[1]
+SCRIPTS = _repo / "scripts"
 
 
 class Desktop:

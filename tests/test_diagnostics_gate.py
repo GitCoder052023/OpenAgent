@@ -1,9 +1,9 @@
 """Regression checks for the send-time gate and envelope watcher."""
 import struct
 from types import SimpleNamespace
-from bridge.voice import RATE, gate_pcm
-from bridge.dispatcher import parse_tool_calls
-from bridge.replies import incoming_texts
+from OpenAgent.voice import RATE, gate_pcm
+from OpenAgent.dispatcher import parse_tool_calls
+from OpenAgent.replies import incoming_texts
 
 
 def pcm(seconds, level=0):

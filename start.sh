@@ -77,14 +77,14 @@ if [[ ! -f ".venv/bin/python3" ]]; then
     echo -e "  ${YELLOW}!${RESET} Virtualenv not found. Creating .venv..."
     python3 -m venv .venv
     .venv/bin/pip install --upgrade pip
-    .venv/bin/pip install -e '.[dev,voice]' -e ./macos-harness
+    .venv/bin/pip install -e '.[dev,voice]' -e ./src/macos-harness
 fi
 echo -e "  ${GREEN}✓${RESET} Python virtualenv: $(.venv/bin/python3 --version)"
 
 # Ensure local macos-harness package is installed in virtualenv
 if ! .venv/bin/python3 -c "import macos_harness" 2>/dev/null; then
     echo -e "  ${YELLOW}!${RESET} Installing local macos-harness package..."
-    .venv/bin/pip install -e ./macos-harness
+    .venv/bin/pip install -e ./src/macos-harness
 fi
 
 # If --voice mode is requested, ensure voice dependencies and offline model are present
@@ -128,13 +128,13 @@ echo -e "  ${GREEN}✓${RESET} Configuration (.env) loaded"
 
 # 4. Harness & TypeScript Modules
 echo -e "${BOLD}[3/4] Testing execution harnesses...${RESET}"
-if [[ ! -d "harness/node_modules" ]]; then
+if [[ ! -d "src/harness/node_modules" ]]; then
     echo -e "  ${YELLOW}!${RESET} Installing harness dependencies with Bun..."
-    (cd harness && bun install)
+    (cd src/harness && bun install)
 fi
 
 # Run instant IPC preflight check for Bun headless harness
-if .venv/bin/python3 -c "from bridge.harness import Harness; h=Harness(); h.system_info(); h.close()" 2>/dev/null; then
+if .venv/bin/python3 -c "from OpenAgent.harness import Harness; h=Harness(); h.system_info(); h.close()" 2>/dev/null; then
     echo -e "  ${GREEN}✓${RESET} Headless Bun harness IPC operational (bash, read, write, edit, applescript, grep, glob)"
 else
     echo -e "${RED}[ERROR] Failed to start execution harness over stdio IPC.${RESET}"
@@ -142,7 +142,7 @@ else
 fi
 
 # Run preflight check for native macOS computer-use harness
-if .venv/bin/python3 -c "from bridge.mac_adapter import MacAdapter; MacAdapter()" 2>/dev/null; then
+if .venv/bin/python3 -c "from OpenAgent.mac_adapter import MacAdapter; MacAdapter()" 2>/dev/null; then
     echo -e "  ${GREEN}✓${RESET} Native macOS computer-use harness operational (vision, clicks, keys, Chrome CDP)"
 else
     echo -e "  ${YELLOW}[WARN] Native macOS computer-use harness could not initialize.${RESET}"
@@ -187,4 +187,4 @@ echo -e "• Harness: Intercepting & executing incoming tool calls automatically
 echo -e "--------------------------------------------------------\n"
 
 # Execute bridge runner with any extra arguments passed into this script
-exec .venv/bin/python3 -m bridge.main run "$@"
+exec .venv/bin/python3 -m OpenAgent.main run "$@"

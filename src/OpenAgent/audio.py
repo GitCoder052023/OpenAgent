@@ -5,7 +5,8 @@ from pathlib import Path
 def transcribe(path, cfg):
     model_path = Path(cfg.model).expanduser()
     if not model_path.is_absolute():
-        repo_root = Path(__file__).resolve().parents[1]
+        here = Path(__file__).resolve()
+        repo_root = here.parents[2] if len(here.parents) > 2 and here.parents[1].name == "src" else here.parents[1]
         model_path = repo_root / model_path
     cmd = [cfg.whisper_cli, "-m", str(model_path), "-f", str(path), "-nt"]
     if cfg.language != "auto": cmd += ["-l", cfg.language]

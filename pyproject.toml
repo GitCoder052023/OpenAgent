@@ -14,11 +14,12 @@ dependencies = [
 dev = ["pytest>=8"]
 voice = ["vosk>=0.3.44", "sounddevice>=0.4.6"]
 [project.scripts]
-OpenAgent = "bridge.main:main"
+OpenAgent = "OpenAgent.main:main"
+jarvis-bridge = "OpenAgent.main:main"
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = ["src"]
 testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
-
-include = ["bridge*"]
+where = ["src"]
+include = ["OpenAgent*", "bridge*"]

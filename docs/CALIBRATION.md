@@ -36,7 +36,7 @@ OpenAgent interacts with WhatsApp using macOS Accessibility APIs. Because WhatsA
 
 ```bash
 # Dump the active WhatsApp AX tree
-.venv/bin/python3 -m bridge.main inspect > ax-tree.json
+.venv/bin/python3 -m OpenAgent.main inspect > ax-tree.json
 ```
 
 > [!CAUTION]
@@ -145,5 +145,5 @@ Key diagnostic events to look for:
 
 To run with verbose output:
 ```bash
-.venv/bin/python3 -m bridge.main run --verbose
+.venv/bin/python3 -m OpenAgent.main run --verbose
 ```

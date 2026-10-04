@@ -98,16 +98,16 @@ curl -fsSL https://bun.sh/install | bash
 # 2. Setup Python environment
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev,voice]' -e ./macos-harness
+pip install -e '.[dev,voice]' -e ./src/macos-harness
 
 # 3. Install Bun harness dependencies
-cd harness && bun install && cd ..
+cd src/harness && bun install && cd ../..
 
 # 4. Configure environment
 cp .env.example .env
 
 # 5. Start OpenAgent
-.venv/bin/python3 -m bridge.main run
+.venv/bin/python3 -m OpenAgent.main run
 
 ```
 
@@ -136,7 +136,7 @@ Instinct will recognize the `JARVIS_CALL` protocol and begin executing tasks on 
 
 ### Push-to-Talk (Default)
 
-1. Run `./start.sh` (or `.venv/bin/python3 -m bridge.main run`).
+1. Run `./start.sh` (or `.venv/bin/python3 -m OpenAgent.main run`).
 2. **Hold `F8**` and speak your request.
 3. **Release `F8**` to encode and dispatch the request to Instinct.
 4. Press `Esc` anytime to cancel or exit.
@@ -225,7 +225,7 @@ Run the comprehensive pytest suite:
 Run the macOS native adapter health check:
 
 ```bash
-.venv/bin/python3 -c "from bridge.mac_adapter import MacAdapter; print(MacAdapter().doctor())"
+.venv/bin/python3 -c "from OpenAgent.mac_adapter import MacAdapter; print(MacAdapter().doctor())"
 
 ```
 
