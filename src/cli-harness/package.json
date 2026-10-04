@@ -1,5 +1,5 @@
 {
-  "name": "harness",
+  "name": "cli-harness",
   "description": "Headless Mac Execution Harness & Preserved Agent Prompts for Jarvis Bridge",
   "private": true,
   "type": "module",

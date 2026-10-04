@@ -133,9 +133,9 @@ echo -e "  ${GREEN}✓${RESET} Configuration (.env) loaded"
 
 # 4. Harness & TypeScript Modules
 echo -e "${BOLD}[3/4] Testing execution harnesses...${RESET}"
-if [[ ! -d "src/harness/node_modules" ]]; then
-    echo -e "  ${YELLOW}!${RESET} Installing harness dependencies with Bun..."
-    (cd src/harness && bun install)
+if [[ ! -d "src/cli-harness/node_modules" ]]; then
+    echo -e "  ${YELLOW}!${RESET} Installing CLI harness dependencies with Bun..."
+    (cd src/cli-harness && bun install)
 fi
 
 # Run instant IPC preflight check for Bun headless harness

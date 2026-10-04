@@ -40,12 +40,16 @@ class Harness:
         root = harness_root or opencode_root
         if root is None:
             src_dir = Path(__file__).resolve().parent.parent
-            if (src_dir / "harness").exists():
+            if (src_dir / "cli-harness").exists():
+                self.root = src_dir / "cli-harness"
+            elif (src_dir / "harness").exists():
                 self.root = src_dir / "harness"
+            elif (src_dir.parent / "cli-harness").exists():
+                self.root = src_dir.parent / "cli-harness"
             elif (src_dir.parent / "harness").exists():
                 self.root = src_dir.parent / "harness"
             else:
-                self.root = src_dir / "harness"
+                self.root = src_dir / "cli-harness"
         else:
             self.root = Path(root)
 

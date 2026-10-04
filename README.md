@@ -100,8 +100,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev,voice]' -e ./src/macos-harness -e ./src/browser-harness
 
-# 3. Install Bun harness dependencies
-cd src/harness && bun install && cd ../..
+# 3. Install Bun CLI harness dependencies
+cd src/cli-harness && bun install && cd ../..
 
 # 4. Configure environment
 cp .env.example .env

@@ -12,5 +12,6 @@
     "allowSyntheticDefaultImports": true,
     "types": ["node"]
   },
-  "include": ["env.d.ts", "harness-bridge.ts", "packages/**/*.ts"]
+  "include": ["env.d.ts", "harness-bridge.ts", "packages/**/*.ts"],
+  "exclude": ["node_modules"]
 }
