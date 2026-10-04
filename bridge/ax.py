@@ -1,6 +1,13 @@
-"""macOS Accessibility inspection. UI layout must be calibrated locally."""
 import json
+import re
 import sys
+
+_INVISIBLE_CHARS_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\ufeff]")
+
+
+def _strip_invisible(text):
+    return _INVISIBLE_CHARS_RE.sub("", text) if text else ""
+
 
 
 def _is_whatsapp_process(app):
@@ -41,21 +48,32 @@ def activate_whatsapp():
     try:
         from AppKit import NSRunningApplication, NSApplicationActivateIgnoringOtherApps
         apps = NSRunningApplication.runningApplicationsWithBundleIdentifier_("net.whatsapp.WhatsApp")
-        if apps:
-            apps[0].activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
-            return True
+        for a in apps:
+            if a.isHidden():
+                a.unhide()
+            a.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
     except Exception:
         pass
     try:
         from AppKit import NSWorkspace, NSApplicationActivateIgnoringOtherApps
         running = [a for a in NSWorkspace.sharedWorkspace().runningApplications()
                    if _is_whatsapp_process(a)]
-        if running:
-            running[0].activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
-            return True
+        for app in running:
+            if app.isHidden():
+                app.unhide()
+            app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
     except Exception:
         pass
-    return False
+    try:
+        import subprocess
+        subprocess.run(
+            ["osascript", "-e", 'tell application "System Events" to set visible of process "WhatsApp" to true\ntell application "WhatsApp" to activate'],
+            check=False, capture_output=True, timeout=1.0
+        )
+    except Exception:
+        pass
+    return True
+
 
 
 def hide_whatsapp():
@@ -322,7 +340,8 @@ def ensure_whatsapp_ready(target_name="Instinct", hide_after=True):
                                 activate_whatsapp()
                                 AXUIElementPerformAction(mi, "AXPress")
                                 time.sleep(0.2)
-                                hide_whatsapp()
+                                if hide_after:
+                                    hide_whatsapp()
                                 break
             rows = snapshot(safe_mode=False, auto_open=False)
 
@@ -347,14 +366,15 @@ def ensure_whatsapp_ready(target_name="Instinct", hide_after=True):
                 time.sleep(0.1)
                 AXUIElementPerformAction(el, "AXPress")
                 time.sleep(0.2)
-                hide_whatsapp()
+                if hide_after:
+                    hide_whatsapp()
 
     if hide_after:
         hide_whatsapp()
     return True
 
 
-def click_element_by_description(target_substr, role="AXButton"):
+def click_element_by_description(target_substr, role=None, window_only=True):
     pid = get_whatsapp_pid()
     if not pid:
         pid = launch_whatsapp(hide=True)
@@ -362,16 +382,40 @@ def click_element_by_description(target_substr, role="AXButton"):
     from ApplicationServices import AXUIElementCreateApplication, AXUIElementCopyAttributeValue, AXUIElementPerformAction
     root = AXUIElementCreateApplication(pid)
     rows = snapshot(safe_mode=False)
-    target = target_substr.lower().strip()
-    valid_roles = (role, "AXButton", "AXMenuItem") if role == "AXButton" else (role,)
-    matches = [
-        r for r in rows
-        if r["role"] in valid_roles
-        and (target in (r.get("description") or "").strip("\u200e").lower()
-             or target in (r.get("title") or "").strip("\u200e").lower())
-    ]
-    if not matches: return False
-    path = matches[0]["path"]
+    target = _strip_invisible(target_substr).lower().strip()
+
+    allowed_roles = (role,) if role else ("AXButton", "AXMenuItem", "AXPopUpButton")
+
+    target_keywords = {target}
+    if target in ("file", "document", "documents"):
+        target_keywords.update(("file", "document"))
+    elif target in ("attach", "share media", "share"):
+        target_keywords.update(("attach", "share media"))
+
+    candidates = []
+    for r in rows:
+        if window_only and not r["path"].startswith("/0/"):
+            continue
+        if r["role"] not in allowed_roles:
+            continue
+        desc = _strip_invisible(r.get("description") or "").lower().strip()
+        title = _strip_invisible(r.get("title") or "").lower().strip()
+        combined = f"{desc} {title}".strip()
+
+        matches = any(kw in desc or kw in title or kw in combined for kw in target_keywords)
+        if matches:
+            # Score matches: prefer exact match, and prefer popover elements (/0/4)
+            is_exact = any(kw == desc or kw == title for kw in target_keywords)
+            is_popover = "/0/4" in r["path"]
+            score = (3 if is_exact else 1) + (2 if is_popover else 0)
+            candidates.append((score, r))
+
+    if not candidates:
+        return False
+
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    best = candidates[0][1]
+    path = best["path"]
     indexes = [int(p) for p in path.split("/")[1:]]
     el = root
     for idx in indexes:
@@ -382,17 +426,12 @@ def click_element_by_description(target_substr, role="AXButton"):
     return AXUIElementPerformAction(el, "AXPress") == 0
 
 
-def click_preview_send(timeout=4.0):
-    """Wait for WhatsApp attachment preview, focus caption field, and press Enter to dispatch.
-
-    Returns True only when a preview (caption field or Cancel button) was
-    actually seen and then dismissed. Returns False on timeout so the caller's
-    commit-audio fallback can run; previously this always returned True.
-    """
+def click_preview_send(timeout=5.0):
+    """Wait for WhatsApp attachment preview, click Send via AXPress or Enter, and verify dispatch."""
     if sys.platform != "darwin": return False
     from ApplicationServices import (AXUIElementCreateApplication, AXUIElementCopyAttributeValue,
-                                     AXUIElementSetAttributeValue, AXValueGetValue,
-                                     kAXValueTypeCGPoint, kAXValueTypeCGSize)
+                                     AXUIElementPerformAction, AXUIElementSetAttributeValue,
+                                     AXValueGetValue, kAXValueTypeCGPoint, kAXValueTypeCGSize)
     import subprocess, time, Quartz
     pid = get_whatsapp_pid()
     if not pid:
@@ -404,12 +443,10 @@ def click_preview_send(timeout=4.0):
     t0 = time.monotonic()
     while time.monotonic() - t0 < timeout:
         rows = snapshot(safe_mode=False)
-        # Caption field only exists in the attachment preview; never match the
-        # main-window composer by path alone.
-        captions = [r for r in rows if r["role"] == "AXTextArea" and "caption" in (r.get("description") or "").lower()]
-        cancel_btns = [r for r in rows if r["role"] == "AXButton" and "cancel" in (r.get("description") or r.get("title") or "").lower()]
+        captions = [r for r in rows if r["role"] == "AXTextArea" and "caption" in _strip_invisible(r.get("description") or "").lower()]
+        cancel_btns = [r for r in rows if r["role"] == "AXButton" and "cancel" in _strip_invisible((r.get("description") or "") + " " + (r.get("title") or "")).lower()]
         preview_open = bool(captions or cancel_btns)
-        send_btns = [r for r in rows if r["role"] == "AXButton" and "send" in (r.get("description") or r.get("title") or "").lower() and "voice" not in (r.get("description") or "").lower()] if preview_open else []
+        send_btns = [r for r in rows if r["role"] == "AXButton" and "send" in _strip_invisible((r.get("description") or "") + " " + (r.get("title") or "")).lower() and "voice" not in _strip_invisible(r.get("description") or "").lower()] if preview_open else []
 
         if preview_open:
             saw_preview = True
@@ -425,21 +462,22 @@ def click_preview_send(timeout=4.0):
                         break
                     el = ch[idx]
                 if el and AXUIElementPerformAction(el, "AXPress") == 0:
-                    time.sleep(0.2)
-                    rows_after = snapshot(safe_mode=False)
-                    still_preview = any(r["role"] == "AXButton" and "cancel" in (r.get("description") or "").lower() for r in rows_after)
-                    if not still_preview:
-                        return True
+                    # WhatsApp takes ~0.3-1.0s to upload/send audio and dismiss preview
+                    for _ in range(20):
+                        time.sleep(0.15)
+                        rows_after = snapshot(safe_mode=False)
+                        still_preview = any(r["role"] == "AXButton" and "cancel" in _strip_invisible((r.get("description") or "") + " " + (r.get("title") or "")).lower() for r in rows_after)
+                        if not still_preview:
+                            return True
 
             # 2. Press Enter in WhatsApp window (without focusing caption, which inserts newlines)
             subprocess.run(["osascript", "-e", 'tell application "System Events" to tell process "WhatsApp" to key code 36'], check=False)
-            time.sleep(0.2)
-
-            # Check if preview dismissed
-            rows_after = snapshot(safe_mode=False)
-            still_preview = any(r["role"] == "AXButton" and "cancel" in (r.get("description") or "").lower() for r in rows_after)
-            if not still_preview:
-                return True
+            for _ in range(10):
+                time.sleep(0.15)
+                rows_after = snapshot(safe_mode=False)
+                still_preview = any(r["role"] == "AXButton" and "cancel" in _strip_invisible((r.get("description") or "") + " " + (r.get("title") or "")).lower() for r in rows_after)
+                if not still_preview:
+                    return True
 
             # 3. Fallback: Click Send button by screen coordinates
             if send_btns:
@@ -456,9 +494,11 @@ def click_preview_send(timeout=4.0):
                     _, pos_val = AXUIElementCopyAttributeValue(el, "AXPosition", None)
                     _, size_val = AXUIElementCopyAttributeValue(el, "AXSize", None)
                     if pos_val and size_val:
-                        ok1, point = AXValueGetValue(pos_val, kAXValueTypeCGPoint, None)
-                        ok2, size = AXValueGetValue(size_val, kAXValueTypeCGSize, None)
-                        if ok1 and ok2:
+                        res1 = AXValueGetValue(pos_val, kAXValueTypeCGPoint, None)
+                        res2 = AXValueGetValue(size_val, kAXValueTypeCGSize, None)
+                        ok1, point = (res1 if isinstance(res1, tuple) and len(res1) == 2 else (False, None))
+                        ok2, size = (res2 if isinstance(res2, tuple) and len(res2) == 2 else (False, None))
+                        if ok1 and ok2 and point is not None and size is not None:
                             x = point.x + size.width / 2.0
                             y = point.y + size.height / 2.0
                             down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, Quartz.CGPoint(x, y), Quartz.kCGMouseButtonLeft)
@@ -466,9 +506,9 @@ def click_preview_send(timeout=4.0):
                             Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
                             time.sleep(0.05)
                             Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-                            time.sleep(0.2)
+                            time.sleep(0.3)
                             rows_after = snapshot(safe_mode=False)
-                            still_preview = any(r["role"] == "AXButton" and "cancel" in (r.get("description") or "").lower() for r in rows_after)
+                            still_preview = any(r["role"] == "AXButton" and "cancel" in _strip_invisible((r.get("description") or "") + " " + (r.get("title") or "")).lower() for r in rows_after)
                             if not still_preview:
                                 return True
         elif saw_preview:

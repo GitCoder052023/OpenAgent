@@ -154,3 +154,36 @@ def test_voice_state_wake_and_sleep():
     assert vs.awake
 
 
+def test_click_element_by_description_popover_vs_menubar(monkeypatch):
+    from bridge import ax
+    mock_rows = [
+        # Menubar item that matches "file"
+        {"path": "/1/4/0/17/0/1", "role": "AXMenuItem", "title": "\u200eSend file...", "value": "", "description": ""},
+        # Window popover button
+        {"path": "/0/4/0/0/0/0", "role": "AXButton", "title": "", "value": "", "description": "\u200eFile"},
+    ]
+    monkeypatch.setattr(ax, "snapshot", lambda safe_mode=False: mock_rows)
+    monkeypatch.setattr(ax, "get_whatsapp_pid", lambda: 99999)
+
+    clicked = []
+    def mock_perform_action(el, action):
+        clicked.append((el, action))
+        return 0
+
+    monkeypatch.setattr("ApplicationServices.AXUIElementCreateApplication", lambda pid: "root")
+    def mock_copy_attr(el, attr, val):
+        if attr == "AXChildren":
+            # return mock child based on indexes
+            return (0, ["c0", "c1", "c2", "c3", "c4", "c5"])
+        return (0, None)
+    monkeypatch.setattr("ApplicationServices.AXUIElementCopyAttributeValue", mock_copy_attr)
+    monkeypatch.setattr("ApplicationServices.AXUIElementPerformAction", mock_perform_action)
+
+    # Searching for "File" should pick the popover button in /0/, NOT the menubar item in /1/
+    res = ax.click_element_by_description("File")
+    assert res is True
+    assert len(clicked) == 1
+    assert clicked[0][1] == "AXPress"
+
+
+

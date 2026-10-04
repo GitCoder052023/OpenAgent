@@ -16,13 +16,13 @@ on run argv
     set waited to 0.0
     repeat while waited < 5.0
       tell process "WhatsApp"
-        if (exists sheet 1 of window 1) or (exists window "Open") or (exists sheet 1 of front window) then exit repeat
+        if (count of sheets of window 1 > 0) or (exists window "Open") or (exists sheet 1 of front window) then exit repeat
       end tell
       delay 0.5
       set waited to waited + 0.5
     end repeat
     tell process "WhatsApp"
-      set hasChooser to (exists sheet 1 of window 1) or (exists window "Open") or (exists sheet 1 of front window)
+      set hasChooser to (count of sheets of window 1 > 0) or (exists window "Open") or (exists sheet 1 of front window)
     end tell
     if not hasChooser then error "File chooser missing; no attachment"
     keystroke "g" using {command down, shift down}

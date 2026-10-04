@@ -14,9 +14,9 @@ class Desktop:
         self.cfg = cfg
         self._lock = threading.Lock()
 
-    def assert_locked(self, quick=False):
+    def assert_locked(self, quick=False, hide_after=True):
         if not quick:
-            ensure_whatsapp_ready(self.cfg.number)
+            ensure_whatsapp_ready(self.cfg.number, hide_after=hide_after)
         try:
             return verify_header(snapshot(safe_mode=self.cfg.safe_mode), self.cfg.number, self.cfg.header_path, safe_mode=self.cfg.safe_mode)
         except Exception as exc:
@@ -69,21 +69,31 @@ class Desktop:
             send_btn = self.cfg.attachment_send_label
 
         with self._lock:
-            ensure_whatsapp_ready(self.cfg.number)
-            self.assert_locked()
+            # If a stale preview modal is lingering from an earlier attempt, dismiss it
+            if click_element_by_description("Cancel"):
+                time.sleep(0.3)
+            ensure_whatsapp_ready(self.cfg.number, hide_after=False)
+            self.assert_locked(quick=True)
             activate_whatsapp()
-            time.sleep(0.15)
+            time.sleep(0.2)
             try:
-                # Open file picker using direct AX clicks; fail closed if they miss.
-                if not click_element_by_description(attach):
+                # Open file picker using direct AX clicks with polling to absorb unhide animation.
+                t0 = time.monotonic()
+                clicked_attach = False
+                while time.monotonic() - t0 < 3.0:
+                    if click_element_by_description(attach):
+                        clicked_attach = True
+                        break
+                    time.sleep(0.1)
+                if not clicked_attach:
                     raise RuntimeError(f"Attach control '{attach}' not found; no send")
                 event("picker_step", step="attach", ok=True, label=attach)
 
-                # Poll briefly for the document menu item to appear in the popover
+                # Poll briefly for the document/file button to appear in the popover
                 t0 = time.monotonic()
                 clicked_doc = False
                 while time.monotonic() - t0 < 3.0:
-                    if click_element_by_description(doc, role="AXMenuItem"):
+                    if click_element_by_description(doc):
                         clicked_doc = True
                         break
                     time.sleep(0.1)
@@ -103,8 +113,10 @@ class Desktop:
                 event("picker_step", step="dispatch", ok=True)
                 time.sleep(0.8)
             except Exception:
-                # Emergency recovery: dismiss modal preview/sheet so WhatsApp isn't wedged
+                # Emergency recovery: dismiss modal preview/sheet/popover so WhatsApp isn't wedged
                 try:
+                    subprocess.run(["osascript", "-e", 'tell application "System Events" to tell process "WhatsApp" to key code 53'], check=False, timeout=1.0)
+                    time.sleep(0.1)
                     subprocess.run(["osascript", "-e", 'tell application "System Events" to tell process "WhatsApp" to key code 53'], check=False, timeout=1.0)
                 except Exception:
                     pass
