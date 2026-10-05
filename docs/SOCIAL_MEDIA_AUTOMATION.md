@@ -7,21 +7,23 @@ OpenAgent natively integrates the **LocoAgent** engine to give your external int
 
 ---
 
-## 🎯 Supported Social Media Platforms & CDP Profiles
+### 🎯 Supported Social Media Platforms & CDP Profiles
 
-Jarvis operates your accounts through **real Google Chrome browser instances via Chrome DevTools Protocol (CDP)** with isolated cookie and session storage. This bypasses anti-bot detection because you are driving genuine, authenticated desktop Chrome windows.
+Jarvis operates your accounts through **real Google Chrome browser instances via Chrome DevTools Protocol (CDP)** with isolated cookie and session storage. This bypasses anti-bot detection because you are driving genuine, authenticated desktop Chrome windows without touching your everyday browser.
 
-| Platform | Domain | Default CDP Port | Profile Directory | Priority |
-| :--- | :--- | :---: | :--- | :---: |
-| **Threads** | `threads.net` | `9227` | `~/.config/locoagent/profiles/default-threads` | **Primary (Default)** |
-| **Reddit** | `reddit.com` | `9224` | `~/.config/locoagent/profiles/default-reddit` | **Primary** |
-| **X (Twitter)** | `x.com` | `9222` | `~/.config/locoagent/profiles/default` | Secondary |
-| **LinkedIn** | `linkedin.com` | `9223` | `~/.config/locoagent/profiles/default-linkedin` | Secondary |
-| **Instagram** | `instagram.com` | `9225` | `~/.config/locoagent/profiles/default-instagram` | Secondary |
-| **Facebook** | `facebook.com` | `9226` | `~/.config/locoagent/profiles/default-facebook` | Secondary |
-| **YouTube** | `youtube.com` | `9228` | `~/.config/locoagent/profiles/default-youtube` | Secondary |
-| **TikTok** | `tiktok.com` | `9229` | `~/.config/locoagent/profiles/default-tiktok` | Secondary |
-| **GitHub** | `github.com` | `9230` | `~/.config/locoagent/profiles/default-github` | Secondary |
+| Platform | Domain | Default CDP Port | Profile Directory (macOS) | Verified Account / Status | Priority |
+| :--- | :--- | :---: | :--- | :--- | :---: |
+| **Threads** | `threads.net` | `9227` | `~/Library/Application Support/locoagent-chrome-profile-threads` | `@hamdankhubaib.code` (Authenticated) | **Primary (Default)** |
+| **Reddit** | `reddit.com` | `9224` | `~/Library/Application Support/locoagent-chrome-profile-reddit` | Active (Joined Tech Subreddits) | **Primary** |
+| **X (Twitter)** | `x.com` | `9222` | `~/Library/Application Support/locoagent-chrome-profile-x` | Ready | Secondary |
+| **LinkedIn** | `linkedin.com` | `9223` | `~/Library/Application Support/locoagent-chrome-profile-linkedin` | Ready | Secondary |
+| **Instagram** | `instagram.com` | `9225` | `~/Library/Application Support/locoagent-chrome-profile-instagram` | Ready | Secondary |
+| **Facebook** | `facebook.com` | `9226` | `~/Library/Application Support/locoagent-chrome-profile-facebook` | Ready | Secondary |
+| **YouTube** | `youtube.com` | `9228` | `~/Library/Application Support/locoagent-chrome-profile-youtube` | Ready | Secondary |
+| **TikTok** | `tiktok.com` | `9229` | `~/Library/Application Support/locoagent-chrome-profile-tiktok` | Ready | Secondary |
+| **GitHub** | `github.com` | `9230` | `~/Library/Application Support/locoagent-chrome-profile-github` | Ready | Secondary |
+
+*(Note: On Linux, profiles live under `~/.local/share/locoagent-chrome-profile-<platform>`; on Windows, `%LOCALAPPDATA%\locoagent-chrome-profile-<platform>`.)*
 
 ---
 
@@ -44,9 +46,9 @@ A common question is: *how can an external AI model on WhatsApp reliably operate
 
 ---
 
-## 🚀 One-Time Setup: Logging Into Your Accounts
+## 🚀 One-Time Setup: Logging Into Your Accounts (Option A)
 
-Launch isolated Chrome windows to log in:
+Launch isolated Chrome windows to seed logins:
 
 ```bash
 cd src/tools/locoagent
@@ -59,7 +61,7 @@ bun run setup-chrome --target reddit    # Launches Chrome on port 9224 -> Log in
 bun run setup-chrome --all
 ```
 
-Log in manually in the browser windows. Your logins are saved indefinitely in `~/.config/locoagent/profiles/`.
+Log in manually in the browser windows. Your logins are saved indefinitely in `~/Library/Application Support/locoagent-chrome-profile-<target>`. Once logged in, Chrome can remain running or be auto-launched by OpenAgent whenever Jarvis needs it.
 
 ---
 
@@ -147,3 +149,11 @@ Jarvis calls these tools directly through WhatsApp via the standard `JARVIS_CALL
    - Daily morning, afternoon, and evening routine guidelines centered around Threads and Reddit.
 3. **`persona/operation-log.json`**:
    - Persistent ledger ensuring no URL is liked, upvoted, or replied to more than once.
+
+---
+
+## 📖 Operational Playbooks for Jarvis
+
+For complete step-by-step playbooks, persona voice guidelines, and exact `JARVIS_CALL` payload examples for WhatsApp:
+👉 See **[docs/JARVIS_INSTRUCTIONS.md (Section 4: How to Operate Hamdan's Social Media)](JARVIS_INSTRUCTIONS.md)**.
+

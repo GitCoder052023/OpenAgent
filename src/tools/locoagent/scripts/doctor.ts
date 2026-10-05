@@ -60,15 +60,13 @@ try {
 // must match the DEFAULT platform's registry port (what setup-chrome pins to),
 // not CHROME_DEBUG_PORT — the registry is the single source of truth.
 {
-  // Default-platform port from the registry (x), falling back to 9222 if the
-  // registry is missing/unreadable so doctor still gives a sane answer.
-  let port = 9222
+  let port = 9227
   try {
     const targets = loadTargets()
-    const def = targets['x'] ?? Object.values(targets)[0]
+    const def = targets['threads'] ?? Object.values(targets)[0]
     if (def) port = def.cdpPort
   } catch {
-    /* no registry → keep 9222 default */
+    /* no registry → keep 9227 default */
   }
   const pinPath = agentBrowserConfigPath(root)
   let ok = false

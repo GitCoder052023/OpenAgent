@@ -23,9 +23,21 @@ import { defaultSourceProfile, killChromeForProfile, launchChromeDetached } from
 import { syncAgentBrowserConfig } from './lib/agent-browser-config'
 import { cdpUp, loadTargets, type ResolvedTarget } from './lib/browser-targets'
 
-const DEFAULT_PLATFORM = 'x'
+const DEFAULT_PLATFORM = 'threads'
 const RESET = process.argv.includes('--reset')
 const ALL = process.argv.includes('--all')
+const PLATFORM_URLS: Record<string, string> = {
+  threads: 'https://www.threads.net',
+  reddit: 'https://www.reddit.com',
+  x: 'https://x.com/home',
+  twitter: 'https://x.com/home',
+  linkedin: 'https://www.linkedin.com',
+  instagram: 'https://www.instagram.com',
+  facebook: 'https://www.facebook.com',
+  youtube: 'https://www.youtube.com',
+  tiktok: 'https://www.tiktok.com',
+  github: 'https://github.com',
+}
 const targetFlag = (() => {
   const i = process.argv.indexOf('--target')
   return i !== -1 && process.argv[i + 1] && !process.argv[i + 1]!.startsWith('--')
@@ -78,9 +90,13 @@ const pinPort = (targets[DEFAULT_PLATFORM] ?? selected[0]!).cdpPort
 const pinPath = syncAgentBrowserConfig(PROJECT_ROOT, pinPort)
 console.error(`   agent-browser pinned to default CDP ${pinPort} via ${pinPath}`)
 
-/** Drop a stale agent-browser daemon so the next command honours the pin. */
+/** Drop a stale agent-browser daemon so the next command honours the pin without killing Chrome. */
 function clearStaleDaemon(): void {
-  Bun.spawnSync(['agent-browser', 'close', '--all'], { stdout: 'ignore', stderr: 'ignore' })
+  try {
+    Bun.spawnSync(['pkill', '-f', 'agent-browser.*daemon'], { stdout: 'ignore', stderr: 'ignore' })
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Connect the agent-browser daemon to a port (the default target). */
@@ -136,7 +152,12 @@ async function setupTarget(t: ResolvedTarget): Promise<{ fresh: boolean; ok: boo
     const sourceUserData = resolve(defaultSourceProfile(cfg.host), '..')
     if (existsSync(sourceUserData)) {
       console.error(`-> [${t.platform}] copying real Chrome profile → ${t.profile} ...`)
-      cpSync(sourceUserData, t.profile, { recursive: true })
+      try {
+        cpSync(sourceUserData, t.profile, { recursive: true })
+      } catch (err: any) {
+        console.error(`! [${t.platform}] could not copy real Chrome profile (${err.message}). Creating fresh isolated profile.`)
+        mkdirSync(t.profile, { recursive: true })
+      }
     } else {
       console.error(`-> [${t.platform}] creating fresh isolated profile (no source profile found) ...`)
       mkdirSync(t.profile, { recursive: true })
@@ -155,6 +176,7 @@ async function setupTarget(t: ResolvedTarget): Promise<{ fresh: boolean; ok: boo
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-default-apps',
+      PLATFORM_URLS[t.platform] ?? 'about:blank',
     ],
     cfg.host,
   )

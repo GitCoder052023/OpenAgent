@@ -232,7 +232,7 @@ Instinct controls your Mac by wrapping structured JSON calls inside a resilient 
 
 ### Social Media Automation Tools (LocoAgent Engine)
 
-Operate real social accounts across **X/Twitter, LinkedIn, Reddit, Instagram, Facebook, Threads, YouTube, TikTok, and GitHub** with persistent anti-detection Chrome profiles:
+Operate real social accounts with primary focus on **Threads (`threads.net`) and Reddit (`reddit.com`)** (plus X/Twitter, LinkedIn, Instagram, Facebook, YouTube, TikTok, and GitHub) with persistent anti-detection Chrome profiles:
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
@@ -274,7 +274,7 @@ OpenAgent is configured via `.env` in the project root:
 | `FIRECRAWL_TIMEOUT` | `60.0` | Timeout in seconds for web scraping and crawls |
 | `LOCOAGENT_ENABLED` | `true` | Enable LocoAgent social automation engine |
 | `LOCOAGENT_ROOT` | `src/tools/locoagent` | Directory path for LocoAgent checkout |
-| `LOCOAGENT_DEFAULT_PLATFORM` | `x` | Default social media target platform |
+| `LOCOAGENT_DEFAULT_PLATFORM` | `threads` | Default social media target platform |
 | `LOCOAGENT_TIMEOUT` | `120.0` | Timeout in seconds for social automation commands |
 | `BRIDGE_LOG_FILE` | `~/Library/Logs/OpenAgent/bridge.jsonl` | Diagnostic JSONL event log path |
 
@@ -315,6 +315,7 @@ For advanced Accessibility tree inspection and calibration, see [`docs/CALIBRATI
 ## Documentation
 
 - [Setup Prompt & Tool Instructions](docs/JARVIS_INSTRUCTIONS.md) — Initialization block to connect Instinct.
+- [Social Media Automation Guide](docs/SOCIAL_MEDIA_AUTOMATION.md) — Architecture, platform ports, and operational guide for Threads & Reddit.
 - [Accessibility & Calibration Guide](docs/CALIBRATION.md) — Deep calibration for AX trees, audio routing, and debug states.
 - [Security Policy](SECURITY.md) — Security model, threat boundaries, and vulnerability reporting.
 - [Contributing Guide](CONTRIBUTING.md) — Development workflow, testing, and tool additions.

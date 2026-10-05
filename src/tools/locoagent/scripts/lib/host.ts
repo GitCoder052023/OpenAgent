@@ -6,6 +6,7 @@
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { spawn } from 'node:child_process'
 
 export type HostOS = 'windows' | 'macos' | 'linux'
 
@@ -117,10 +118,9 @@ export function launchChromeDetached(
     )
     return
   }
-  const child = Bun.spawn([chromeBin, ...args], {
-    stdout: 'ignore',
-    stderr: 'ignore',
-    stdin: 'ignore',
+  const child = spawn(chromeBin, args, {
+    detached: true,
+    stdio: 'ignore',
   })
   child.unref()
 }
