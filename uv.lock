@@ -48,7 +48,7 @@ wheels = [
 [[package]]
 name = "browser-harness"
 version = "0.1.13"
-source = { editable = "src/browser-harness" }
+source = { editable = "src/tools/browser-harness" }
 dependencies = [
     { name = "cdp-use" },
     { name = "fetch-use" },
@@ -565,7 +565,7 @@ wheels = [
 [[package]]
 name = "macos-harness"
 version = "0.1.2"
-source = { editable = "src/macos-harness" }
+source = { editable = "src/tools/macos-harness" }
 dependencies = [
     { name = "browser-harness" },
     { name = "pillow" },
@@ -581,7 +581,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "browser-harness", editable = "src/browser-harness" },
+    { name = "browser-harness", editable = "src/tools/browser-harness" },
     { name = "pillow", specifier = ">=11.3" },
     { name = "pyobjc-framework-applicationservices", marker = "sys_platform == 'darwin'", specifier = ">=12.0" },
 ]
@@ -659,8 +659,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "browser-harness", editable = "src/browser-harness" },
-    { name = "macos-harness", editable = "src/macos-harness" },
+    { name = "browser-harness", editable = "src/tools/browser-harness" },
+    { name = "macos-harness", editable = "src/tools/macos-harness" },
     { name = "pillow", specifier = ">=11.3" },
     { name = "pynput", specifier = ">=1.7.7" },
     { name = "pyobjc-framework-applicationservices", specifier = ">=10.0" },

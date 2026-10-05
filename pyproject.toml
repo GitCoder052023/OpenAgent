@@ -42,6 +42,6 @@ browser-harness = { workspace = true }
 macos-harness = { workspace = true }
 
 [tool.uv.workspace]
-members = ["src/macos-harness", "src/browser-harness"]
+members = ["src/tools/macos-harness", "src/tools/browser-harness"]
 
 

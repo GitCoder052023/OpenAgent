@@ -30,7 +30,7 @@ OpenAgent interacts directly with macOS system APIs, audio subsystems, and Whats
 
 3. **Install CLI harness dependencies**:
    ```bash
-   cd src/cli-harness
+   cd src/tools/cli-harness
    bun install
    cd ../..
    ```
@@ -61,11 +61,11 @@ When adding features or modifying existing code, you **must preserve the followi
   * `harness.py`: Stdio JSON-RPC client managing the Bun execution process.
   * `audio.py` / `voice.py`: SoX recording, silence gating, ffmpeg encoding, Whisper STT, and Vosk wake word.
   * `desktop.py` / `ax.py`: AppleScript automation, pasteboard staging, and macOS Accessibility wrappers.
-* **`src/cli-harness/` (Bun / TypeScript)**:
+* **`src/tools/cli-harness/` (Bun / TypeScript)**:
   * `harness-bridge.ts`: Stdio runner implementing `bash`, `read`, `write`, `edit`, `grep`, `glob`, and `applescript`.
-* **`src/browser-harness/` (Python / CDP)**:
+* **`src/tools/browser-harness/` (Python / CDP)**:
   * Production-grade Chrome CDP engine with background tab control, Accessibility inspection, and 80+ domain skills.
-* **`src/macos-harness/` (Python)**:
+* **`src/tools/macos-harness/` (Python)**:
   * Native macOS computer-use engine implementing window capture (`mac_see`), PID input targeting, and accessibility inspections.
 * **`tests/` (Pytest)**:
   * Comprehensive test suite covering dispatcher parsing, concurrency, audio gating, and safe mode.
@@ -79,9 +79,9 @@ When adding features or modifying existing code, you **must preserve the followi
   ```
 * **Linting & Code Quality**:
   * Python: Format and check code using standard tools (`ruff` or `flake8`).
-  * TypeScript: Check TypeScript types in `src/cli-harness/`:
+  * TypeScript: Check TypeScript types in `src/tools/cli-harness/`:
     ```bash
-    cd src/cli-harness && bun run tsc --noEmit && cd ../..
+    cd src/tools/cli-harness && bun run tsc --noEmit && cd ../..
     ```
 
 ## Pull Request Process

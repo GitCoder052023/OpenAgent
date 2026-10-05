@@ -101,7 +101,7 @@ curl -fsSL https://bun.sh/install | bash
 uv sync --all-extras
 
 # 3. Install Bun CLI harness dependencies
-cd src/cli-harness && bun install && cd ../..
+cd src/tools/cli-harness && bun install && cd ../..
 
 # 4. Configure environment
 cp .env.example .env
@@ -217,7 +217,7 @@ OpenAgent is configured via `.env` in the project root:
 | `BRIDGE_WHISPER_MODEL` | `models/ggml-base.bin` | Path to offline Whisper model |
 | `BRIDGE_VOICE_MODEL` | `models/vosk-model-...` | Path to offline Vosk wake-word model |
 | `BRIDGE_VOICE_SILENCE_SECONDS` | `2.0` | Silence delay before auto-submitting voice input |
-| `BH_AGENT_WORKSPACE` | `src/browser-harness/agent-workspace` | Directory for agent-editable helpers and domain skills |
+| `BH_AGENT_WORKSPACE` | `src/tools/browser-harness/agent-workspace` | Directory for agent-editable helpers and domain skills |
 | `BH_DOMAIN_SKILLS` | `1` | Enable site-specific domain skill recipes |
 | `BH_TAB_MARKER` | `1` | Enable horse emoji (`🐎`) marker on agent-managed tabs |
 | `BRIDGE_LOG_FILE` | `~/Library/Logs/OpenAgent/bridge.jsonl` | Diagnostic JSONL event log path |

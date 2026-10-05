@@ -96,7 +96,7 @@ class BrowserAdapter:
             from browser_harness import admin, helpers
         except ImportError as exc:
             raise RuntimeError(
-                "Browser Harness is unavailable. Install with `uv sync` (or `uv pip install -e ./src/browser-harness`)."
+                "Browser Harness is unavailable. Install with `uv sync` (or `uv pip install -e ./src/tools/browser-harness`)."
             ) from exc
 
         # On macOS, launch the watcher for Chrome's remote debugging prompt
