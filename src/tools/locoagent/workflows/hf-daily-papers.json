@@ -1,0 +1,16 @@
+{
+  "id": "hf-daily-papers",
+  "name": "HuggingFace Daily Papers",
+  "description": "Fetch today's top papers from HuggingFace, extract titles/abstracts/thumbnails, save to local data files",
+  "schedule": "daily",
+  "platform": "x",
+  "executor": "executors/hf-daily-papers.ts",
+  "config": {
+    "maxPapers": 3,
+    "minUpvotes": 5,
+    "abstractMaxChars": 200,
+    "downloadThumbnails": true,
+    "saveDataJson": true,
+    "outputDir": ".tmp"
+  }
+}
