@@ -47,7 +47,7 @@ When adding features or modifying existing code, you **must preserve the followi
 
 1. **Fail-Closed Security**: Never relax, bypass, or weaken the chat header phone number verification (`BRIDGE_SAFE_MODE`) to make a feature or test pass. If a chat is ambiguous, the bridge must halt immediately.
 2. **Never Move the Physical Pointer**: In `macos-harness`, background mouse and keyboard operations must use `CGEventPostToPid` to target specific application process IDs. Synthetic inputs must never hijack the user's physical mouse cursor or steal active window focus.
-3. **Prohibited Targets**: WhatsApp Desktop is strictly reserved for the bridge's communication channel. Never allow `macos-harness` or tool calls to target WhatsApp with synthetic UI events (`PROHIBITED_TARGETS`).
+3. **Configurable Target Isolation**: WhatsApp Desktop and other macOS applications can be operated via `macos-harness`. Custom target restrictions can be defined via `PROHIBITED_TARGETS` if process-level isolation is needed.
 4. **Resilient Data Transport**: Always maintain compatibility with the base64 `JARVIS_CALL:<base64>:END` envelope format. Messaging platforms alter markdown, so plain JSON in chat bubbles is treated only as a fallback.
 5. **No Telemetry or Data Leakage**: OpenAgent runs locally. Never add external network calls that transmit user chat messages, recordings, or execution results to third-party endpoints.
 

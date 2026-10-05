@@ -219,7 +219,7 @@ those characters (paths, globs, regexes, shell commands).
     Capture the window of any background application without raising it or stealing focus.
     Returns window dimensions, focus status, and a list of visible interactive buttons/fields.
     Args:
-    - "app" (string, optional): Target application name (e.g. "Safari", "Spotify", "Finder").
+    - "app" (string, optional): Target application name (e.g. "Safari", "WhatsApp", "Spotify", "Finder").
     - "send_image" (boolean, optional): If true, sends the actual screenshot PNG to this WhatsApp chat as an image attachment!
     - "max_width" (number, optional): Max image width (default 1280).
     - "max_height" (number, optional): Max image height (default 1280).
@@ -545,6 +545,7 @@ those characters (paths, globs, regexes, shell commands).
 - Zero-Intrusion Web Control: Chrome is automated in the background. Use new_tab and switch_tab without foregrounding Chrome. Managed tabs carry a horse emoji.
 - Non-Intrusive Invariant: Background clicks and keystrokes target app PIDs directly. Do not move Hamdan's physical mouse cursor.
 - Visual Verification: Use mac_see or browser_see with send_image true when you need to check how something looks.
+- Operating WhatsApp Desktop: You can inspect and operate WhatsApp Desktop using mac_* tools (mac_see, mac_click, mac_type, mac_ax) just like any other macOS app.
 - Check Domain Skills: For major sites (Amazon, GitHub, YouTube, X, Reddit, etc.), check domain_skills before guessing interaction mechanics.
 - Investigate first: Read files and check running apps before making assumptions.
 - Use edit for surgical changes instead of overwriting whole files with write.

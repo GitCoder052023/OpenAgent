@@ -6,17 +6,23 @@ from macos_harness.macos import MacOSError
 from OpenAgent.mac_adapter import MacAdapter, _check_target_allowed, PROHIBITED_TARGETS
 
 
-def test_whatsapp_target_protection():
-    """Ensure targeting WhatsApp Desktop is strictly rejected for safety."""
+def test_whatsapp_target_allowed():
+    """Ensure targeting WhatsApp Desktop is permitted without restriction."""
     for target in ("WhatsApp", "whatsapp", "WhatsApp.app", "net.whatsapp.WhatsApp", "com.apple.WhatsApp"):
-        with pytest.raises(MacOSError, match="prohibited"):
-            _check_target_allowed(target)
+        _check_target_allowed(target)
 
     # Allowed targets should not raise
     _check_target_allowed("Safari")
     _check_target_allowed("Spotify")
     _check_target_allowed("Finder")
     _check_target_allowed(None)
+
+
+def test_custom_prohibited_targets_enforced():
+    """Ensure explicitly configured prohibited targets raise MacOSError."""
+    with patch("OpenAgent.mac_adapter.PROHIBITED_TARGETS", {"restricted_app"}):
+        with pytest.raises(MacOSError, match="prohibited"):
+            _check_target_allowed("restricted_app")
 
 
 def test_mac_adapter_doctor():
@@ -53,20 +59,27 @@ def test_mac_adapter_run_python_empty():
         adapter.run_python("")
 
 
-def test_mac_adapter_click_and_type_protection():
-    """Adapter methods enforce target protection."""
-    adapter = MacAdapter()
-    with pytest.raises(MacOSError):
-        adapter.click(100, 100, app="WhatsApp")
+def test_mac_adapter_operates_whatsapp():
+    """Verify MacAdapter allows operating WhatsApp Desktop without raising target errors."""
+    mock_mac = MagicMock()
+    mock_mac.see.return_value = {"app": "WhatsApp", "path": "/tmp/wa.png"}
+    adapter = MacAdapter(mac=mock_mac)
 
-    with pytest.raises(MacOSError):
-        adapter.type("hello", app="WhatsApp")
+    res_click = adapter.click(100, 100, app="WhatsApp")
+    assert res_click["status"] == "ok"
+    mock_mac.click.assert_called_once_with(100.0, 100.0, app="WhatsApp", button="left", click_count=1)
 
-    with pytest.raises(MacOSError):
-        adapter.key("cmd+w", app="WhatsApp")
+    res_type = adapter.type("hello", app="WhatsApp")
+    assert res_type["status"] == "ok"
+    mock_mac.type.assert_called_once_with("hello", app="WhatsApp")
 
-    with pytest.raises(MacOSError):
-        adapter.see(app="WhatsApp")
+    res_key = adapter.key("cmd+w", app="WhatsApp")
+    assert res_key["status"] == "ok"
+    mock_mac.key.assert_called_once_with("cmd+w", app="WhatsApp")
+
+    res_see = adapter.see(app="WhatsApp", include_summary=False)
+    assert res_see["app"] == "WhatsApp"
+    mock_mac.see.assert_called_once()
 
 
 def test_mac_adapter_input_delegation():

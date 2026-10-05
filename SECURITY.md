@@ -61,11 +61,11 @@ When `BRIDGE_SAFE_MODE=true`:
 - Messages are only processed from the authorized destination.
 - Switching to another conversation causes the bridge to **fail closed**.
 
-### 2. Prohibited Targets
+### 2. Configurable Target Isolation
 
-The native macOS harness maintains a `PROHIBITED_TARGETS` list.
+The native macOS harness maintains a configurable `PROHIBITED_TARGETS` list.
 
-WhatsApp Desktop is explicitly protected from synthetic GUI input, preventing the agent from modifying or interacting with its own communication channel through normal computer-use tools.
+By default, WhatsApp Desktop and other macOS applications can be operated directly by the agent using native computer-use tools (`mac_click`, `mac_type`, `mac_see`, `mac_ax`, etc.). If specific applications need to be restricted to prevent accidental interaction with sensitive processes, their bundle identifiers or names can be added to `PROHIBITED_TARGETS`.
 
 ### 3. PID-Targeted Input
 

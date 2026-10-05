@@ -29,24 +29,18 @@ except ImportError:
 
 logger = logging.getLogger("jarvis.mac_adapter")
 
-# Safety guard: Never allow Jarvis to target WhatsApp Desktop with GUI input.
-# WhatsApp Desktop is reserved for Jarvis Bridge's own AX communication channel.
-PROHIBITED_TARGETS = {
-    "whatsapp",
-    "whatsapp.app",
-    "net.whatsapp.whatsapp",
-    "com.apple.whatsapp",
-}
+# Prohibited target set for GUI input (empty by default; WhatsApp Desktop is permitted).
+PROHIBITED_TARGETS: set[str] = set()
 
 
 def _check_target_allowed(app: Optional[str]) -> None:
-    """Ensure the target app is not WhatsApp Desktop."""
+    """Ensure the target app is not in the prohibited targets list."""
     if not app:
         return
     normalized = app.strip().lower()
-    if normalized in PROHIBITED_TARGETS or "whatsapp" in normalized:
+    if normalized in PROHIBITED_TARGETS:
         raise MacOSError(
-            f"Targeting '{app}' is prohibited. WhatsApp Desktop is reserved for bridge communication."
+            f"Targeting '{app}' is prohibited."
         )
 
 

@@ -65,8 +65,8 @@ Running 100% locally on your Mac, OpenAgent intercepts structured tool calls fro
 * **Real Browser Control (CDP Harness)**: Connects directly to your real, authenticated Chrome browser. Operates background tabs (`new_tab`, `switch_tab`), dispatches compositor clicks, queries internal Accessibility trees (`browser_ax`), fills framework-controlled forms cleanly (`browser_fill`), and uses pre-built domain skills for 80+ platforms (Amazon, GitHub, YouTube, X, etc.) without stealing physical focus.
 * **High-Speed Voice Pipeline**: Hold **`F8`** to talk (Push-to-Talk) or use hands-free wake word (*"Wake up Jarvis"*). Features local RMS silence gating, background audio playback, and instant barge-in interruption.
 * **Headless Developer Harness**: Ultra-fast Bun + TypeScript runner providing sandboxed `bash` execution, granular file pagination (`read`), atomic `write`, exact diff patching (`edit`), and fast `ripgrep` search.
-* **Native macOS Computer-Use**: Inspect application windows (`mac_see`), query semantic UI trees (`mac_ax`), issue PID-targeted clicks and keystrokes, and capture screenshots sent directly to WhatsApp.
-* **Fail-Closed Safety**: Chat-lock verification ensures commands only execute from your authorized Instinct chat. Prohibited-target isolation protects the communication bridge from self-clicking and blocks automated access to WhatsApp Web.
+* **Native macOS Computer-Use**: Inspect application windows (`mac_see`), query semantic UI trees (`mac_ax`), issue PID-targeted clicks and keystrokes across applications (including WhatsApp Desktop), and capture screenshots sent directly to WhatsApp.
+* **Fail-Closed Safety**: Chat-lock verification ensures commands only execute from your authorized Instinct chat, with web target restrictions blocking automated access to WhatsApp Web.
 * **Zero-Cloud Intermediary**: All tool execution, browser control, screen parsing, and audio handling happen locally on your hardware.
 
 ## Quick Start
@@ -227,7 +227,7 @@ OpenAgent is configured via `.env` in the project root:
 Giving an AI assistant access to your Mac requires rigorous guardrails:
 
 * **Fail-Closed Execution**: If chat header verification fails or the target window is ambiguous, OpenAgent halts immediately.
-* **Prohibited Target Isolation**: OpenAgent prevents synthetic clicks and keystrokes on the WhatsApp bridge itself, blocking recursive self-activation loops.
+* **Target Isolation**: OpenAgent supports operating desktop applications (including WhatsApp Desktop) with configurable target restrictions (`PROHIBITED_TARGETS`) to isolate specific processes when needed.
 * **Persistent Idempotency**: Processed tool signatures are written to an append-only JSONL ledger (`processed.jsonl`) to prevent accidental replays across restarts.
 * **Non-Disruptive Interaction**: Window operations and inputs target specific Process IDs (`CGEventPostToPid`) whenever possible, minimizing physical mouse hijacking.
 
