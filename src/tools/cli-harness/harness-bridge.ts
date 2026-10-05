@@ -1,5 +1,5 @@
 /**
- * Jarvis Bridge Harness Runner
+ * OpenAgent Harness Runner
  * Headless, direct execution channel to OpenCode's proven core tools.
  * Receives JSON-RPC requests on stdin, runs the tool, and responds on stdout.
  */
@@ -563,4 +563,4 @@ rl.on("line", async (line) => {
 })
 
 // Ready signal on stderr so stdout remains 100% pure JSON
-process.stderr.write("[Jarvis Harness] Ready on stdio IPC\n")
+process.stderr.write("[OpenAgent Harness] Ready on stdio IPC\n")

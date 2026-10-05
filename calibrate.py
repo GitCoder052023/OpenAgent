@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ==============================================================================
-⚡ OPENAGENT / JARVIS BRIDGE - ONE-COMMAND CALIBRATION ENGINE
+⚡ OPENAGENT - ONE-COMMAND CALIBRATION ENGINE
 ==============================================================================
 Calibrates and verifies macOS Accessibility (AX) paths and UI labels for WhatsApp:
 1. Inspects live WhatsApp Desktop Accessibility hierarchy.
@@ -195,7 +195,7 @@ def auto_detect_calibration(rows: List[Dict[str, Any]], target_number: str = "")
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="One-Command Calibration Engine for OpenAgent / Jarvis Bridge",
+        description="One-Command Calibration Engine for OpenAgent",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--save", "--apply", dest="save", action="store_true", help="Automatically save detected calibration to .env")
@@ -227,7 +227,7 @@ def main():
     if not args.json:
         print(f"""{Style.BOLD}{Style.CYAN}
 ==============================================================================
-          ⚡ JARVIS BRIDGE / OPENAGENT - ACCESSIBILITY CALIBRATOR            
+          ⚡ OPENAGENT - ACCESSIBILITY CALIBRATOR            
 =============================================================================={Style.RESET}""")
         print(f"{Style.BOLD}Target Chat:{Style.RESET} {target_number}")
         print("Capturing live WhatsApp Desktop Accessibility snapshot...")

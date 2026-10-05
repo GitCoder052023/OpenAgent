@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Jarvis Bridge Single-Command Mac Launcher
+# OpenAgent Single-Command Mac Launcher
 # ==============================================================================
 # Delegates directly to the autonomous Python boot engine (boot.py) which handles:
 # 1. Self-bootstrapping virtual environment via uv

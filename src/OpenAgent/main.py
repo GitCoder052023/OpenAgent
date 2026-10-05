@@ -172,7 +172,7 @@ def main():
                 except Exception as exc:
                     if stop.is_set(): break
                     print(f"\n[Watcher error] {exc} (restarting)")
-                    logging.getLogger("jarvis.watcher").exception("Watcher restarting")
+                    logging.getLogger("openagent.watcher").exception("Watcher restarting")
                     time.sleep(2)
         watcher = threading.Thread(target=hear, daemon=True)
         watcher.start()
@@ -241,7 +241,7 @@ def main():
                 if wav.getnchannels() != 1 or wav.getsampwidth() != 2 or wav.getframerate() != 16000:
                     raise RuntimeError("Unexpected recording format; not sending")
                 pcm = wav.readframes(wav.getnframes())
-            if not recorded_path.name.startswith("jarvis-voice-"):
+            if not recorded_path.name.startswith("openagent-voice-"):
                 if not gate_pcm(pcm, source="hotkey"):
                     raise RuntimeError("Audio gate rejected silent or mostly quiet clip; not sending")
 
@@ -249,7 +249,7 @@ def main():
             if playing.is_set():
                 playing.clear()
             sending.set()
-            event("send_begin", mode=cfg.send_mode, source="voice" if recorded_path.name.startswith("jarvis-voice-") else "hotkey", duration_s=round(len(pcm)/32000, 2))
+            event("send_begin", mode=cfg.send_mode, source="voice" if recorded_path.name.startswith("openagent-voice-") else "hotkey", duration_s=round(len(pcm)/32000, 2))
             if cfg.send_mode == "text":
                 print("Transcribing audio locally with Whisper...")
                 text = transcribe(recorded_path, cfg)
@@ -295,7 +295,7 @@ def main():
                 print("[Busy] Utterance dropped; retry after the previous send.")
                 return
             user_recording.set()
-            fd, name = tempfile.mkstemp(suffix=".wav", prefix="jarvis-voice-")
+            fd, name = tempfile.mkstemp(suffix=".wav", prefix="openagent-voice-")
             os.close(fd)
             recorded_path = Path(name)
             with wave.open(str(recorded_path), "wb") as wav:

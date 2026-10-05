@@ -1,4 +1,4 @@
-"""Unit and integration tests for MacAdapter in Jarvis Bridge."""
+"""Unit and integration tests for MacAdapter in OpenAgent."""
 
 import pytest
 from unittest.mock import MagicMock, patch

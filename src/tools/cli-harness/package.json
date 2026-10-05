@@ -1,6 +1,6 @@
 {
   "name": "cli-harness",
-  "description": "Headless Mac Execution Harness & Preserved Agent Prompts for Jarvis Bridge",
+  "description": "Headless Mac Execution Harness & Preserved Agent Prompts for OpenAgent",
   "private": true,
   "type": "module",
   "scripts": {

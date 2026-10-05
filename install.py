@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ==============================================================================
-⚡ OPENAGENT / JARVIS BRIDGE - ONE-COMMAND AUTONOMOUS INSTALLER
+⚡ OPENAGENT - ONE-COMMAND AUTONOMOUS INSTALLER
 ==============================================================================
 A complete, autonomous zero-touch setup and installation engine:
 1. Installs/verifies macOS system dependencies (Homebrew, uv, Bun, SoX, FFmpeg, Ripgrep, Whisper).
@@ -45,7 +45,7 @@ class Style:
 def log_banner():
     print(f"""{Style.BOLD}{Style.CYAN}
 ==============================================================================
-          ⚡ JARVIS BRIDGE / OPENAGENT - SYSTEM INSTALLER & SETUP            
+          ⚡ OPENAGENT - SYSTEM INSTALLER & SETUP                    
 =============================================================================={Style.RESET}""")
 
 
@@ -341,7 +341,7 @@ print('SMOKE_TEST_PASSED')
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="One-Command Autonomous Installer for OpenAgent / Jarvis Bridge",
+        description="One-Command Autonomous Installer for OpenAgent",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--skip-brew", action="store_true", help="Skip Homebrew package installations")

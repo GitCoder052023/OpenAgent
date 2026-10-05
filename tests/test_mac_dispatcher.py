@@ -1,4 +1,4 @@
-"""Unit tests for dispatching macOS Harness tools in Jarvis Bridge."""
+"""Unit tests for dispatching macOS Harness tools in OpenAgent."""
 
 import pytest
 from unittest.mock import MagicMock

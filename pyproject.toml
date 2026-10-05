@@ -27,7 +27,6 @@ dev = [
 
 [project.scripts]
 OpenAgent = "OpenAgent.main:main"
-jarvis-bridge = "OpenAgent.main:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
@@ -35,7 +34,7 @@ testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["OpenAgent*", "bridge*"]
+include = ["OpenAgent*"]
 
 [tool.uv.sources]
 browser-harness = { workspace = true }

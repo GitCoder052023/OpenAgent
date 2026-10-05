@@ -22,7 +22,7 @@ import urllib.request
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
-logger = logging.getLogger("jarvis.firecrawl_adapter")
+logger = logging.getLogger("openagent.firecrawl_adapter")
 
 PROHIBITED_FIRECRAWL_DOMAINS = {
     "web.whatsapp.com",

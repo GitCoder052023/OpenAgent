@@ -5,7 +5,7 @@ import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-LOGGER = logging.getLogger("jarvis")
+LOGGER = logging.getLogger("openagent")
 
 
 def setup_logging(verbose=False):

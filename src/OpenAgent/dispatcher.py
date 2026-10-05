@@ -1,8 +1,8 @@
-"""Tool call parser, executor, and formatter for Jarvis Bridge over WhatsApp.
+"""Tool call parser, executor, and formatter for OpenAgent over WhatsApp.
 
 Enables Jarvis (the remote AI on WhatsApp) to invoke local Mac harness tools:
 1. Jarvis sends a message containing a tool call (e.g. ```json {"tool": "bash", "args": {"command": "git status"}}```).
-2. Jarvis Bridge intercepts the message.
+2. OpenAgent intercepts the message.
 3. The harness executes the tool on the local Mac.
 4. The bridge formats the execution result and sends it back to WhatsApp as text.
 """
@@ -66,7 +66,7 @@ def get_default_firecrawl_adapter() -> Optional[Any]:
     return _DEFAULT_FIRECRAWL_ADAPTER
 
 
-logger = logging.getLogger("jarvis.dispatcher")
+logger = logging.getLogger("openagent.dispatcher")
 
 MAX_WHATSAPP_RESPONSE_LEN = 3500
 

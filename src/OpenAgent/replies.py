@@ -174,7 +174,7 @@ class ProcessedLedger:
             with open(self._path, "a", encoding="utf-8") as f:
                 f.write(entry + "\n")
         except OSError as exc:
-            logging.getLogger("jarvis.watcher").warning("Ledger write failed: %s", exc)
+            logging.getLogger("openagent.watcher").warning("Ledger write failed: %s", exc)
 
     def __len__(self):
         return len(self._sigs)
@@ -632,7 +632,7 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                     played_signatures.add(canonical_voice_signature(ctrl, grp, cfg, occurrence=occ))
             event("voice_baseline", count=len(initial_voice), ledger_total=len(played_signatures))
         except Exception as v_exc:
-            logging.getLogger("jarvis.watcher").warning("Voice baseline deferred: %s", v_exc)
+            logging.getLogger("openagent.watcher").warning("Voice baseline deferred: %s", v_exc)
         state["played"] = played_signatures
 
     processed_texts = state.get("processed_texts")
@@ -648,7 +648,7 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                 baselined += 1
             event("text_baseline", count=baselined, ledger_total=len(processed_texts))
         except Exception:
-            logging.getLogger("jarvis.watcher").exception("Text baseline failed; watcher must not replay history")
+            logging.getLogger("openagent.watcher").exception("Text baseline failed; watcher must not replay history")
             raise
         state["processed_texts"] = processed_texts
 
@@ -712,7 +712,7 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                     event("echo_guard", state="cooldown_complete", seconds=1.5)
                 playback_active.clear()
 
-    playback_thread = threading.Thread(target=process_playback, daemon=True, name="jarvis-voice-playback")
+    playback_thread = threading.Thread(target=process_playback, daemon=True, name="openagent-voice-playback")
     playback_thread.start()
 
     warned_missing = False
@@ -826,10 +826,10 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                                 event("tool_attachment_sent", path=str(att_path))
                                 print(f"[Attachment sent to WhatsApp: {Path(att_path).name}]")
                             except Exception as att_err:
-                                logging.getLogger("jarvis.watcher").warning("Failed to send attachment %s: %s", att_path, att_err)
+                                logging.getLogger("openagent.watcher").warning("Failed to send attachment %s: %s", att_path, att_err)
                 except Exception as exc:
                     print(f"[Tool dispatch error] {exc}")
-                    logging.getLogger("jarvis.watcher").exception("Tool dispatch failed")
+                    logging.getLogger("openagent.watcher").exception("Tool dispatch failed")
     finally:
         playback_stop.set()
         if playback_thread.is_alive():

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ==============================================================================
-⚡ OPENAGENT / JARVIS BRIDGE - ONE-COMMAND COMPREHENSIVE TEST RUNNER
+⚡ OPENAGENT - ONE-COMMAND COMPREHENSIVE TEST RUNNER
 ==============================================================================
 Runs and orchestrates all test suites, live harness checks, and diagnostics:
 1. Unit test suite via pytest (tests/ - 160+ passing tests).
@@ -149,7 +149,7 @@ print('ACCESSIBILITY_TRUSTED')
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="One-Command Comprehensive Test Runner for OpenAgent / Jarvis Bridge",
+        description="One-Command Comprehensive Test Runner for OpenAgent",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--unit", action="store_true", help="Run only pytest unit tests")
@@ -167,7 +167,7 @@ def main():
 
     print(f"""{Style.BOLD}{Style.CYAN}
 ==============================================================================
-          ⚡ JARVIS BRIDGE / OPENAGENT - SYSTEM TEST RUNNER                  
+          ⚡ OPENAGENT - SYSTEM TEST RUNNER                  
 =============================================================================={Style.RESET}""")
 
     # Select suites to run

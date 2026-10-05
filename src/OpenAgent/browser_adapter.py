@@ -37,7 +37,7 @@ try:
 except ImportError:
     FirecrawlAdapter = None  # type: ignore[assignment,misc]
 
-logger = logging.getLogger("jarvis.browser_adapter")
+logger = logging.getLogger("openagent.browser_adapter")
 
 PROHIBITED_BROWSER_DOMAINS = {
     "web.whatsapp.com",
@@ -498,7 +498,7 @@ class BrowserAdapter:
         stdout_buf = io.StringIO()
         stderr_buf = io.StringIO()
         namespace = {
-            "__name__": "__jarvis_browser__",
+            "__name__": "__openagent_browser__",
             "browser": self,
             "helpers": h,
             "cdp": h.cdp,
@@ -530,7 +530,7 @@ class BrowserAdapter:
         t_start = time.monotonic()
         exec_exc = None
         try:
-            compiled = compile(code, "<jarvis-browser>", "exec")
+            compiled = compile(code, "<openagent-browser>", "exec")
         except Exception as compile_err:
             return {
                 "status": "error",

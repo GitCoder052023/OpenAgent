@@ -21,7 +21,7 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-logger = logging.getLogger("jarvis.harness")
+logger = logging.getLogger("openagent.harness")
 
 
 class HarnessError(Exception):

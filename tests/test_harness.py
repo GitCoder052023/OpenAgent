@@ -37,13 +37,13 @@ def test_harness_write_and_edit_cycle(tmp_path: Path):
         assert test_file.exists()
 
         # 2. Edit
-        e_res = h.edit(str(test_file), "Beta", "Jarvis")
+        e_res = h.edit(str(test_file), "Beta", "OpenAgent")
         assert e_res["replacements"] == 1
         assert "diff" in e_res
 
         # 3. Read back
         r_res = h.read(str(test_file))
-        assert "Alpha Jarvis Gamma" in r_res["content"]
+        assert "Alpha OpenAgent Gamma" in r_res["content"]
 
 
 def test_harness_edit_missing_target_fails(tmp_path: Path):

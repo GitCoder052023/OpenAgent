@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ==============================================================================
-⚡ OPENAGENT / JARVIS BRIDGE - AUTONOMOUS SYSTEM BOOT ENGINE
+⚡ OPENAGENT - AUTONOMOUS SYSTEM BOOT ENGINE
 ==============================================================================
 An intelligent, self-bootstrapping, auto-healing boot orchestrator for OpenAgent:
 1. Self-Bootstraps virtual environment via uv (zero manual setup).
@@ -52,7 +52,7 @@ class Style:
 def log_banner():
     banner = f"""{Style.BOLD}{Style.CYAN}
 ==============================================================================
-          ⚡ JARVIS BRIDGE / OPENAGENT - AUTONOMOUS BOOT ENGINE              
+          ⚡ OPENAGENT - AUTONOMOUS BOOT ENGINE              
 =============================================================================={Style.RESET}"""
     print(banner)
 
@@ -572,7 +572,7 @@ class AutonomousSupervisor:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Autonomous Boot Engine & Supervisor for OpenAgent / Jarvis Bridge",
+        description="Autonomous Boot Engine & Supervisor for OpenAgent",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     # OpenAgent Subcommand
@@ -662,7 +662,7 @@ def main():
     # Default 'run' command
     hotkey_name = (known_args.hotkey or os.environ.get("BRIDGE_HOTKEY", "f8")).upper()
     print(f"\n{Style.BOLD}{Style.GREEN}==============================================================================")
-    print("                 🚀 AUTONOMOUS JARVIS BRIDGE RUNNING                          ")
+    print("                    🚀 AUTONOMOUS OPENAGENT RUNNING                           ")
     print(f"=============================================================================={Style.RESET}")
     print(f"• Hotkey: {Style.BOLD}Hold {hotkey_name}{Style.RESET} to talk; release to send (Esc quits)")
     print(f"• Mode: {Style.BOLD}{send_mode}{Style.RESET} | Voice wake: {Style.BOLD}{known_args.voice}{Style.RESET}")

@@ -1,7 +1,7 @@
-"""macOS Harness Adapter for Jarvis Bridge.
+"""macOS Harness Adapter for OpenAgent.
 
 Connects the native macOS Harness (screen vision, background PID-targeted input,
-Accessibility inspections, and Browser Harness CDP) directly to the Jarvis Bridge.
+Accessibility inspections, and Browser Harness CDP) directly to OpenAgent.
 
 Enables Jarvis to operate macOS apps and Chrome just like a human user without
 moving the user's physical mouse cursor or stealing application focus.
@@ -32,7 +32,7 @@ try:
 except ImportError:
     FirecrawlAdapter = None  # type: ignore[assignment,misc]
 
-logger = logging.getLogger("jarvis.mac_adapter")
+logger = logging.getLogger("openagent.mac_adapter")
 
 # Prohibited target set for GUI input (empty by default; WhatsApp Desktop is permitted).
 PROHIBITED_TARGETS: set[str] = set()
@@ -50,7 +50,7 @@ def _check_target_allowed(app: Optional[str]) -> None:
 
 
 class MacAdapter:
-    """High-level adapter wrapping MacOS and BrowserHarness for Jarvis Bridge."""
+    """High-level adapter wrapping MacOS and BrowserHarness for OpenAgent."""
 
     def __init__(
         self,
@@ -91,7 +91,7 @@ class MacAdapter:
         stdout_buf = io.StringIO()
         stderr_buf = io.StringIO()
         namespace = {
-            "__name__": "__jarvis_mac__",
+            "__name__": "__openagent_mac__",
             "mac": self.mac,
             "browser": self.browser,
             "firecrawl": self.firecrawl,
@@ -105,7 +105,7 @@ class MacAdapter:
         t_start = time.monotonic()
         exec_exc = None
         try:
-            compiled = compile(code, "<jarvis-mac>", "exec")
+            compiled = compile(code, "<openagent-mac>", "exec")
         except Exception as compile_err:
             return {
                 "status": "error",
@@ -199,7 +199,7 @@ class MacAdapter:
         max_width, max_height : int
             Maximum dimensions for the captured image.
         send_image : bool
-            If True, signals Jarvis Bridge to send the screenshot as a WhatsApp attachment.
+            If True, signals OpenAgent to send the screenshot as a WhatsApp attachment.
         include_summary : bool
             If True, includes a compact summary of visible interactive controls.
         """
