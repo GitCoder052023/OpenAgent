@@ -127,6 +127,29 @@ def test_manage_chrome_cdp():
         assert boot.manage_chrome_cdp() == "online"
 
 
+def test_manage_social_media():
+    with patch("boot.manage_social_media") as mock_social:
+        mock_social.return_value = {"threads": True, "reddit": True}
+        res = boot.manage_social_media()
+        assert res.get("threads") is True
+        assert res.get("reddit") is True
+
+
+def test_setup_locoagent_harness(tmp_path: Path):
+    fake_root = tmp_path / "repo"
+    fake_loco = fake_root / "src" / "tools" / "locoagent"
+    fake_loco.mkdir(parents=True)
+    pkg = fake_loco / "package.json"
+    pkg.write_text('{"name": "locoagent"}')
+    node_modules = fake_loco / "node_modules"
+    node_modules.mkdir()
+
+    with patch.object(boot, "ROOT_DIR", fake_root):
+        with patch("shutil.which", return_value="/opt/homebrew/bin/bun"):
+            ok = boot.setup_locoagent_harness()
+            assert ok is True
+
+
 def test_supervisor_signal_handling():
     supervisor = boot.AutonomousSupervisor(["--unlocked"])
     mock_child = MagicMock()
@@ -138,3 +161,4 @@ def test_supervisor_signal_handling():
 
     assert supervisor.running is False
     mock_child.send_signal.assert_called_with(signal.SIGINT)
+

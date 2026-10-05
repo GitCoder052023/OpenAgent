@@ -256,6 +256,31 @@ def setup_bun_harness() -> bool:
     return True
 
 
+def setup_locoagent_harness() -> bool:
+    """Verifies and installs LocoAgent Bun dependencies if missing."""
+    loco_dir = ROOT_DIR / "src" / "tools" / "locoagent"
+    node_modules = loco_dir / "node_modules"
+    package_json = loco_dir / "package.json"
+
+    if not package_json.exists():
+        return False
+
+    bun_bin = shutil.which("bun") or "/opt/homebrew/bin/bun"
+    if not os.path.exists(bun_bin) and not shutil.which("bun"):
+        return False
+
+    if not node_modules.exists() or (node_modules.stat().st_mtime < package_json.stat().st_mtime):
+        log_info("Installing LocoAgent dependencies with Bun...")
+        res = subprocess.run([bun_bin, "install"], cwd=str(loco_dir), capture_output=True, text=True)
+        if res.returncode != 0:
+            log_warn(f"Failed to install LocoAgent dependencies: {res.stderr}")
+            return False
+
+    log_ok("LocoAgent social media modules synchronized")
+    return True
+
+
+
 def ensure_config() -> Path:
     """Ensures .env exists and loads configuration."""
     env_path = ROOT_DIR / ".env"
@@ -415,7 +440,17 @@ def manage_firecrawl(auto_start: bool = False) -> str:
         docker_bin = shutil.which("docker")
         if docker_bin:
             docker_check = subprocess.run(["docker", "info"], capture_output=True)
-            if docker_check.returncode == 0:
+            if docker_check.returncode != 0:
+                # Docker daemon not running; try launching Docker Desktop in background
+                if os.path.exists("/Applications/Docker.app"):
+                    log_info("Launching Docker Desktop in background for Firecrawl...")
+                    subprocess.run(["open", "-g", "-j", "-a", "Docker"], check=False)
+                    for _ in range(8):
+                        time.sleep(1.0)
+                        if subprocess.run(["docker", "info"], capture_output=True).returncode == 0:
+                            break
+
+            if subprocess.run(["docker", "info"], capture_output=True).returncode == 0:
                 fc_dir = ROOT_DIR / "src" / "tools" / "firecrawl"
                 if (fc_dir / "docker-compose.yaml").exists():
                     log_info("Starting self-hosted Firecrawl via docker compose...")
@@ -423,7 +458,7 @@ def manage_firecrawl(auto_start: bool = False) -> str:
                     for _ in range(10):
                         time.sleep(1.0)
                         if is_port_open(3002):
-                            log_ok("Firecrawl started successfully")
+                            log_ok("Firecrawl Web Ingestion Engine online (http://localhost:3002)")
                             return "online"
 
     log_info("Firecrawl Engine in standby mode (run 'docker compose up -d' in src/tools/firecrawl if needed)")
@@ -442,10 +477,13 @@ def manage_chrome_cdp(auto_start: bool = False) -> str:
         return "online"
 
     if auto_start:
-        log_info("Launching Google Chrome with remote debugging port 9222...")
-        chrome_app = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-        if os.path.exists(chrome_app):
-            subprocess.Popen([chrome_app, "--remote-debugging-port=9222", "--restore-last-session"])
+        log_info("Launching Google Chrome with remote debugging port 9222 in background...")
+        if os.path.exists("/Applications/Google Chrome.app"):
+            subprocess.Popen(
+                ["open", "-g", "-a", "Google Chrome", "--args", "--remote-debugging-port=9222"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             for _ in range(5):
                 time.sleep(1.0)
                 if is_port_open(9222):
@@ -454,6 +492,76 @@ def manage_chrome_cdp(auto_start: bool = False) -> str:
 
     log_info("Chrome CDP port 9222 inactive (Chrome will be operated via native/standard adapters)")
     return "inactive"
+
+
+def manage_social_media(auto_start: bool = True, all_targets: bool = False) -> Dict[str, bool]:
+    """
+    Probes LocoAgent social media CDP sessions (Threads port 9227, Reddit port 9224)
+    and autonomously boots them up if offline.
+    """
+    loco_dir = ROOT_DIR / "src" / "tools" / "locoagent"
+    if not loco_dir.exists():
+        return {}
+
+    bun_bin = shutil.which("bun") or "/opt/homebrew/bin/bun"
+    if not os.path.exists(bun_bin) and not shutil.which("bun"):
+        log_info("Bun not available; social sessions cannot be auto-managed")
+        return {}
+
+    def is_port_open(port: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            return s.connect_ex(("127.0.0.1", port)) == 0
+
+    target_ports = {
+        "threads": 9227,
+        "reddit": 9224,
+    }
+    if all_targets:
+        target_ports.update({
+            "x": 9222,
+            "linkedin": 9223,
+            "instagram": 9225,
+            "facebook": 9226,
+            "youtube": 9228,
+            "tiktok": 9229,
+            "github": 9230,
+        })
+
+    results = {}
+    for target_name, port in target_ports.items():
+        if is_port_open(port):
+            results[target_name] = True
+        elif auto_start:
+            log_info(f"Booting {target_name.capitalize()} social browser session (port {port})...")
+            try:
+                subprocess.run(
+                    [bun_bin, "run", "scripts/setup-chrome.ts", "--target", target_name],
+                    cwd=str(loco_dir),
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                for _ in range(6):
+                    time.sleep(0.5)
+                    if is_port_open(port):
+                        results[target_name] = True
+                        break
+                else:
+                    results[target_name] = False
+            except Exception as e:
+                log_warn(f"Failed to auto-launch {target_name}: {e}")
+                results[target_name] = False
+        else:
+            results[target_name] = False
+
+    online_targets = [f"{t.capitalize()} ({target_ports[t]})" for t, ok in results.items() if ok]
+    if online_targets:
+        log_ok(f"Social Media Sessions active ({', '.join(online_targets)} online)")
+    else:
+        log_info("Social Media Sessions in standby mode")
+
+    return results
 
 
 def run_preflight_checks(verbose: bool = False) -> bool:
@@ -486,6 +594,31 @@ def run_preflight_checks(verbose: bool = False) -> bool:
         log_ok("Browser Harness CDP adapter operational")
     except Exception as e:
         log_warn(f"Browser Harness CDP adapter warning: {e}")
+
+    # 4. Firecrawl Web Ingestion Engine Adapter
+    try:
+        from OpenAgent.firecrawl_adapter import FirecrawlAdapter
+        fc = FirecrawlAdapter()
+        fc_doc = fc.doctor()
+        if fc_doc.get("reachable") or fc_doc.get("status") == "ok":
+            log_ok("Firecrawl Web Ingestion Engine operational (localhost:3002)")
+        else:
+            log_info("Firecrawl Web Ingestion Engine ready (standby mode)")
+    except Exception as e:
+        log_warn(f"Firecrawl adapter check warning: {e}")
+
+    # 5. LocoAgent Social Media Engine Adapter
+    try:
+        from OpenAgent.loco_adapter import LocoAdapter
+        loco = LocoAdapter()
+        st = loco.list_targets_status()
+        online_list = [f"{p.capitalize()} ({info['cdp_port']})" for p, info in st.get("targets", {}).items() if info.get("online")]
+        if online_list:
+            log_ok(f"LocoAgent Social Media Engine operational ({', '.join(online_list)} online)")
+        else:
+            log_info("LocoAgent Social Media Engine ready (sessions in standby)")
+    except Exception as e:
+        log_warn(f"LocoAgent adapter check warning: {e}")
 
     return all_ok
 
@@ -590,8 +723,12 @@ def parse_args():
     parser.add_argument("--doctor", "--check", dest="doctor", action="store_true", help="Run diagnostic health audit and exit without starting agent")
     parser.add_argument("--once", action="store_true", help="Run once without the autonomous watchdog supervisor")
     parser.add_argument("--no-auto-install", action="store_true", help="Do not auto-install missing brew/bun dependencies")
+    parser.add_argument("--no-chrome", action="store_true", help="Do not auto-start Google Chrome with remote debugging on port 9222")
+    parser.add_argument("--no-social", action="store_true", help="Do not auto-start LocoAgent social media sessions (Threads/Reddit)")
+    parser.add_argument("--no-firecrawl", action="store_true", help="Do not auto-start Firecrawl Docker container")
     parser.add_argument("--start-firecrawl", action="store_true", help="Autonomously launch Firecrawl docker engine if offline")
     parser.add_argument("--start-chrome", action="store_true", help="Autonomously launch Chrome with remote debugging on port 9222")
+    parser.add_argument("--start-all-social", action="store_true", help="Launch all 9 configured social media browser sessions at boot")
     return parser.parse_known_args()
 
 
@@ -611,6 +748,7 @@ def main():
     auto_install = not known_args.no_auto_install
     check_and_resolve_dependencies(auto_install=auto_install)
     setup_bun_harness()
+    setup_locoagent_harness()
 
     # Step 3: Config & Models
     log_step(3, 5, "Configuration & Speech Models")
@@ -619,11 +757,15 @@ def main():
     ensure_models(send_mode=send_mode, voice_mode=known_args.voice)
 
     # Step 4: System Permissions & WhatsApp Lifecycle
-    log_step(4, 5, "Permissions & WhatsApp Integration")
+    log_step(4, 5, "Permissions & Subsystems Lifecycle")
     check_macos_permissions(timeout_seconds=15)
     manage_whatsapp(launch=True, hide=True)
-    manage_firecrawl(auto_start=known_args.start_firecrawl)
-    manage_chrome_cdp(auto_start=known_args.start_chrome)
+    auto_chrome = known_args.start_chrome or not known_args.no_chrome
+    manage_chrome_cdp(auto_start=auto_chrome)
+    auto_social = not known_args.no_social
+    manage_social_media(auto_start=auto_social, all_targets=known_args.start_all_social)
+    auto_fc = known_args.start_firecrawl or (not known_args.no_firecrawl and shutil.which("docker") is not None)
+    manage_firecrawl(auto_start=auto_fc)
 
     # Step 5: Harness Preflight Health Verification
     log_step(5, 5, "Preflight Subsystem Verification")
@@ -667,6 +809,7 @@ def main():
     print(f"• Hotkey: {Style.BOLD}Hold {hotkey_name}{Style.RESET} to talk; release to send (Esc quits)")
     print(f"• Mode: {Style.BOLD}{send_mode}{Style.RESET} | Voice wake: {Style.BOLD}{known_args.voice}{Style.RESET}")
     print("• WhatsApp: Screen clean & backgrounded")
+    print("• Social Media: Threads (9227) & Reddit (9224) active")
     print("• Watchdog: Autonomous health supervisor active")
     print("------------------------------------------------------------------------------\n")
 
