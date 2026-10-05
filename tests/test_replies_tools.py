@@ -909,6 +909,135 @@ def test_incoming_texts_with_quoted_reply_and_dynamic_fallback():
     assert "11:33 AM" in sig
 
 
+def test_sequential_voice_messages_autoplayed_in_order():
+    """Verify that multiple incoming voice notes arriving in sequence are all played in exact order."""
+    cfg = Config(
+        number="+16508702892",
+        header_path="/0/1",
+        message_list_path="/0/2",
+        incoming_marker="Incoming message",
+        voice_play_marker="Play voice message",
+        voice_pause_marker="Pause voice message",
+        safe_mode=False,
+    )
+
+    base_rows = [
+        {"path": "/0/1", "role": "AXButton", "title": "+1 (650) 870-2892", "description": "", "value": ""},
+        {"path": "/0/2", "role": "AXList", "title": "", "description": "", "value": ""},
+    ]
+
+    # Two voice notes arriving together (Note 1: 1s, Note 2: 1s)
+    two_voice_notes = base_rows + [
+        {"path": "/0/2/0", "role": "AXGroup", "title": "Incoming message", "description": "11:42 AM, Received from +16508702892", "value": ""},
+        {"path": "/0/2/0/0", "role": "AXButton", "title": "Play voice message", "description": "0:01", "value": ""},
+        {"path": "/0/2/1", "role": "AXGroup", "title": "Incoming message", "description": "11:42 AM, Received from +16508702892", "value": ""},
+        {"path": "/0/2/1/0", "role": "AXButton", "title": "Play voice message", "description": "0:01", "value": ""},
+    ]
+
+    pressed_targets = []
+    stop = threading.Event()
+    state = {}
+
+    def mock_press(path, expected_label=None):
+        pressed_targets.append(path)
+        if len(pressed_targets) >= 2:
+            stop.set()
+
+    ticks = [0]
+    def snapshot_provider(**kw):
+        ticks[0] += 1
+        if ticks[0] == 1:
+            return base_rows
+        return two_voice_notes
+
+    watch(
+        cfg,
+        timeout=5,
+        stop=stop,
+        get_snapshot=snapshot_provider,
+        press=mock_press,
+        state=state,
+    )
+
+    # Both voice notes must have been played in exact sequence!
+    assert len(pressed_targets) == 2
+    assert pressed_targets[0] == "/0/2/0/0"
+    assert pressed_targets[1] == "/0/2/1/0"
+
+
+def test_unplayed_voice_notes_on_startup_are_autoplayed():
+    """Verify that unplayed voice notes present in chat on startup are NOT baselined away, but played."""
+    cfg = Config(
+        number="+16508702892",
+        header_path="/0/1",
+        message_list_path="/0/2",
+        incoming_marker="Incoming message",
+        voice_play_marker="Play voice message",
+        voice_pause_marker="Pause voice message",
+        safe_mode=False,
+    )
+
+    # Chat history on startup containing an unplayed voice message
+    startup_history = [
+        {"path": "/0/1", "role": "AXButton", "title": "+1 (650) 870-2892", "description": "", "value": ""},
+        {"path": "/0/2", "role": "AXList", "title": "", "description": "", "value": ""},
+        {"path": "/0/2/0", "role": "AXGroup", "title": "Incoming message", "description": "10:30 AM, Received from +16508702892, Unplayed", "value": ""},
+        {"path": "/0/2/0/0", "role": "AXButton", "title": "Play voice message", "description": "0:01", "value": ""},
+    ]
+
+    mock_press = MagicMock()
+    stop = threading.Event()
+    state = {}
+
+    def on_press(path, expected_label=None):
+        stop.set()
+
+    mock_press.side_effect = on_press
+
+    watch(
+        cfg,
+        timeout=3,
+        stop=stop,
+        get_snapshot=lambda **kw: startup_history,
+        press=mock_press,
+        state=state,
+    )
+
+    # Unplayed note on startup must have been played!
+    assert mock_press.call_count == 1
+    mock_press.assert_called_once_with("/0/2/0/0", expected_label="Play voice message")
+
+
+def test_occurrence_based_voice_control_resolution():
+    """Verify resolve_voice_control correctly distinguishes multiple voice notes with the same timestamp/duration."""
+    from OpenAgent.replies import canonical_voice_signature, resolve_voice_control
+
+    cfg = Config(
+        message_list_path="/0/2",
+        incoming_marker="Incoming message",
+        voice_play_marker="Play voice message",
+        voice_pause_marker="Pause voice message",
+    )
+
+    rows = [
+        {"path": "/0/2", "role": "AXList", "title": "", "description": "", "value": ""},
+        # Note 1: 11:42 AM, 24s
+        {"path": "/0/2/0", "role": "AXGroup", "title": "Incoming message", "description": "11:42 AM, Received from +16508702892", "value": ""},
+        {"path": "/0/2/0/0", "role": "AXButton", "title": "Play voice message", "description": "0:24", "value": ""},
+        # Note 2: 11:42 AM, 24s (occurrence 1)
+        {"path": "/0/2/1", "role": "AXGroup", "title": "Incoming message", "description": "11:42 AM, Received from +16508702892", "value": ""},
+        {"path": "/0/2/1/0", "role": "AXButton", "title": "Play voice message", "description": "0:24", "value": ""},
+    ]
+
+    sig1 = canonical_voice_signature(rows[2], rows[1], cfg, occurrence=0)
+    sig2 = canonical_voice_signature(rows[4], rows[3], cfg, occurrence=1)
+
+    assert sig1 != sig2
+    assert resolve_voice_control(rows, cfg, sig1) == "/0/2/0/0"
+    assert resolve_voice_control(rows, cfg, sig2) == "/0/2/1/0"
+
+
+
 
 
 

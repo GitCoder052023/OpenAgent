@@ -25,7 +25,7 @@ _INVISIBLE_CHARS = ("\u200b", "\u200c", "\u200d", "\u200e", "\u200f", "\u2060", 
 #   ", yesterday at 10:50 AM, Received from ..."
 #   ", 10:50 AM" (truncated description without sender info)
 _DESC_TIMESTAMP_METADATA_RE = re.compile(
-    r",\s*([^,\n]+?)\s*,\s*(?:\u200e)?(?:Received from|Sent to|Read|Delivered)\b.*$",
+    r",\s*([^,\n]+?)\s*,\s*(?:\u200e)?(?:Received from|Sent to|Read|Delivered|Listened|Unplayed|Played)\b.*$",
     re.IGNORECASE | re.DOTALL,
 )
 _DESC_TIMESTAMP_FALLBACK_RE = re.compile(
@@ -388,6 +388,19 @@ def voice_groups(rows, cfg, include_playing=False):
         controls = [r for r in descendants if r["role"] in ("AXButton", "AXStaticText") and cfg.voice_play_marker.casefold() in _label(r)]
         pauses = [r for r in descendants if r["role"] in ("AXButton", "AXStaticText") and cfg.voice_pause_marker.casefold() in _label(r)]
         if controls or pauses:
+            # Prefer explicit AXButton over container AXStaticText if both matched
+            b_ctrls = [r for r in controls if r["role"] == "AXButton"]
+            if b_ctrls:
+                controls = b_ctrls
+            elif len(controls) > 1:
+                controls = [max(controls, key=lambda r: len(r.get("path", "").split("/")))]
+
+            b_pauses = [r for r in pauses if r["role"] == "AXButton"]
+            if b_pauses:
+                pauses = b_pauses
+            elif len(pauses) > 1:
+                pauses = [max(pauses, key=lambda r: len(r.get("path", "").split("/")))]
+
             if len(controls) + len(pauses) != 1:
                 raise RuntimeError("Voice control ambiguous; stopping")
             if not include_playing and pauses and not controls:
@@ -450,7 +463,7 @@ def canonical_voice_signature(ctrl, group=None, cfg=None, occurrence=0):
     desc = " ".join(ctrl.get(k, "") for k in ("title", "description", "value"))
     dur = parse_duration(desc)
     grp_desc = group.get("description", "") if isinstance(group, dict) else ""
-    ts = _timestamp_from_description(grp_desc)
+    ts = _timestamp_from_description(grp_desc) or _timestamp_from_description(ctrl.get("description", ""))
     
     cleaned = re.sub(r'[\u200e,\s]+(Listened|Unplayed|Delivered|Played)', '', desc, flags=re.IGNORECASE)
     cleaned = re.sub(r'\d+:\d{2}\s*(?:of|/)\s*', '', cleaned)
@@ -474,26 +487,46 @@ def canonical_voice_signature(ctrl, group=None, cfg=None, occurrence=0):
 def resolve_voice_control(rows, cfg, target_sig, fallback_path=None):
     """Dynamically resolve the current play button path for a voice note signature from fresh rows.
 
-    Prevents stale AX path errors when new message bubbles shift list indices.
+    Prevents stale AX path errors when new message bubbles shift list indices,
+    correctly maintaining occurrence counters for sequential messages with the same duration/timestamp.
     """
     try:
         groups = voice_groups(rows, cfg, include_playing=True)
         row_map = {r["path"]: r for r in rows}
+        v_occ = {}
         for grp_path, ctrl_path in groups:
             ctrl = row_map.get(ctrl_path)
             grp = row_map.get(grp_path)
             if ctrl:
-                if voice_signature(ctrl) == target_sig:
-                    return ctrl_path
-                if canonical_voice_signature(ctrl, grp, cfg) == target_sig:
+                dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
+                grp_desc = grp.get("description", "") if isinstance(grp, dict) else ""
+                ts = _timestamp_from_description(grp_desc) or _timestamp_from_description(ctrl.get("description", ""))
+                occ = v_occ.get((ts, dur), 0)
+                v_occ[(ts, dur)] = occ + 1
+
+                canon_sig = canonical_voice_signature(ctrl, grp, cfg, occurrence=occ)
+                canon_sig_0 = canonical_voice_signature(ctrl, grp, cfg, occurrence=0)
+                sig = voice_signature(ctrl)
+                if target_sig in (canon_sig, canon_sig_0, sig):
                     return ctrl_path
     except Exception:
         pass
     return fallback_path
 
 
-def pause_active_playback(rows, cfg, press=press_button):
+def pause_active_playback(rows, cfg, press=press_button, state=None):
     """Find any actively playing voice control (Pause state) and press it to stop playback immediately."""
+    # 1. Target known actively playing path if stored in state
+    if state and state.get("active_playing_path"):
+        active_path = state["active_playing_path"]
+        try:
+            press(active_path, expected_label=cfg.voice_play_marker)
+            event("echo_guard", state="playback_paused_by_active_path")
+            return True
+        except Exception:
+            pass
+
+    # 2. Check for explicit pause marker in message list
     if not cfg.voice_pause_marker or not cfg.message_list_path:
         return False
     pause_marker = cfg.voice_pause_marker.casefold()
@@ -625,11 +658,21 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                 if ctrl:
                     dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
                     grp_desc = grp.get("description", "") if isinstance(grp, dict) else ""
-                    ts = _timestamp_from_description(grp_desc)
+                    ts = _timestamp_from_description(grp_desc) or _timestamp_from_description(ctrl.get("description", ""))
                     occ = v_occ.get((ts, dur), 0)
                     v_occ[(ts, dur)] = occ + 1
-                    played_signatures.add(voice_signature(ctrl))
-                    played_signatures.add(canonical_voice_signature(ctrl, grp, cfg, occurrence=occ))
+
+                    # If this note is unplayed / unread, do NOT baseline it so it autoplays!
+                    label_text = (ctrl.get("description", "") + " " + grp_desc).lower()
+                    if "unplayed" in label_text:
+                        continue
+
+                    canon_sig = canonical_voice_signature(ctrl, grp, cfg, occurrence=occ)
+                    canon_sig_0 = canonical_voice_signature(ctrl, grp, cfg, occurrence=0)
+                    sig = voice_signature(ctrl)
+                    played_signatures.add(canon_sig)
+                    played_signatures.add(canon_sig_0)
+                    played_signatures.add(sig)
             event("voice_baseline", count=len(initial_voice), ledger_total=len(played_signatures))
         except Exception as v_exc:
             logging.getLogger("openagent.watcher").warning("Voice baseline deferred: %s", v_exc)
@@ -689,7 +732,19 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                 except Exception:
                     fresh_rows = []
                 target_path = resolve_voice_control(fresh_rows, cfg, sig, fallback_path=button_path) if fresh_rows else button_path
+                state["active_playing_path"] = target_path
 
+                # If WhatsApp's consecutive player already played this note, avoid re-triggering
+                if fresh_rows:
+                    active_ctrl = next((r for r in fresh_rows if r.get("path") == target_path), None)
+                    if active_ctrl:
+                        desc_low = (active_ctrl.get("description", "") + " " + active_ctrl.get("title", "")).lower()
+                        if "listened" in desc_low and "unplayed" not in desc_low:
+                            event("echo_guard", state="already_listened_by_whatsapp", duration_s=dur)
+                            fail_counts.pop(sig, None)
+                            continue
+
+                print(f"\n[Autoplaying voice note (~{dur}s)...]")
                 press(target_path, expected_label=cfg.voice_play_marker)
                 fail_counts.pop(sig, None)
                 _wait_for_completion(cfg, target_path, dur, stop, get_snapshot, user_recording=user_recording, press=press)
@@ -705,11 +760,13 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                 else:
                     print(f"Skipping voice note after 3 failed play attempts: {sig[:80]}")
             finally:
+                state["active_playing_path"] = None
                 if playing is not None:
-                    if stop is not None: stop.wait(1.5)
-                    else: time.sleep(1.5)
+                    gap = 0.5 if queue else 1.5
+                    if stop is not None: stop.wait(gap)
+                    else: time.sleep(gap)
                     playing.clear()
-                    event("echo_guard", state="cooldown_complete", seconds=1.5)
+                    event("echo_guard", state="cooldown_complete", seconds=gap)
                 playback_active.clear()
 
     playback_thread = threading.Thread(target=process_playback, daemon=True, name="openagent-voice-playback")
@@ -746,18 +803,16 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                         if not ctrl: continue
                         dur = parse_duration(ctrl.get("description", "") + " " + ctrl.get("title", ""))
                         grp_desc = grp.get("description", "") if isinstance(grp, dict) else ""
-                        ts = _timestamp_from_description(grp_desc)
+                        ts = _timestamp_from_description(grp_desc) or _timestamp_from_description(ctrl.get("description", ""))
                         occ = voice_occ.get((ts, dur), 0)
                         voice_occ[(ts, dur)] = occ + 1
 
-                        sig = voice_signature(ctrl)
                         canon_sig = canonical_voice_signature(ctrl, grp, cfg, occurrence=occ)
-                        if sig in played_signatures or canon_sig in played_signatures or any(q[0] in (sig, canon_sig) for q in queue):
+                        if canon_sig in played_signatures or any(q[0] == canon_sig for q in queue):
                             continue
 
-                        queue.append((sig, ctrl_path, dur))
+                        queue.append((canon_sig, ctrl_path, dur))
                         # Immediately mark as played so it can NEVER be queued again!
-                        played_signatures.add(sig)
                         played_signatures.add(canon_sig)
                         event("voice_note_queued", duration_s=dur)
                         is_user_busy = (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set())

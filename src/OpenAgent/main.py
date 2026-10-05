@@ -208,7 +208,7 @@ def main():
                     playing.clear()
                     try:
                         from .replies import pause_active_playback
-                        pause_active_playback(snapshot(safe_mode=cfg.safe_mode), cfg)
+                        pause_active_playback(snapshot(safe_mode=cfg.safe_mode), cfg, state=watcher_state)
                     except Exception:
                         pass
                     print("\n[Playback interrupted: user speaking...]")

@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import sys
 
@@ -276,8 +277,61 @@ def dump(rows): return json.dumps(rows, indent=2, ensure_ascii=False)
 
 
 
+def _click_voice_cell_play(element, pid):
+    """Click the play button icon on a WhatsApp voice message cell.
+
+    In WhatsApp macOS (Catalyst), voice notes are rendered as flat cells
+    where the play/pause button is positioned at the left of the bubble.
+    Activates WhatsApp briefly, clicks the play button, and restores
+    the previous front application and cursor position.
+    """
+    try:
+        import Quartz, time, re
+        from ApplicationServices import (
+            AXUIElementCopyAttributeValue,
+            kCGEventLeftMouseDown, kCGEventLeftMouseUp, kCGMouseButtonLeft, kCGHIDEventTap
+        )
+        from AppKit import NSRunningApplication
+
+        err, frame_val = AXUIElementCopyAttributeValue(element, "AXFrame", None)
+        if err != 0 or not frame_val:
+            return False
+
+        m = re.search(r"x:([0-9.\-]+)\s+y:([0-9.\-]+)\s+w:([0-9.\-]+)\s+h:([0-9.\-]+)", str(frame_val))
+        if not m:
+            return False
+        x, y, w, h = (float(v) for v in m.groups())
+        click_x = x + 25
+        click_y = y + h / 2
+
+        apps = NSRunningApplication.runningApplicationsWithBundleIdentifier_("net.whatsapp.WhatsApp")
+        was_hidden = apps[0].isHidden() if apps else False
+        cur_pos = Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
+        try:
+            activate_whatsapp()
+            time.sleep(0.04)
+            down = Quartz.CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, (click_x, click_y), kCGMouseButtonLeft)
+            up = Quartz.CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, (click_x, click_y), kCGMouseButtonLeft)
+            Quartz.CGEventPost(kCGHIDEventTap, down)
+            time.sleep(0.04)
+            Quartz.CGEventPost(kCGHIDEventTap, up)
+        finally:
+            Quartz.CGWarpMouseCursorPosition(cur_pos)
+            if was_hidden:
+                hide_whatsapp()
+        return True
+    except Exception as exc:
+        logging.getLogger("openagent.ax").warning("Voice cell coordinate click failed: %s", exc)
+        return False
+
+
 def press_button(path, expected_label):
-    """AXPress one calibrated button by path; refuse stale or changed controls."""
+    """AXPress one calibrated button by path; refuse stale or changed controls.
+
+    For WhatsApp voice message cells (flat AXStaticText nodes in Catalyst),
+    AXPress is a no-op that merely focuses the cell; we additionally perform
+    a coordinate click on the play control icon so playback reliably starts.
+    """
     if sys.platform != "darwin":
         raise RuntimeError("macOS required")
     from ApplicationServices import (AXUIElementCreateApplication, AXUIElementCopyAttributeValue,
@@ -302,8 +356,17 @@ def press_button(path, expected_label):
     def attr(name):
         err, value = AXUIElementCopyAttributeValue(element, "AX" + name, None)
         return str(value) if err == 0 and isinstance(value, str) else ""
-    if attr("Role") not in ("AXButton", "AXStaticText") or expected_label.casefold() not in " ".join(attr(k) for k in ("Title", "Description", "Value")).casefold():
+    role = attr("Role")
+    label_full = " ".join(attr(k) for k in ("Title", "Description", "Value")).casefold()
+    if role not in ("AXButton", "AXStaticText") or expected_label.casefold() not in label_full:
         raise RuntimeError("AX play control label changed")
+
+    is_voice = "voice message" in label_full or "duration:" in label_full or role == "AXStaticText"
+    if is_voice:
+        clicked = _click_voice_cell_play(element, pid)
+        if clicked:
+            return
+
     if AXUIElementPerformAction(element, "AXPress") != 0:
         raise RuntimeError("AX play action failed")
 
