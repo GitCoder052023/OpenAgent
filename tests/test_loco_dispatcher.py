@@ -152,7 +152,7 @@ def test_dispatch_social_search(mock_loco):
     }
     res = execute_tool_call(None, call, loco_adapter=mock_loco)
     assert res["status"] == "ok"
-    mock_loco.search.assert_called_once_with(platform="x", query="AI agents", tab="latest")
+    mock_loco.search.assert_called_once_with(platform="x", query="AI agents", tab="latest", subreddit=None)
 
     formatted = format_tool_response(res)
     assert "Search Results for 'AI agents'" in formatted
@@ -174,7 +174,7 @@ def test_dispatch_social_workflow(mock_loco):
 def test_envelope_roundtrip_social_call():
     orig_call = {
         "tool": "social_post",
-        "args": {"platform": "x", "text": "Autonomous test tweet"},
+        "args": {"platform": "threads", "text": "Autonomous test thread"},
     }
     envelope = encode_tool_call(orig_call)
     assert envelope.startswith("JARVIS_CALL:")
@@ -183,4 +183,38 @@ def test_envelope_roundtrip_social_call():
     parsed = parse_tool_calls(envelope)
     assert len(parsed) == 1
     assert parsed[0]["tool"] == "social_post"
-    assert parsed[0]["args"]["text"] == "Autonomous test tweet"
+    assert parsed[0]["args"]["text"] == "Autonomous test thread"
+
+
+def test_dispatch_defaults_to_threads(mock_loco):
+    # Calling social_post without platform or target arg defaults to 'threads'
+    call = {
+        "tool": "social_post",
+        "args": {"text": "Default to threads post"},
+    }
+    res = execute_tool_call(None, call, loco_adapter=mock_loco)
+    assert res["status"] == "ok"
+    mock_loco.post_content.assert_called_with(
+        platform="threads",
+        text="Default to threads post",
+        media_path=None,
+        title=None,
+        subreddit=None,
+    )
+
+
+def test_dispatch_reddit_upvote_formatting(mock_loco):
+    mock_loco.like_post.return_value = {
+        "status": "ok",
+        "action": "upvote",
+        "url": "https://www.reddit.com/r/LocalLLaMA/comments/123",
+    }
+    call = {
+        "tool": "social_like",
+        "args": {"platform": "reddit", "url": "https://www.reddit.com/r/LocalLLaMA/comments/123"},
+    }
+    res = execute_tool_call(None, call, loco_adapter=mock_loco)
+    formatted = format_tool_response(res)
+    assert "⬆️ Upvoted Reddit Post" in formatted
+    assert "https://www.reddit.com/r/LocalLLaMA/comments/123" in formatted
+

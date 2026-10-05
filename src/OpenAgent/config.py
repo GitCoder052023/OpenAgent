@@ -55,7 +55,7 @@ class Config:
     firecrawl_timeout: float = 60.0
     locoagent_enabled: bool = True
     locoagent_root: str = ""
-    locoagent_default_platform: str = "x"
+    locoagent_default_platform: str = "threads"
     locoagent_timeout: float = 120.0
 
     @classmethod
@@ -90,7 +90,7 @@ class Config:
         loco_enabled_env = os.getenv("LOCOAGENT_ENABLED", "true").strip().lower()
         locoagent_enabled = loco_enabled_env in ("true", "1", "yes", "on")
         locoagent_root = os.getenv("LOCOAGENT_ROOT", "").strip()
-        locoagent_default_platform = os.getenv("LOCOAGENT_DEFAULT_PLATFORM", "x").strip().lower()
+        locoagent_default_platform = os.getenv("LOCOAGENT_DEFAULT_PLATFORM", "threads").strip().lower()
         try:
             locoagent_timeout = float(os.getenv("LOCOAGENT_TIMEOUT", cls.locoagent_timeout))
         except (ValueError, TypeError):

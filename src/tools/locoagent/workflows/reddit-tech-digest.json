@@ -1,0 +1,14 @@
+{
+  "id": "reddit-tech-digest",
+  "name": "Reddit Technical Community Digest",
+  "description": "Scans high-signal subreddits (r/LocalLLaMA, r/artificial) for top discussions, checks deduplication against operation log, and generates an engineering digest",
+  "schedule": "daily",
+  "platform": "reddit",
+  "executor": "executors/reddit-tech-digest.ts",
+  "config": {
+    "subreddits": ["LocalLLaMA", "artificial"],
+    "limit": 5,
+    "sortBy": "hot",
+    "outputDir": ".tmp/reddit-digest"
+  }
+}

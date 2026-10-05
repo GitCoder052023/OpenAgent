@@ -1,0 +1,12 @@
+{
+  "id": "threads-post-update",
+  "name": "Meta Threads Builder Update Publisher",
+  "description": "Publishes technical engineering updates and builder reflections directly to Meta Threads (threads.net) with verification screenshot",
+  "schedule": "daily",
+  "platform": "threads",
+  "executor": "executors/threads-post-update.ts",
+  "config": {
+    "outputDir": ".tmp/threads-updates",
+    "requireConfirmation": false
+  }
+}

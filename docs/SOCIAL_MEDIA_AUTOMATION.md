@@ -1,45 +1,65 @@
 # 🌐 Social Media Automation with LocoAgent & OpenAgent
 
-OpenAgent natively integrates the **LocoAgent** engine to give your external intelligence (Jarvis / Instinct) full autonomous control over real social media accounts directly from your Mac.
+OpenAgent natively integrates the **LocoAgent** engine to give your external intelligence (Jarvis / Instinct on WhatsApp) full autonomous capability to operate and automate your personal social media accounts directly from your Mac.
+
+> **Primary Focus**: **Threads** (`threads.net`) and **Reddit** (`reddit.com`).  
+> Secondary supported platforms include X/Twitter, LinkedIn, Instagram, Facebook, YouTube, TikTok, and GitHub.
 
 ---
 
-## 🎯 Supported Social Media Platforms
+## 🎯 Supported Social Media Platforms & CDP Profiles
 
-Jarvis operates your accounts through **real Google Chrome browser instances via Chrome DevTools Protocol (CDP)** with cookie and profile isolation. This bypasses anti-bot detection because you are driving genuine, authenticated Chrome windows.
+Jarvis operates your accounts through **real Google Chrome browser instances via Chrome DevTools Protocol (CDP)** with isolated cookie and session storage. This bypasses anti-bot detection because you are driving genuine, authenticated desktop Chrome windows.
 
-| Platform | Domain | Default CDP Port | Profile Directory |
-| :--- | :--- | :---: | :--- |
-| **X (Twitter)** | `x.com` | `9222` | `~/.config/locoagent/profiles/default` |
-| **LinkedIn** | `linkedin.com` | `9223` | `~/.config/locoagent/profiles/default-linkedin` |
-| **Reddit** | `reddit.com` | `9224` | `~/.config/locoagent/profiles/default-reddit` |
-| **Instagram** | `instagram.com` | `9225` | `~/.config/locoagent/profiles/default-instagram` |
-| **Facebook** | `facebook.com` | `9226` | `~/.config/locoagent/profiles/default-facebook` |
-| **Threads** | `threads.net` | `9227` | `~/.config/locoagent/profiles/default-threads` |
-| **YouTube** | `youtube.com` | `9228` | `~/.config/locoagent/profiles/default-youtube` |
-| **TikTok** | `tiktok.com` | `9229` | `~/.config/locoagent/profiles/default-tiktok` |
-| **GitHub** | `github.com` | `9230` | `~/.config/locoagent/profiles/default-github` |
+| Platform | Domain | Default CDP Port | Profile Directory | Priority |
+| :--- | :--- | :---: | :--- | :---: |
+| **Threads** | `threads.net` | `9227` | `~/.config/locoagent/profiles/default-threads` | **Primary (Default)** |
+| **Reddit** | `reddit.com` | `9224` | `~/.config/locoagent/profiles/default-reddit` | **Primary** |
+| **X (Twitter)** | `x.com` | `9222` | `~/.config/locoagent/profiles/default` | Secondary |
+| **LinkedIn** | `linkedin.com` | `9223` | `~/.config/locoagent/profiles/default-linkedin` | Secondary |
+| **Instagram** | `instagram.com` | `9225` | `~/.config/locoagent/profiles/default-instagram` | Secondary |
+| **Facebook** | `facebook.com` | `9226` | `~/.config/locoagent/profiles/default-facebook` | Secondary |
+| **YouTube** | `youtube.com` | `9228` | `~/.config/locoagent/profiles/default-youtube` | Secondary |
+| **TikTok** | `tiktok.com` | `9229` | `~/.config/locoagent/profiles/default-tiktok` | Secondary |
+| **GitHub** | `github.com` | `9230` | `~/.config/locoagent/profiles/default-github` | Secondary |
 
 ---
 
-## 🚀 One-Time Setup: Logging Into Your Social Accounts
+## 💡 How the External Intelligence Operates Social Media with Tool Calls
 
-Because OpenAgent uses **persistent, dedicated profiles**, your personal everyday browsing is never disturbed, and your social logins persist indefinitely:
+A common question is: *how can an external AI model on WhatsApp reliably operate personal social media via tool calls alone?*
+
+1. **Persistent Authentication (Zero Friction)**:
+   - You log in manually **once** into the dedicated profile.
+   - Sessions, cookies, and local storage remain saved on your Mac permanently. The AI never handles or asks for your passwords.
+2. **Deterministic CDP Perception (`agent-browser`)**:
+   - The AI doesn't guess pixel coordinates.
+   - When Jarvis calls `social_post` or `social_reply`, OpenAgent takes an accessibility snapshot with `@e` element IDs (e.g. `@e12 [textbox "What's new?"]`, `@e15 [button "Post"]`).
+   - OpenAgent executes atomic CDP actions (`open`, `snapshot`, `fill`, `click`).
+3. **Anti-Duplication Ledger**:
+   - Every like, upvote, reply, and post is hashed and stored in `persona/operation-log.json`.
+   - Before any action executes, OpenAgent checks if the target post URL was already touched. Duplicate spamming is blocked automatically.
+4. **Visual Verification Delivered to WhatsApp**:
+   - Every published thread, post, or reply captures an automatic screenshot from the live Chrome window and returns it directly to WhatsApp as media confirmation.
+
+---
+
+## 🚀 One-Time Setup: Logging Into Your Accounts
+
+Launch isolated Chrome windows to log in:
 
 ```bash
 cd src/tools/locoagent
 
-# Option A: Launch Chrome for a specific platform (e.g. X/Twitter)
-bun run setup-chrome --target x
+# 1. Setup your primary channels
+bun run setup-chrome --target threads   # Launches Chrome on port 9227 -> Log into threads.net
+bun run setup-chrome --target reddit    # Launches Chrome on port 9224 -> Log into reddit.com
 
-# Option B: Launch all platform Chrome instances at once
+# 2. Or launch all platforms at once
 bun run setup-chrome --all
 ```
 
-1. Chrome will launch isolated window(s) with CDP enabled.
-2. **Log into your social accounts manually once** (e.g. log into X, LinkedIn, Reddit).
-3. Close the windows or leave them running. Cookies and sessions are permanently saved!
-4. Whenever Jarvis needs to post, reply, or like, OpenAgent connects to these sessions.
+Log in manually in the browser windows. Your logins are saved indefinitely in `~/.config/locoagent/profiles/`.
 
 ---
 
@@ -47,58 +67,83 @@ bun run setup-chrome --all
 
 Jarvis calls these tools directly through WhatsApp via the standard `JARVIS_CALL` envelope:
 
-### 1. Account & Status Management
-- `social_targets`: Inspect configured social platforms and check which ports are currently online.
-- `social_setup`: Bring up an isolated Chrome session for any target (e.g. `{"target": "x"}`).
-- `social_doctor`: Run health checks across Bun, agent-browser, and Chrome CDP connectivity.
-
-### 2. Actions & Engagement
-- `social_post`: Publish a post or tweet with optional text and image/media attachment:
+### 1. Threads Operations (Default)
+- **Publish a Thread**:
   ```json
-  {"tool": "social_post", "args": {"platform": "x", "text": "Excited to share our new autonomous agent bridge!", "media": "/path/to/image.png"}}
+  {"tool": "social_post", "args": {"platform": "threads", "text": "Building autonomous AI agent bridges with Bun and Python. Seamless CDP control feels like magic."}}
   ```
-  *(A verification screenshot is automatically captured and sent back to WhatsApp!)*
-- `social_reply`: Reply to a specific tweet/post URL. Checks deduplication first to prevent repeating replies.
-- `social_like`: Like or react to a post. Also checks deduplication first.
-- `social_search`: Search feeds by keyword or hashtag and returns a preview + screenshot.
-- `social_screenshot`: Capture full-page or annotated screenshots of any social platform.
+  *(Captures screenshot and sends back to WhatsApp)*
+- **Reply to a Thread**:
+  ```json
+  {"tool": "social_reply", "args": {"platform": "threads", "url": "https://www.threads.net/@user/post/xyz", "text": "Spot on. Latency optimization is key for local agent loops."}}
+  ```
+- **Like a Thread**:
+  ```json
+  {"tool": "social_like", "args": {"platform": "threads", "url": "https://www.threads.net/@user/post/xyz"}}
+  ```
+- **Search Threads**:
+  ```json
+  {"tool": "social_search", "args": {"platform": "threads", "query": "autonomous agents"}}
+  ```
+
+### 2. Reddit Operations
+- **Submit a Post to a Subreddit**:
+  ```json
+  {"tool": "social_post", "args": {
+    "platform": "reddit",
+    "subreddit": "LocalLLaMA",
+    "title": "Benchmarking low-latency streaming bridges for local models",
+    "text": "Hey everyone, wanted to share our architecture for local agent-driven CDP automation..."
+  }}
+  ```
+- **Upvote a Reddit Post or Comment**:
+  ```json
+  {"tool": "social_like", "args": {"platform": "reddit", "url": "https://www.reddit.com/r/LocalLLaMA/comments/123/benchmarks"}}
+  ```
+  *(Translates to Reddit Upvote button and records in ledger)*
+- **Comment on a Reddit Discussion**:
+  ```json
+  {"tool": "social_reply", "args": {
+    "platform": "reddit",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/123/benchmarks",
+    "text": "Great breakdown. We observed similar results with quantization on M-series chips."
+  }}
+  ```
+- **Search Subreddit**:
+  ```json
+  {"tool": "social_search", "args": {"platform": "reddit", "subreddit": "LocalLLaMA", "query": "agent browser"}}
+  ```
 
 ### 3. Workflows & Background Daemons
 - `social_workflow`: Manage automated pipelines:
-  - `list`: See available workflows (`hf-papers-to-x`, `x-search-reply`, `linkedin-search-reply`).
-  - `run`: Run a workflow once synchronously (e.g. `{"id": "hf-papers-to-x"}`).
-  - `daemon`: Schedule a workflow to run every N minutes (e.g. `{"id": "x-search-reply", "interval": 30}`).
-  - `stop`: Stop a running background workflow.
-  - `status`: Inspect workflow execution state and history.
+  - `list`: View registered workflows:
+    - `reddit-tech-digest`: Scans `r/LocalLLaMA` and `r/artificial`, dedups, and compiles daily digest.
+    - `threads-post-update`: Publishes builder reflections directly to Meta Threads.
+    - `hf-papers-to-x`: Posts HuggingFace daily paper highlights.
+    - `x-search-reply`: Searches and engages on X.
+    - `linkedin-search-reply`: Monitors and comments on LinkedIn.
+  - `run`: Run a workflow synchronously (`{"action": "run", "id": "reddit-tech-digest"}`).
+  - `daemon`: Schedule recurring execution (`{"action": "daemon", "id": "reddit-tech-digest", "interval": 120}`).
+  - `stop`: Halt a running daemon (`{"action": "stop", "id": "reddit-tech-digest"}`).
+  - `status`: Inspect run history and last result.
 
-### 4. Autonomous Missions & Memory
+### 4. Autonomous Missions & Direct CDP Exec
 - `social_agent_task`: Delegate high-level goals to LocoAgent's internal agentic loop:
   ```json
-  {"tool": "social_agent_task", "args": {"prompt": "Find top 3 discussions on arXiv AI papers today, like them, and reply to one with constructive feedback."}}
+  {"tool": "social_agent_task", "args": {"prompt": "Browse r/LocalLLaMA top posts today, find the highest signal discussion on local vision models, upvote it, and draft a summary."}}
   ```
-- `social_dedup_check`: Check whether a URL was already interacted with.
-- `social_log`: Record an interaction to `persona/operation-log.json`.
+- `social_exec`: Execute any raw `agent-browser` command on the target session:
+  ```json
+  {"tool": "social_exec", "args": {"platform": "threads", "command": "snapshot -i -c"}}
+  ```
 
 ---
 
-## 🎨 Customizing Your Persona & Tone
+## 🎨 Persona & Anti-Bot Safeguards
 
-The persona system ensures that any post, tweet, or reply generated by Jarvis or LocoAgent matches your voice:
-
-1. **`src/tools/locoagent/persona/persona.md`**:
-   - Defines your role, personality, writing style, focus areas, and strict rules of engagement.
-   - Automatically injected into LocoAgent's system prompt.
-2. **`src/tools/locoagent/persona/tasks.md`**:
-   - Outlines daily recurring routines and schedules.
-3. **`src/tools/locoagent/persona/operation-log.json`**:
-   - Append-only ledger recording all liked, replied, and published URLs across sessions.
-
----
-
-## 🔒 Safety & Human-in-the-Loop Mode
-
-By default, when Jarvis runs through WhatsApp:
-- **Visual Verification**: Every published post or reply returns a screenshot to WhatsApp so you see the live result.
-- **Draft & Confirm**: You can instruct Jarvis:
-  > *"Jarvis, draft a tweet summarizing our latest commit, show it to me on WhatsApp, and don't publish until I say Yes."*
-- Jarvis will draft the text, send it to you, and only execute `social_post` once you approve!
+1. **`persona/persona.md`**:
+   - Defines your technical tone of voice, formatting guidelines, and no-spam rules.
+2. **`persona/tasks.md`**:
+   - Daily morning, afternoon, and evening routine guidelines centered around Threads and Reddit.
+3. **`persona/operation-log.json`**:
+   - Persistent ledger ensuring no URL is liked, upvoted, or replied to more than once.

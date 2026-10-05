@@ -49,6 +49,19 @@ PROHIBITED_DOMAINS = {
     "api.whatsapp.com",
 }
 
+PLATFORM_HOME_URLS = {
+    "threads": "https://www.threads.net",
+    "reddit": "https://www.reddit.com",
+    "x": "https://x.com/home",
+    "twitter": "https://x.com/home",
+    "linkedin": "https://www.linkedin.com/feed",
+    "instagram": "https://www.instagram.com",
+    "facebook": "https://www.facebook.com",
+    "youtube": "https://www.youtube.com",
+    "tiktok": "https://www.tiktok.com",
+    "github": "https://github.com",
+}
+
 
 class LocoError(Exception):
     """Raised when a LocoAgent operation fails."""
@@ -336,17 +349,20 @@ class LocoAdapter:
     # -----------------------------------------------------------------------
     # 6. High-Level Social Operations (Playbook Sequences)
     # -----------------------------------------------------------------------
-    def like_post(self, platform: str, post_url: str) -> Dict[str, Any]:
-        """Like a post/tweet with automatic deduplication check."""
+    def like_post(self, platform: str = "threads", post_url: str = "") -> Dict[str, Any]:
+        """Like or upvote a post with automatic deduplication check."""
         plat = platform.lower()
+        action_name = "upvote" if plat == "reddit" else "like"
+
         # 1. Dedup check
-        chk = self.check_dedup(plat, "like", post_url)
+        chk = self.check_dedup(plat, action_name, post_url)
         if chk["already_done"]:
             return {
                 "status": "ok",
                 "skipped": True,
-                "reason": "Post already liked in operation log.",
+                "reason": f"Post already {action_name}d in operation log.",
                 "url": post_url,
+                "action": action_name,
             }
 
         # 2. Navigate to post
@@ -356,49 +372,57 @@ class LocoAdapter:
 
         time.sleep(1.5)
 
-        # 3. Snapshot to find like button
+        # 3. Snapshot to find like/upvote button
         snap = self.snapshot(plat, interactive=True)
         snap_text = snap.get("output", "")
 
-        # Look for like button ref
-        # e.g.: button "Like" [@e12] or button "N Likes. Like" [@e15]
         ref = None
         for line in snap_text.splitlines():
-            if "like" in line.lower() and ("button" in line.lower() or "role=button" in line.lower()):
-                m = re.search(r"@e\d+", line)
-                if m:
-                    ref = m.group(0)
-                    break
+            lower = line.lower()
+            if plat == "reddit":
+                if ("upvote" in lower or "vote" in lower or "like" in lower) and ("button" in lower or "role=button" in lower):
+                    m = re.search(r"@e\d+", line)
+                    if m:
+                        ref = m.group(0)
+                        break
+            else:
+                if "like" in lower and ("button" in lower or "role=button" in lower):
+                    m = re.search(r"@e\d+", line)
+                    if m:
+                        ref = m.group(0)
+                        break
 
         if not ref:
             return {
                 "status": "error",
-                "error": "Could not identify like button on page.",
+                "error": f"Could not identify {action_name} button on page.",
                 "snapshot_preview": snap_text[:500],
             }
 
-        # 4. Click like
+        # 4. Click like/upvote
         click_res = self.exec_agent_browser(plat, f"click {ref}")
         if click_res.get("status") == "ok":
-            self.log_action(plat, "like", post_url, status="success")
+            self.log_action(plat, action_name, post_url, status="success")
             return {
                 "status": "ok",
-                "action": "like",
+                "action": action_name,
                 "url": post_url,
                 "ref_clicked": ref,
             }
         return click_res
 
-    def reply_to_post(self, platform: str, post_url: str, text: str) -> Dict[str, Any]:
-        """Reply to a post/tweet with deduplication check and verification."""
+    def reply_to_post(self, platform: str = "threads", post_url: str = "", text: str = "") -> Dict[str, Any]:
+        """Reply to a post/thread or comment on Reddit with deduplication check and verification."""
         plat = platform.lower()
-        chk = self.check_dedup(plat, "reply", post_url)
+        action_name = "comment" if plat == "reddit" else "reply"
+        chk = self.check_dedup(plat, action_name, post_url)
         if chk["already_done"]:
             return {
                 "status": "ok",
                 "skipped": True,
-                "reason": "Post already replied to in operation log.",
+                "reason": f"Post already replied/commented in operation log.",
                 "url": post_url,
+                "action": action_name,
             }
 
         nav = self.open_url(plat, post_url)
@@ -407,22 +431,59 @@ class LocoAdapter:
 
         time.sleep(1.5)
 
-        # Snapshot to find reply textbox
+        # Snapshot to find reply/comment textbox
         snap = self.snapshot(plat, interactive=True)
         snap_text = snap.get("output", "")
 
         textbox_ref = None
         for line in snap_text.splitlines():
-            if any(k in line.lower() for k in ("post your reply", "reply", "add a comment", "comment")) and ("textbox" in line.lower() or "contenteditable" in line.lower()):
+            lower = line.lower()
+            if any(k in lower for k in ("post your reply", "reply", "add a comment", "comment", "what are your thoughts")) and ("textbox" in lower or "contenteditable" in lower or "input" in lower):
                 m = re.search(r"@e\d+", line)
                 if m:
                     textbox_ref = m.group(0)
                     break
 
+        # If on Threads and no textbox found directly, look for Reply button to open composer dialog
+        if not textbox_ref and plat == "threads":
+            for line in snap_text.splitlines():
+                if ("button \"reply\"" in line.lower() or "reply" in line.lower()) and "button" in line.lower():
+                    m = re.search(r"@e\d+", line)
+                    if m:
+                        self.exec_agent_browser(plat, f"click {m.group(0)}")
+                        time.sleep(1.0)
+                        snap = self.snapshot(plat, interactive=True)
+                        snap_text = snap.get("output", "")
+                        break
+            for line in snap_text.splitlines():
+                if "textbox" in line.lower() or "contenteditable" in line.lower():
+                    m = re.search(r"@e\d+", line)
+                    if m:
+                        textbox_ref = m.group(0)
+                        break
+
+        # If on Reddit and no textbox found directly, look for "Add a comment" button to reveal comment box
+        if not textbox_ref and plat == "reddit":
+            for line in snap_text.splitlines():
+                if "add a comment" in line.lower() and "button" in line.lower():
+                    m = re.search(r"@e\d+", line)
+                    if m:
+                        self.exec_agent_browser(plat, f"click {m.group(0)}")
+                        time.sleep(1.0)
+                        snap = self.snapshot(plat, interactive=True)
+                        snap_text = snap.get("output", "")
+                        break
+            for line in snap_text.splitlines():
+                if "textbox" in line.lower() or "contenteditable" in line.lower():
+                    m = re.search(r"@e\d+", line)
+                    if m:
+                        textbox_ref = m.group(0)
+                        break
+
         if not textbox_ref:
             return {
                 "status": "error",
-                "error": "Could not identify reply textbox on page.",
+                "error": f"Could not identify {action_name} textbox on page.",
                 "snapshot_preview": snap_text[:500],
             }
 
@@ -434,20 +495,21 @@ class LocoAdapter:
 
         time.sleep(0.5)
 
-        # Find reply submit button
+        # Find submit button
         snap2 = self.snapshot(plat, interactive=True)
         submit_ref = None
         for line in snap2.get("output", "").splitlines():
-            if any(b in line.lower() for b in ("button \"reply\"", "button \"post\"", "button \"comment\"")):
+            lower = line.lower()
+            if any(b in lower for b in ("button \"reply\"", "button \"post\"", "button \"comment\"")):
                 m = re.search(r"@e\d+", line)
                 if m:
                     submit_ref = m.group(0)
                     break
 
         if not submit_ref:
-            # Fallback search for any button with Reply text
             for line in snap2.get("output", "").splitlines():
-                if "reply" in line.lower() and "button" in line.lower():
+                lower = line.lower()
+                if ("reply" in lower or "comment" in lower or "post" in lower) and "button" in lower:
                     m = re.search(r"@e\d+", line)
                     if m:
                         submit_ref = m.group(0)
@@ -457,11 +519,11 @@ class LocoAdapter:
             click_res = self.exec_agent_browser(plat, f"click {submit_ref}")
             if click_res.get("status") == "ok":
                 time.sleep(1.5)
-                self.log_action(plat, "reply", post_url, status="success", note=text[:80])
-                shot = self.screenshot(plat, filename=f"reply_sent_{int(time.time())}.png")
+                self.log_action(plat, action_name, post_url, status="success", note=text[:80])
+                shot = self.screenshot(plat, filename=f"{action_name}_sent_{int(time.time())}.png")
                 return {
                     "status": "ok",
-                    "action": "reply",
+                    "action": action_name,
                     "url": post_url,
                     "reply_text": text,
                     "_send_attachment": shot.get("screenshot_path"),
@@ -469,14 +531,123 @@ class LocoAdapter:
 
         return {
             "status": "error",
-            "error": "Failed to submit reply.",
+            "error": f"Failed to submit {action_name}.",
             "textbox_filled": True,
         }
 
-    def post_content(self, platform: str, text: str, media_path: Optional[str] = None) -> Dict[str, Any]:
-        """Post a new update/tweet to the platform."""
+    def post_content(
+        self,
+        platform: str = "threads",
+        text: str = "",
+        media_path: Optional[str] = None,
+        title: Optional[str] = None,
+        subreddit: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Post a new update to Threads, Reddit, X, etc."""
         plat = platform.lower()
-        home_url = "https://x.com/home" if plat in ("x", "twitter") else f"https://{plat}.com"
+
+        # --- REDDIT POST FLOW ---
+        if plat == "reddit":
+            if subreddit:
+                submit_url = f"https://www.reddit.com/r/{subreddit}/submit"
+            else:
+                submit_url = "https://www.reddit.com/submit"
+            nav = self.open_url(plat, submit_url)
+            if nav.get("status") != "ok":
+                return nav
+
+            time.sleep(2.0)
+            snap = self.snapshot(plat, interactive=True)
+            snap_text = snap.get("output", "")
+
+            # Split title and body
+            if not title:
+                if "\n" in text:
+                    parts = text.strip().split("\n", 1)
+                    post_title = parts[0].replace("Title:", "").strip()
+                    post_body = parts[1].replace("Body:", "").strip()
+                else:
+                    post_title = text[:100].strip()
+                    post_body = text.strip()
+            else:
+                post_title = title.strip()
+                post_body = text.strip()
+
+            # Find title input
+            title_ref = None
+            for line in snap_text.splitlines():
+                lower = line.lower()
+                if "title" in lower and ("textbox" in lower or "input" in lower or "textarea" in lower):
+                    m = re.search(r"@e\d+", line)
+                    if m:
+                        title_ref = m.group(0)
+                        break
+
+            if title_ref:
+                clean_title = post_title.replace('"', '\\"')
+                self.exec_agent_browser(plat, f"fill {title_ref} \"{clean_title}\"")
+                time.sleep(0.5)
+
+            # Find body input
+            snap_body = self.snapshot(plat, interactive=True)
+            body_ref = None
+            for line in snap_body.get("output", "").splitlines():
+                lower = line.lower()
+                if any(k in lower for k in ("text", "body", "markdown", "post")) and ("textbox" in lower or "contenteditable" in lower or "textarea" in lower) and line != title_ref:
+                    m = re.search(r"@e\d+", line)
+                    if m and m.group(0) != title_ref:
+                        body_ref = m.group(0)
+                        break
+
+            if body_ref and post_body:
+                clean_body = post_body.replace('"', '\\"')
+                self.exec_agent_browser(plat, f"fill {body_ref} \"{clean_body}\"")
+                time.sleep(0.5)
+
+            # Upload media if specified
+            if media_path and os.path.exists(media_path):
+                file_input_ref = None
+                snap_file = self.snapshot(plat, interactive=False)
+                for line in snap_file.get("output", "").splitlines():
+                    if 'input[type="file"]' in line or 'file input' in line.lower():
+                        m = re.search(r"@e\d+", line)
+                        if m:
+                            file_input_ref = m.group(0)
+                            break
+                if file_input_ref:
+                    self.exec_agent_browser(plat, f"fill {file_input_ref} \"{media_path}\"")
+                    time.sleep(2.0)
+
+            # Find Post submit button
+            snap_post = self.snapshot(plat, interactive=True)
+            post_btn_ref = None
+            for line in snap_post.get("output", "").splitlines():
+                lower = line.lower()
+                if any(k in lower for k in ('button "post"', 'button "publish"')):
+                    m = re.search(r"@e\d+", line)
+                    if m:
+                        post_btn_ref = m.group(0)
+                        break
+
+            if post_btn_ref:
+                self.exec_agent_browser(plat, f"click {post_btn_ref}")
+                time.sleep(2.5)
+                shot = self.screenshot(plat, filename=f"reddit_post_{int(time.time())}.png")
+                self.log_action(plat, "post", submit_url, status="success", note=post_title[:80])
+                return {
+                    "status": "ok",
+                    "action": "post",
+                    "platform": "reddit",
+                    "title": post_title,
+                    "text": post_body,
+                    "subreddit": subreddit or "global",
+                    "_send_attachment": shot.get("screenshot_path"),
+                }
+
+            return {"status": "error", "error": "Could not find final Post button on Reddit."}
+
+        # --- THREADS / X / OTHER PLATFORMS ---
+        home_url = PLATFORM_HOME_URLS.get(plat, f"https://{plat}.com")
         nav = self.open_url(plat, home_url)
         if nav.get("status") != "ok":
             return nav
@@ -487,16 +658,18 @@ class LocoAdapter:
 
         compose_ref = None
         for line in snap_text.splitlines():
-            if any(k in line.lower() for k in ("what is happening", "what's happening", "start a post", "create a post")) or ("textbox" in line.lower() and "post" in line.lower()):
+            lower = line.lower()
+            if any(k in lower for k in ("what's new", "start a thread", "what is happening", "what's happening", "start a post", "create a post")) or ("textbox" in lower and "post" in lower):
                 m = re.search(r"@e\d+", line)
                 if m:
                     compose_ref = m.group(0)
                     break
 
         if not compose_ref:
-            # Try clicking the global Post floating action button
+            # Try clicking the global Create / Post action button
             for line in snap_text.splitlines():
-                if 'button "post"' in line.lower() or 'button "new post"' in line.lower():
+                lower = line.lower()
+                if any(b in lower for b in ('button "create"', 'button "post"', 'button "new post"', 'button "start a thread"')):
                     m = re.search(r"@e\d+", line)
                     if m:
                         self.exec_agent_browser(plat, f"click {m.group(0)}")
@@ -506,14 +679,14 @@ class LocoAdapter:
                         break
 
             for line in snap_text.splitlines():
-                if "textbox" in line.lower():
+                if "textbox" in line.lower() or "contenteditable" in line.lower():
                     m = re.search(r"@e\d+", line)
                     if m:
                         compose_ref = m.group(0)
                         break
 
         if not compose_ref:
-            return {"status": "error", "error": "Could not find post compose box."}
+            return {"status": "error", "error": f"Could not find compose box on {plat}."}
 
         clean_text = text.replace('"', '\\"')
         self.exec_agent_browser(plat, f"fill {compose_ref} \"{clean_text}\"")
@@ -537,7 +710,8 @@ class LocoAdapter:
         snap3 = self.snapshot(plat, interactive=True)
         post_btn_ref = None
         for line in snap3.get("output", "").splitlines():
-            if any(k in line.lower() for k in ('button "post"', 'button "tweet"', 'button "publish"')):
+            lower = line.lower()
+            if any(k in lower for k in ('button "post"', 'button "tweet"', 'button "publish"')):
                 m = re.search(r"@e\d+", line)
                 if m:
                     post_btn_ref = m.group(0)
@@ -546,32 +720,36 @@ class LocoAdapter:
         if post_btn_ref:
             res = self.exec_agent_browser(plat, f"click {post_btn_ref}")
             time.sleep(2.0)
-            shot = self.screenshot(plat, filename=f"post_published_{int(time.time())}.png")
+            shot = self.screenshot(plat, filename=f"post_{plat}_{int(time.time())}.png")
             self.log_action(plat, "post", home_url, status="success", note=text[:80])
             return {
                 "status": "ok",
                 "action": "post",
+                "platform": plat,
                 "text": text,
                 "_send_attachment": shot.get("screenshot_path"),
             }
 
-        return {"status": "error", "error": "Could not find final Post button to publish."}
+        return {"status": "error", "error": f"Could not find final Post button on {plat}."}
 
-    def search(self, platform: str, query: str, tab: str = "latest") -> Dict[str, Any]:
-        """Search a platform for a keyword or topic and extract results."""
+    def search(self, platform: str = "threads", query: str = "", tab: str = "latest", subreddit: Optional[str] = None) -> Dict[str, Any]:
+        """Search Threads, Reddit, X, etc. for a keyword or topic and extract results."""
         plat = platform.lower()
-        if plat in ("x", "twitter"):
-            encoded = urllib.parse.quote(query)
+        encoded = urllib.parse.quote(query)
+
+        if plat == "threads":
+            url = f"https://www.threads.net/search?q={encoded}&serp_type=default"
+        elif plat == "reddit":
+            if subreddit:
+                url = f"https://www.reddit.com/r/{subreddit}/search/?q={encoded}&restrict_sr=1&sort=new"
+            else:
+                url = f"https://www.reddit.com/search/?q={encoded}&sort=new"
+        elif plat in ("x", "twitter"):
             f_param = "&f=live" if tab.lower() == "latest" else ""
             url = f"https://x.com/search?q={encoded}{f_param}"
-        elif plat == "reddit":
-            encoded = urllib.parse.quote(query)
-            url = f"https://www.reddit.com/search/?q={encoded}&sort=new"
         elif plat == "linkedin":
-            encoded = urllib.parse.quote(query)
             url = f"https://www.linkedin.com/search/results/content/?keywords={encoded}&sortBy=%22date_posted%22"
         else:
-            encoded = urllib.parse.quote(query)
             url = f"https://{plat}.com/search?q={encoded}"
 
         nav = self.open_url(plat, url)

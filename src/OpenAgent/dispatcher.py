@@ -938,7 +938,7 @@ def execute_tool_call(
         elif tool in ("social_setup", "social_setup_chrome", "setup_chrome"):
             if loco_adapter is None:
                 raise RuntimeError("LocoAgent social automation adapter is not available on this system")
-            target = args.get("target") or args.get("platform", "x")
+            target = args.get("target") or args.get("platform", "threads")
             reset = bool(args.get("reset", False))
             all_targets = bool(args.get("all", False))
             res = loco_adapter.setup_chrome(target=target, reset=reset, all_targets=all_targets)
@@ -962,9 +962,17 @@ def execute_tool_call(
             text = args.get("text") or args.get("content") or args.get("tweet")
             if not text:
                 raise ValueError("Missing 'text' argument for social_post")
-            platform = args.get("platform") or args.get("target", "x")
+            platform = args.get("platform") or args.get("target", "threads")
             media = args.get("media") or args.get("media_path") or args.get("image")
-            res = loco_adapter.post_content(platform=platform, text=str(text), media_path=media)
+            title = args.get("title")
+            subreddit = args.get("subreddit") or args.get("sub")
+            res = loco_adapter.post_content(
+                platform=platform,
+                text=str(text),
+                media_path=media,
+                title=title,
+                subreddit=subreddit,
+            )
             return {"status": "ok", "tool": tool, "result": res}
 
         elif tool in ("social_reply", "reply_tweet", "social_comment"):
@@ -974,7 +982,7 @@ def execute_tool_call(
             text = args.get("text") or args.get("content") or args.get("reply")
             if not url or not text:
                 raise ValueError("Missing 'url' or 'text' argument for social_reply")
-            platform = args.get("platform") or args.get("target", "x")
+            platform = args.get("platform") or args.get("target", "threads")
             res = loco_adapter.reply_to_post(platform=platform, post_url=str(url), text=str(text))
             return {"status": "ok", "tool": tool, "result": res}
 
@@ -984,7 +992,7 @@ def execute_tool_call(
             url = args.get("url") or args.get("post_url") or args.get("tweet_url")
             if not url:
                 raise ValueError("Missing 'url' argument for social_like")
-            platform = args.get("platform") or args.get("target", "x")
+            platform = args.get("platform") or args.get("target", "threads")
             res = loco_adapter.like_post(platform=platform, post_url=str(url))
             return {"status": "ok", "tool": tool, "result": res}
 
@@ -994,15 +1002,16 @@ def execute_tool_call(
             query = args.get("query") or args.get("q")
             if not query:
                 raise ValueError("Missing 'query' argument for social_search")
-            platform = args.get("platform") or args.get("target", "x")
+            platform = args.get("platform") or args.get("target", "threads")
             tab = args.get("tab", "latest")
-            res = loco_adapter.search(platform=platform, query=str(query), tab=str(tab))
+            subreddit = args.get("subreddit") or args.get("sub")
+            res = loco_adapter.search(platform=platform, query=str(query), tab=str(tab), subreddit=subreddit)
             return {"status": "ok", "tool": tool, "result": res}
 
         elif tool in ("social_screenshot", "social_see"):
             if loco_adapter is None:
                 raise RuntimeError("LocoAgent social automation adapter is not available on this system")
-            platform = args.get("platform") or args.get("target", "x")
+            platform = args.get("platform") or args.get("target", "threads")
             full = bool(args.get("full", False))
             annotate = bool(args.get("annotate", False))
             res = loco_adapter.screenshot(platform=platform, full=full, annotate=annotate)
@@ -1056,7 +1065,7 @@ def execute_tool_call(
         elif tool in ("social_dedup_check", "social_check"):
             if loco_adapter is None:
                 raise RuntimeError("LocoAgent social automation adapter is not available on this system")
-            platform = args.get("platform") or args.get("target", "x")
+            platform = args.get("platform") or args.get("target", "threads")
             action_name = args.get("action")
             url = args.get("url")
             if not action_name or not url:
@@ -1067,7 +1076,7 @@ def execute_tool_call(
         elif tool in ("social_log", "social_log_action"):
             if loco_adapter is None:
                 raise RuntimeError("LocoAgent social automation adapter is not available on this system")
-            platform = args.get("platform") or args.get("target", "x")
+            platform = args.get("platform") or args.get("target", "threads")
             action_name = args.get("action")
             url = args.get("url")
             if not action_name or not url:
@@ -1080,7 +1089,7 @@ def execute_tool_call(
         elif tool in ("social_exec", "social_ab"):
             if loco_adapter is None:
                 raise RuntimeError("LocoAgent social automation adapter is not available on this system")
-            platform = args.get("platform") or args.get("target", "x")
+            platform = args.get("platform") or args.get("target", "threads")
             cmd = args.get("command") or args.get("cmd")
             if not cmd:
                 raise ValueError("Missing 'command' argument for social_exec")
@@ -1363,7 +1372,10 @@ def format_tool_response(response: Dict[str, Any], max_length: int = MAX_WHATSAP
         body = f"LocoAgent Doctor:\n{result.get('output', '')}"
 
     elif tool in ("social_post", "post_tweet", "social_tweet", "tweet"):
-        body = f"✅ Post Published to {result.get('action', 'social media').upper()}:\n\"{result.get('text', '')}\""
+        plat = result.get("platform", "social media").upper()
+        title_str = f"Title: {result.get('title')}\n" if result.get("title") else ""
+        sub_str = f" [Subreddit: r/{result.get('subreddit')}]" if result.get("subreddit") and result.get("subreddit") != "global" else ""
+        body = f"✅ Post Published to {plat}{sub_str}:\n{title_str}\"{result.get('text', '')}\""
         if result.get("_send_attachment"):
             body += "\n[Screenshot confirmation queued for WhatsApp delivery]"
 
@@ -1371,13 +1383,16 @@ def format_tool_response(response: Dict[str, Any], max_length: int = MAX_WHATSAP
         if result.get("skipped"):
             body = f"⏭️ Reply Skipped: {result.get('reason')} ({result.get('url')})"
         else:
-            body = f"✅ Reply Sent on {result.get('action', 'social media').upper()}:\nTarget: {result.get('url', '')}\nReply: \"{result.get('reply_text', '')}\""
+            action_label = "Commented on" if result.get("action") == "comment" else "Reply Sent on"
+            body = f"✅ {action_label} {result.get('action', 'social media').upper()}:\nTarget: {result.get('url', '')}\nReply: \"{result.get('reply_text', '')}\""
             if result.get("_send_attachment"):
                 body += "\n[Screenshot confirmation queued for WhatsApp delivery]"
 
     elif tool in ("social_like", "like_tweet", "like_post"):
         if result.get("skipped"):
-            body = f"⏭️ Like Skipped: {result.get('reason')} ({result.get('url')})"
+            body = f"⏭️ Action Skipped: {result.get('reason')} ({result.get('url')})"
+        elif result.get("action") == "upvote":
+            body = f"⬆️ Upvoted Reddit Post: {result.get('url')}"
         else:
             body = f"❤️ Liked Post: {result.get('url')}"
 

@@ -650,7 +650,8 @@ those characters (paths, globs, regexes, shell commands).
 
 38. `social_targets` / `social_platforms` [INSPECT SOCIAL MEDIA STATUS]
     List all configured social media platforms and check which Chrome sessions are currently online.
-    Supported platforms: X/Twitter, LinkedIn, Reddit, Instagram, Facebook, Threads, YouTube, TikTok, GitHub.
+    Primary platforms: Threads (threads.net, CDP 9227) and Reddit (reddit.com, CDP 9224).
+    Also supports: X/Twitter (9222), LinkedIn (9223), Instagram (9225), Facebook (9226), YouTube (9228), TikTok (9229), GitHub (9230).
     Args: None.
     Example:
     ```json
@@ -663,7 +664,7 @@ those characters (paths, globs, regexes, shell commands).
 39. `social_setup` / `social_setup_chrome` [LAUNCH AUTHENTICATED SOCIAL BROWSER]
     Launch a dedicated, isolated, persistent Chrome browser instance for any social platform without touching Hamdan's everyday personal Chrome.
     Args:
-    - "target" (string, optional): Platform target, e.g. "x", "linkedin", "reddit", "instagram", "facebook", "threads", "youtube", "tiktok", "github" (default "x").
+    - "target" (string, optional): Platform target, e.g. "threads", "reddit", "x", "linkedin", "instagram", "facebook", "youtube", "tiktok", "github" (default "threads").
     - "all" (boolean, optional): Launch all platform instances at once (default false).
     - "reset" (boolean, optional): Wipe profile to re-login fresh (default false).
     Example:
@@ -671,77 +672,89 @@ those characters (paths, globs, regexes, shell commands).
     {
       "tool": "social_setup",
       "args": {
-        "target": "x"
+        "target": "threads"
       }
     }
     ```
 
-40. `social_post` / `post_tweet` [PUBLISH SOCIAL CONTENT & TWEETS]
-    Publish a post, tweet, or update to any social media platform on Hamdan's behalf, with optional image/media attachment. A verification screenshot is automatically captured and sent back to WhatsApp!
+40. `social_post` / `post_tweet` [PUBLISH SOCIAL CONTENT & THREADS]
+    Publish a post, thread, or Reddit submission on Hamdan's behalf, with optional image attachment. A verification screenshot is automatically captured and sent back to WhatsApp!
     Args:
-    - "text" (string, required): Content of the post/tweet.
-    - "platform" (string, optional): Target platform, e.g. "x", "linkedin", "reddit" (default "x").
+    - "text" (string, required): Content of the post/thread/body.
+    - "platform" (string, optional): Target platform, e.g. "threads", "reddit", "x", "linkedin" (default "threads").
+    - "title" (string, optional): Mandatory/recommended for Reddit submissions.
+    - "subreddit" (string, optional): Target subreddit for Reddit (e.g. "LocalLLaMA").
     - "media" (string, optional): Local file path to an image or thumbnail to attach.
-    Example:
+    Example (Threads):
     ```json
     {
       "tool": "social_post",
       "args": {
-        "platform": "x",
-        "text": "Autonomous agent bridges running on local Mac hardware hit <200ms latency today. Full CDP control + accessibility tree is game-changing.",
-        "media": "/tmp/screenshot.png"
+        "platform": "threads",
+        "text": "Benchmarked our local agent bridge on macOS today — sub-200ms roundtrip with live Chrome CDP execution is clean."
+      }
+    }
+    ```
+    Example (Reddit):
+    ```json
+    {
+      "tool": "social_post",
+      "args": {
+        "platform": "reddit",
+        "subreddit": "LocalLLaMA",
+        "title": "Benchmarking low-latency streaming bridges for local models",
+        "text": "Sharing architecture details and latency benchmarks on Apple Silicon..."
       }
     }
     ```
 
-41. `social_reply` / `reply_tweet` [REPLY TO SOCIAL POSTS]
-    Reply to a post or tweet. Automatically checks deduplication so you never reply twice to the same post! Captures a verification screenshot.
+41. `social_reply` / `reply_tweet` [REPLY TO SOCIAL POSTS & REDDIT COMMENTS]
+    Reply to a thread or comment on a Reddit post. Automatically checks deduplication so you never reply twice! Captures a verification screenshot.
     Args:
-    - "url" (string, required): Canonical URL of the post to reply to.
+    - "url" (string, required): Canonical URL of the post/thread to reply to.
     - "text" (string, required): Reply content.
-    - "platform" (string, optional): Platform (default "x").
+    - "platform" (string, optional): Platform (default "threads").
     Example:
     ```json
     {
       "tool": "social_reply",
       "args": {
-        "platform": "x",
-        "url": "https://x.com/karpathy/status/123456789",
-        "text": "Great breakdown! The separation between perception and deterministic execution is key for stability."
+        "platform": "threads",
+        "url": "https://www.threads.net/@user/post/xyz",
+        "text": "Great point. Keeping perception decoupled from execution prevents state drifting."
       }
     }
     ```
 
-42. `social_like` / `like_tweet` [LIKE / REACT TO CONTENT]
-    Like or react to a tweet or post with built-in deduplication protection.
+42. `social_like` / `like_tweet` [LIKE / UPVOTE CONTENT]
+    Like a thread/post or Upvote a Reddit discussion with built-in deduplication protection.
     Args:
-    - "url" (string, required): Canonical URL of the post to like.
-    - "platform" (string, optional): Platform (default "x").
+    - "url" (string, required): Canonical URL of the post to like or upvote.
+    - "platform" (string, optional): Platform (default "threads", use "reddit" for upvotes).
     Example:
     ```json
     {
       "tool": "social_like",
       "args": {
-        "platform": "x",
-        "url": "https://x.com/ylecun/status/987654321"
+        "platform": "reddit",
+        "url": "https://www.reddit.com/r/LocalLLaMA/comments/123/benchmarks"
       }
     }
     ```
 
-43. `social_search` [SEARCH SOCIAL FEEDS]
-    Search a platform for a keyword, topic, or hashtag and extract current discussions. A screenshot is sent to WhatsApp.
+43. `social_search` [SEARCH SOCIAL FEEDS & SUBREDDITS]
+    Search Threads, Reddit, or other platforms for a keyword or topic. A screenshot is sent to WhatsApp.
     Args:
-    - "query" (string, required): Search query or hashtag.
-    - "platform" (string, optional): Platform (default "x").
-    - "tab" (string, optional): "latest" (live) or "top" (default "latest").
+    - "query" (string, required): Search query or keyword.
+    - "platform" (string, optional): Platform (default "threads").
+    - "subreddit" (string, optional): Target subreddit when searching Reddit.
     Example:
     ```json
     {
       "tool": "social_search",
       "args": {
-        "platform": "x",
-        "query": "autonomous AI agents",
-        "tab": "latest"
+        "platform": "threads",
+        "query": "autonomous agents"
       }
     }
     ```
@@ -749,7 +762,7 @@ those characters (paths, globs, regexes, shell commands).
 44. `social_screenshot` [CAPTURE LIVE SOCIAL FEED SCREENSHOT]
     Capture a screenshot of the social media page and send the image directly to WhatsApp.
     Args:
-    - "platform" (string, optional): Platform (default "x").
+    - "platform" (string, optional): Platform (default "threads").
     - "full" (boolean, optional): Capture full-length scrollable page (default false).
     - "annotate" (boolean, optional): Label interactive elements with numbers (default false).
     Example:
@@ -757,17 +770,17 @@ those characters (paths, globs, regexes, shell commands).
     {
       "tool": "social_screenshot",
       "args": {
-        "platform": "x",
+        "platform": "threads",
         "annotate": true
       }
     }
     ```
 
 45. `social_workflow` [DETERMINISTIC PIPELINES & BACKGROUND DAEMONS]
-    Manage autonomous background pipelines (e.g. HuggingFace Daily Papers -> X, or automated keyword monitoring).
+    Manage autonomous background pipelines (e.g. Reddit Tech Digest, Threads updates, HF Daily Papers).
     Args:
     - "action" (string, required): "list", "status", "run", "start", "stop", "daemon", or "history".
-    - "id" (string, optional): Workflow ID, e.g. "hf-papers-to-x", "x-search-reply", "linkedin-search-reply".
+    - "id" (string, optional): Workflow ID, e.g. "reddit-tech-digest", "threads-post-update", "hf-papers-to-x".
     - "interval" (number, optional): Minutes between runs when scheduling as daemon (default 60).
     Example:
     ```json
@@ -775,7 +788,7 @@ those characters (paths, globs, regexes, shell commands).
       "tool": "social_workflow",
       "args": {
         "action": "run",
-        "id": "hf-papers-to-x"
+        "id": "reddit-tech-digest"
       }
     }
     ```
@@ -791,25 +804,25 @@ those characters (paths, globs, regexes, shell commands).
     {
       "tool": "social_agent_task",
       "args": {
-        "prompt": "Search X.com for latest posts on reasoning models, read the top 3 threads, and summarize key insights."
+        "prompt": "Scan r/LocalLLaMA for top discussions on quantized models today, upvote the top post, and summarize findings."
       }
     }
     ```
 
 47. `social_dedup_check` [PREVENT DUPLICATE INTERACTIONS]
-    Check whether a URL has already been liked, replied to, or followed in the persistent ledger.
+    Check whether a URL has already been liked/upvoted or replied to in the persistent ledger.
     Args:
-    - "platform" (string, required): e.g. "x", "linkedin", "reddit".
-    - "action" (string, required): "like", "reply", "comment", "repost", "follow".
+    - "platform" (string, required): e.g. "threads", "reddit", "x".
+    - "action" (string, required): "like", "upvote", "reply", "comment", "post".
     - "url" (string, required): Target URL.
     Example:
     ```json
     {
       "tool": "social_dedup_check",
       "args": {
-        "platform": "x",
-        "action": "reply",
-        "url": "https://x.com/user/status/123"
+        "platform": "reddit",
+        "action": "upvote",
+        "url": "https://www.reddit.com/r/LocalLLaMA/comments/123"
       }
     }
     ```
@@ -817,8 +830,8 @@ those characters (paths, globs, regexes, shell commands).
 48. `social_log` [RECORD COMPLETED SOCIAL ACTION]
     Record an operation into the permanent memory ledger (`persona/operation-log.json`).
     Args:
-    - "platform" (string, required): e.g. "x", "linkedin", "reddit".
-    - "action" (string, required): "like", "reply", "post", "follow".
+    - "platform" (string, required): e.g. "threads", "reddit", "x".
+    - "action" (string, required): "like", "upvote", "reply", "comment", "post".
     - "url" (string, required): Canonical URL.
     - "status" (string, optional): "success", "failed", "skipped" (default "success").
     - "note" (string, optional): Context or snippet.
@@ -827,10 +840,11 @@ those characters (paths, globs, regexes, shell commands).
     {
       "tool": "social_log",
       "args": {
-        "platform": "x",
-        "action": "like",
-        "url": "https://x.com/user/status/123",
-        "status": "success"
+        "platform": "threads",
+        "action": "post",
+        "url": "https://www.threads.net/",
+        "status": "success",
+        "note": "Posted engineering reflection"
       }
     }
     ```
@@ -838,14 +852,14 @@ those characters (paths, globs, regexes, shell commands).
 49. `social_exec` [DIRECT AGENT-BROWSER CDP CONTROL]
     Execute raw agent-browser CLI commands against any social platform's CDP port.
     Args:
-    - "platform" (string, required): Target platform, e.g. "x", "linkedin", "reddit".
+    - "platform" (string, required): Target platform, e.g. "threads", "reddit", "x".
     - "command" (string, required): agent-browser command, e.g. "snapshot -i", "click @e3", "fill @e2 'text'".
     Example:
     ```json
     {
       "tool": "social_exec",
       "args": {
-        "platform": "x",
+        "platform": "threads",
         "command": "snapshot -i -c"
       }
     }
@@ -866,9 +880,9 @@ those characters (paths, globs, regexes, shell commands).
 4. OPERATING GUIDELINES
 ==================================================
 - Social Media Operations (LocoAgent):
-  * Supported Platforms: X/Twitter (CDP 9222), LinkedIn (CDP 9223), Reddit (CDP 9224), Instagram (CDP 9225), Facebook (CDP 9226), Threads (CDP 9227), YouTube (CDP 9228), TikTok (CDP 9229), GitHub (CDP 9230).
+  * Primary Channels: Threads (CDP port 9227) and Reddit (CDP port 9224). Secondary: X/Twitter (9222), LinkedIn (9223), Instagram (9225), Facebook (9226), YouTube (9228), TikTok (9229), GitHub (9230).
   * Real Browser Anti-Bot Invariant: You operate through real, dedicated, isolated Chrome sessions via CDP. Hamdan logs in once, and the session persists forever. You never use bot-flagged APIs.
-  * Deduplication Invariant: Always check `social_dedup_check` before liking or replying so you never repeat actions on the same content twice.
+  * Deduplication Invariant: Always check `social_dedup_check` before liking, upvoting, or replying so you never repeat actions on the same content twice.
   * Visual Verification: Publishing a post or replying automatically sends a verification screenshot back to Hamdan on WhatsApp so he can see your action live.
   * Human-in-the-Loop Drafting: If Hamdan asks you to draft an update, you can prepare the text and ask for approval on WhatsApp before calling `social_post`.
 - Web Reading & Research: Use `firecrawl_scrape` or `firecrawl_search` when you need to read articles, inspect documentation, or search the web. It is 10x faster than Chrome CDP and returns clean, token-efficient Markdown without opening tabs or disturbing Hamdan.

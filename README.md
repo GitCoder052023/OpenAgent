@@ -8,7 +8,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
 [![uv](https://img.shields.io/badge/package%20manager-uv-blueviolet.svg?style=flat-square)](https://astral.sh/uv)
 [![Bun](https://img.shields.io/badge/runtime-bun-black.svg?style=flat-square&logo=bun)](https://bun.sh)
-[![Tests](https://img.shields.io/badge/tests-136%20passing-brightgreen.svg?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/tests-193%20passing-brightgreen.svg?style=flat-square)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-purple.svg?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20beta-orange.svg?style=flat-square)]()
 
@@ -48,7 +48,7 @@ Running 100% locally on your Mac, OpenAgent intercepts structured tool calls fro
 ┌──────────────┐  ┌─────────────────┐ ┌─────────────────┐ ┌───────────────┐ ┌─────────────────┐
 │ Headless Dev │  │ Native Computer │ │ Real Browser    │ │ Firecrawl Web │ │ Social Engine   │
 │ (Bun / TS)   │  │ (macOS APIs)    │ │ (CDP Harness)   │ │ (Self-Hosted) │ │ (LocoAgent CDP) │
-│ Shell • Code │  │ Clicks • Vision │ │ Tabs • AX • DOM │ │ Scrape• Crawl │ │ X•LinkedIn•etc. │
+│ Shell • Code │  │ Clicks • Vision │ │ Tabs • AX • DOM │ │ Scrape• Crawl │ │ Threads•Reddit+ │
 └──────┬───────┘  └────────┬────────┘ └────────┬────────┘ └───────┬───────┘ └────────┬────────┘
        └───────────────────┴───────────────────┼───────────────────┴───────────────────┘
                                                ▼
@@ -62,7 +62,7 @@ Running 100% locally on your Mac, OpenAgent intercepts structured tool calls fro
 
 ## Core Features
 
-* **Autonomous Social Media Automation (LocoAgent Engine)**: Operates your real, authenticated social accounts across **X/Twitter, LinkedIn, Reddit, Instagram, Facebook, Threads, YouTube, TikTok, and GitHub** via isolated, persistent Chrome CDP sessions. Features anti-detection cookie isolation, 37+ platform operation playbooks, an append-only deduplication ledger (`persona/operation-log.json`) to prevent duplicate interactions, and deterministic workflow daemons (`hf-papers-to-x`, `x-search-reply`) that publish updates and report verification screenshots straight to WhatsApp.
+* **Autonomous Social Media Automation (LocoAgent Engine)**: Operates your real, authenticated social accounts with primary focus on **Threads (`threads.net`) and Reddit (`reddit.com`)**, plus X/Twitter, LinkedIn, Instagram, Facebook, YouTube, TikTok, and GitHub via isolated, persistent Chrome CDP sessions. Features anti-detection cookie isolation, dedicated playbooks, an append-only deduplication ledger (`persona/operation-log.json`), and deterministic workflow daemons (`threads-post-update`, `reddit-tech-digest`, etc.) that publish updates and report verification screenshots straight to WhatsApp.
 * **Real Browser Control (CDP Harness)**: Connects directly to your real, authenticated Chrome browser. Operates background tabs (`new_tab`, `switch_tab`), dispatches compositor clicks, queries internal Accessibility trees (`browser_ax`), fills framework-controlled forms cleanly (`browser_fill`), and uses pre-built domain skills for 80+ platforms (Amazon, GitHub, YouTube, X, etc.) without stealing physical focus.
 * **Self-Hosted Web Ingestion & Extraction (Firecrawl Engine)**: 100% local, self-hosted web scraper and crawler engine running on Docker. Turns any web page into clean, LLM-ready Markdown in one shot (`firecrawl_scrape`), performs web searches with full Markdown results (`firecrawl_search`), runs recursive domain crawlers (`firecrawl_crawl`), maps site architectures (`firecrawl_map`), and extracts structured JSON schemas (`firecrawl_extract`) without cloud API limits.
 * **High-Speed Voice Pipeline**: Hold **`F8`** to talk (Push-to-Talk) or use hands-free wake word (*"Wake up Jarvis"*). Features local RMS silence gating, background audio playback, and instant barge-in interruption.
