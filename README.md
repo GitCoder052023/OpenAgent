@@ -143,7 +143,8 @@ Open **System Settings → Privacy & Security** and verify permissions for your 
 
 Once OpenAgent is running, initialize Instinct with its capabilities:
 
-1. Open [`docs/JARVIS_INSTRUCTIONS.md`](docs/JARVIS_INSTRUCTIONS.md).
+1. Open [`docs/JARVIS_INSTRUCTIONS.md`](docs/JARVIS_INSTRUCTIONS.md).  
+   > ⚠️ **Note for Readers:** `docs/JARVIS_INSTRUCTIONS.md` is the author's personal setup and operational file (containing his personal accounts, subreddits, and persona guidelines). You will need to edit it according to your own name, social media handles, accounts, and requirements before sending it to your agent.
 2. Copy the initialization instruction prompt.
 3. Paste it directly into your WhatsApp chat with Instinct.
 
@@ -314,7 +315,7 @@ For advanced Accessibility tree inspection and calibration, see [`docs/CALIBRATI
 
 ## Documentation
 
-- [Setup Prompt & Tool Instructions](docs/JARVIS_INSTRUCTIONS.md) — Initialization block to connect Instinct.
+- [Setup Prompt & Tool Instructions](docs/JARVIS_INSTRUCTIONS.md) — Initialization block to connect Instinct. *(Note: Author's personal operational configuration — edit according to your own name, handles, and requirements.)*
 - [Social Media Automation Guide](docs/SOCIAL_MEDIA_AUTOMATION.md) — Architecture, platform ports, and operational guide for Threads & Reddit.
 - [Accessibility & Calibration Guide](docs/CALIBRATION.md) — Deep calibration for AX trees, audio routing, and debug states.
 - [Security Policy](SECURITY.md) — Security model, threat boundaries, and vulnerability reporting.

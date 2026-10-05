@@ -149,6 +149,8 @@ Jarvis calls these tools directly through WhatsApp via the standard `JARVIS_CALL
    - Daily morning, afternoon, and evening routine guidelines centered around Threads and Reddit.
 3. **`persona/operation-log.json`**:
    - Persistent ledger ensuring no URL is liked, upvoted, or replied to more than once.
+4. **One-Time Style Calibration (Playbook 0)**:
+   - Jarvis conducts a one-time onboarding inspection of all previous posts on Threads (`@hamdankhubaib.code`) and Reddit (`u/Quirky-Low-7500`) to extract and mirror your authentic tone, vocabulary, and formatting rather than choosing a generic style.
 
 ---
 
