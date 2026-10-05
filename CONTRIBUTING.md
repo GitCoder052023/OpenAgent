@@ -17,27 +17,37 @@ OpenAgent interacts directly with macOS system APIs, audio subsystems, and Whats
 
 ## Development Setup
 
-1. **Fork and clone the repository**:
-   ```bash
-   git clone https://github.com/GitCoder052023/OpenAgent.git
-   cd OpenAgent
-   ```
+### Automated Setup (Recommended)
+Run the one-command installer to configure system utilities, uv virtual environment, Bun modules, and speech models:
+```bash
+git clone https://github.com/GitCoder052023/OpenAgent.git
+cd OpenAgent
 
-2. **Synchronize Python dependencies with uv**:
+# 1. Autonomous setup & dependency installation
+./install.py
+
+# 2. Auto-calibrate WhatsApp Accessibility UI paths
+./calibrate.py --save
+
+# 3. Verify entire system with test suite
+./test.py
+```
+
+### Manual Setup
+If you prefer configuring individual components manually:
+1. **Synchronize Python dependencies with uv**:
    ```bash
    uv sync --all-extras
    ```
 
-3. **Install CLI harness dependencies**:
+2. **Install CLI harness dependencies with Bun**:
    ```bash
-   cd src/tools/cli-harness
-   bun install
-   cd ../..
+   cd src/tools/cli-harness && bun install && cd ../..
    ```
 
-4. **Verify local test suite**:
+3. **Verify local test suite**:
    ```bash
-   uv run pytest
+   ./test.py --unit   # Or: uv run pytest
    ```
    All tests should pass before you begin making changes.
 
@@ -75,7 +85,10 @@ When adding features or modifying existing code, you **must preserve the followi
 * **Unit Tests Required**: Any new tool, parser modification, or routing logic must be accompanied by corresponding unit tests in `tests/`.
 * **Run Test Suite**:
   ```bash
-  uv run pytest -v
+  ./test.py           # Runs full test suite dashboard (unit, harness, adapters, audio)
+  ./test.py --unit    # Runs only pytest unit tests
+  ./test.py --harness # Runs only live Bun harness IPC test
+  uv run pytest -v    # Direct pytest runner with verbose output
   ```
 * **Linting & Code Quality**:
   * Python: Format and check code using standard tools (`ruff` or `flake8`).

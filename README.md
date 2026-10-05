@@ -79,36 +79,52 @@ Running 100% locally on your Mac, OpenAgent intercepts structured tool calls fro
 * [Homebrew](https://brew.sh/) & [Bun](https://bun.sh/)
 * Official **WhatsApp Desktop** installed and logged in
 
-### 1. One-Command Setup & Launch
+### 1. One-Command Autonomous Python Scripts
 
-Clone the repository and run the automated launcher:
+OpenAgent includes dedicated, single-command Python scripts for all lifecycle tasks:
 
+| Script | Purpose | Common Command |
+| :--- | :--- | :--- |
+| **[`boot.py`](boot.py)** | **Autonomous Boot & Watchdog** | `./boot.py` (or `python3 boot.py`) |
+| **[`install.py`](install.py)** | **Full Zero-Touch Installation** | `./install.py` (or `python3 install.py`) |
+| **[`calibrate.py`](calibrate.py)** | **WhatsApp UI Auto-Calibration** | `./calibrate.py --save` |
+| **[`test.py`](test.py)** | **Comprehensive Test Runner** | `./test.py` |
+
+#### Quick Start:
 ```bash
 git clone https://github.com/GitCoder052023/OpenAgent.git
 cd OpenAgent
 
-chmod +x start.sh
-./start.sh
+# 1. Full system installation (homebrew tools, venv, bun harness, speech models)
+./install.py
+
+# 2. Calibrate WhatsApp Desktop UI paths and labels (auto-detected)
+./calibrate.py --save
+
+# 3. Verify entire system with test suite
+./test.py
+
+# 4. Launch autonomous bridge with auto-healing supervisor
+./boot.py
 ```
 
-`start.sh` automatically checks dependencies, synchronizes the Python environment via `uv`, installs the native harness, configures `.env`, tests stdio IPC, and spins up the runtime.
+`boot.py` is an autonomous, self-bootstrapping orchestrator and supervisor:
+* **Self-Bootstrapping**: Auto-detects runtime, provisions/syncs virtual environment with `uv`, and re-execs inside `.venv` without manual activation.
+* **Auto-Healing Dependencies**: Auto-resolves and installs Homebrew tools (`uv`, `bun`, `sox`, `ffmpeg`, `ripgrep`, `whisper-cpp`) and Bun harness modules.
+* **Model Provisioning**: Automatically downloads offline speech models (Whisper ggml & Vosk wake models).
+* **Self-Healing Supervisor Watchdog**: Supervises the agent process, re-starts OpenAgent on crashes with exponential backoff, and keeps WhatsApp Desktop backgrounded and alive.
+* **Interactive Diagnostics**: Run `./boot.py --doctor` to conduct a zero-touch preflight audit of all hardware, harnesses, and permissions.
 
 ```bash
-# 1. Install system utilities
-brew install uv sox ffmpeg ripgrep whisper-cpp
-curl -fsSL https://bun.sh/install | bash
-
-# 2. Setup Python environment with uv
-uv sync --all-extras
-
-# 3. Install Bun CLI harness dependencies
-cd src/tools/cli-harness && bun install && cd ../..
-
-# 4. Configure environment
-cp .env.example .env
-
-# 5. Start OpenAgent
-uv run python -m OpenAgent.main run
+# Useful command flags:
+./boot.py --doctor              # Run preflight health check without starting agent
+./boot.py --voice               # Hands-free wake word ("Wake up Jarvis")
+./boot.py --send-mode text      # Local Whisper STT transcription mode
+./boot.py --start-firecrawl     # Auto-spinup Firecrawl Docker scraper engine
+./boot.py --start-chrome        # Auto-launch Chrome with remote debugging on port 9222
+./calibrate.py --dump           # Dump sanitized AX UI tree for deep debugging
+./test.py --unit                # Run only unit test suite
+./test.py --harness             # Test live Bun IPC harness
 ```
 
 
@@ -136,7 +152,7 @@ Instinct will recognize the `JARVIS_CALL` protocol and begin executing tasks on 
 
 ### Push-to-Talk (Default)
 
-1. Run `./start.sh` (or `uv run python -m OpenAgent.main run`).
+1. Run `./boot.py` (or `./start.sh`).
 2. **Hold `F8`** and speak your request.
 3. **Release `F8`** to encode and dispatch the request to Instinct.
 4. Press `Esc` anytime to cancel or exit.
@@ -144,8 +160,7 @@ Instinct will recognize the `JARVIS_CALL` protocol and begin executing tasks on 
 ### Hands-Free Wake-Word Mode
 
 ```bash
-./start.sh --voice --send-mode audio
-
+./boot.py --voice --send-mode audio
 ```
 
 Say *"Wakeup Jarvis"*, pause, and state your instruction. OpenAgent listens and submits the command automatically once you stop speaking. Say *"Jarvis stand by"* to return to idle.

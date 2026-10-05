@@ -30,26 +30,29 @@ For voice playback, verify that your desired audio output device (speakers or Bl
 
 ---
 
-## 3. WhatsApp Accessibility (AX) Inspection
+## 3. Automated One-Command Calibration (`calibrate.py`)
 
-OpenAgent interacts with WhatsApp using macOS Accessibility APIs. Because WhatsApp Desktop updates periodically, you may need to calibrate specific AX paths:
+OpenAgent provides an automated one-command calibration engine:
 
 ```bash
-# Dump the active WhatsApp AX tree
-uv run python -m OpenAgent.main inspect > ax-tree.json
+# 1. Verify and inspect calibration against live WhatsApp Desktop
+./calibrate.py
+
+# 2. Automatically apply detected calibration paths & markers to .env (with backup)
+./calibrate.py --save
+
+# 3. Dump the active WhatsApp AX tree for manual inspection
+./calibrate.py --dump ax-tree.json
 ```
+
+The script automatically detects:
+* **Chat Header Path** (`BRIDGE_HEADER_PATH`)
+* **Message List Container** (`BRIDGE_MESSAGE_LIST_PATH`)
+* **Incoming Direction & Voice Markers** (`BRIDGE_INCOMING_MARKER`, `BRIDGE_VOICE_PLAY_MARKER`, `BRIDGE_VOICE_PAUSE_MARKER`)
+* **Attachment & Send Button Labels** (`BRIDGE_ATTACH_LABEL`, `BRIDGE_DOCUMENT_LABEL`, `BRIDGE_ATTACHMENT_SEND_LABEL`)
 
 > [!CAUTION]
 > `ax-tree.json` contains raw UI hierarchy data which may include private message snippets. Treat it as sensitive local data, do not commit it to Git, and delete it after calibration.
-
-### Chat Lock Calibration
-Locate the chat header element in `ax-tree.json` that displays the phone number. Update your `.env`:
-```env
-BRIDGE_HEADER_PATH=<calibrated AX path>
-```
-
-**Verify the lock**:
-Switch to any other conversation in WhatsApp and run the inspection again. OpenAgent must halt or refuse execution because the active chat does not match `BRIDGE_WHATSAPP_NUMBER`.
 
 ---
 
@@ -143,7 +146,8 @@ Key diagnostic events to look for:
 - `tool_dispatch`: Successful interception and routing of a `JARVIS_CALL`.
 - `tool_result`: Local execution result formatted for reply.
 
-To run with verbose output:
+To run with verbose output or preflight diagnostics:
 ```bash
-uv run python -m OpenAgent.main run --verbose
+./boot.py --verbose     # Live diagnostic logging in terminal
+./boot.py --doctor      # Instant preflight subsystem health audit
 ```

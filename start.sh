@@ -2,192 +2,20 @@
 # ==============================================================================
 # Jarvis Bridge Single-Command Mac Launcher
 # ==============================================================================
-# Spins up the complete Jarvis Bridge system:
-# 1. Verifies environment (uv environment, Bun, Ripgrep, Node modules)
-# 2. Ensures WhatsApp Desktop is open and backgrounded
-# 3. Runs an instant preflight test on the headless execution harness
-# 4. Starts the push-to-talk voice/text bridge with real-time tool execution
+# Delegates directly to the autonomous Python boot engine (boot.py) which handles:
+# 1. Self-bootstrapping virtual environment via uv
+# 2. Dependency auto-installation & module synchronization
+# 3. Model auto-provisioning (Whisper & Vosk)
+# 4. macOS Accessibility permission handling
+# 5. WhatsApp Desktop background lifecycle management
+# 6. Preflight harness verification & autonomous supervisor watchdog
 # ==============================================================================
 
 set -euo pipefail
 
 # Ensure standard Homebrew & Bun paths are active on macOS
-export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.bun/bin:$PATH"
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"
 
 # Resolve repo root directory regardless of where script is called from
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$ROOT_DIR"
-
-# Visual formatting
-BOLD="\033[1m"
-GREEN="\033[0;32m"
-BLUE="\033[0;34m"
-YELLOW="\033[0;33m"
-RED="\033[0;31m"
-RESET="\033[0m"
-
-echo -e "${BOLD}${BLUE}"
-echo "========================================================"
-echo "          ⚡ JARVIS BRIDGE - MAC SYSTEM LAUNCHER         "
-echo "========================================================"
-echo -e "${RESET}"
-
-# 1. OS Check
-if [[ "$(uname -s)" != "Darwin" ]]; then
-    echo -e "${RED}[ERROR] OpenAgent requires macOS Darwin for AX automation.${RESET}"
-    exit 1
-fi
-
-# 2. Dependency Checks
-echo -e "${BOLD}[1/4] Checking system dependencies...${RESET}"
-
-if ! command -v uv &>/dev/null; then
-    echo -e "${RED}[ERROR] 'uv' not found. Please install uv: curl -LsSf https://astral.sh/uv/install.sh | sh (or brew install uv)${RESET}"
-    exit 1
-fi
-echo -e "  ${GREEN}✓${RESET} uv runtime: $(uv --version)"
-
-if ! command -v bun &>/dev/null; then
-    echo -e "${RED}[ERROR] 'bun' not found. Please install Bun: curl -fsSL https://bun.sh/install | bash${RESET}"
-    exit 1
-fi
-echo -e "  ${GREEN}✓${RESET} Bun runtime: $(bun --version)"
-
-if ! command -v rec &>/dev/null && ! command -v sox &>/dev/null; then
-    echo -e "${RED}[ERROR] 'sox'/'rec' not found. Audio recording requires SoX: brew install sox${RESET}"
-    exit 1
-fi
-echo -e "  ${GREEN}✓${RESET} SoX audio recording utility operational"
-
-if ! command -v ffmpeg &>/dev/null; then
-    echo -e "${RED}[ERROR] 'ffmpeg' not found. Voice note encoding requires ffmpeg: brew install ffmpeg${RESET}"
-    exit 1
-fi
-echo -e "  ${GREEN}✓${RESET} ffmpeg: $(ffmpeg -version 2>/dev/null | head -n 1)"
-
-if ! command -v rg &>/dev/null; then
-    echo -e "${YELLOW}[WARN] 'rg' (Ripgrep) not found in PATH. File search might be degraded.${RESET}"
-    echo -e "       Install via: brew install ripgrep"
-else
-    echo -e "  ${GREEN}✓${RESET} Ripgrep: $(rg --version | head -n 1)"
-fi
-
-# 3. Python Environment & Configuration Check
-echo -e "${BOLD}[2/4] Verifying Python environment & configuration...${RESET}"
-echo -e "  ${BLUE}→${RESET} Syncing Python dependencies with uv..."
-uv sync --all-extras
-echo -e "  ${GREEN}✓${RESET} Python environment synchronized via uv"
-
-# If --voice mode is requested, ensure offline model is present
-if [[ " $* " =~ " --voice " ]]; then
-    if [[ ! -d "models/vosk-model-small-en-us-0.15" ]]; then
-        echo -e "  ${YELLOW}!${RESET} Downloading offline Vosk model for voice wake-phrase mode..."
-        mkdir -p models
-        curl -L -s https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip -o models/vosk-model.zip
-        unzip -q -o models/vosk-model.zip -d models/
-        rm -f models/vosk-model.zip
-    fi
-    echo -e "  ${GREEN}✓${RESET} Voice mode offline model & audio libraries ready"
-fi
-
-# If text send mode is requested or configured, verify whisper-cli and model
-if [[ " $* " =~ " --send-mode text " ]] || grep -qE '^BRIDGE_SEND_MODE=text' .env 2>/dev/null; then
-    if ! command -v whisper-cli &>/dev/null; then
-        echo -e "${YELLOW}[WARN] 'whisper-cli' not found in PATH for on-device STT.${RESET}"
-        echo -e "       Install via: brew install whisper-cpp"
-    fi
-    if [[ ! -f "models/ggml-base.bin" ]]; then
-        echo -e "  ${YELLOW}!${RESET} Whisper model (models/ggml-base.bin) not found. Downloading base model..."
-        bash scripts/download-model.sh base || true
-    fi
-fi
-
-if [[ ! -f ".env" ]]; then
-    if [[ -f ".env.example" ]]; then
-        echo -e "  ${YELLOW}!${RESET} .env not found. Initializing from .env.example..."
-        cp .env.example .env
-    else
-        echo -e "${RED}[ERROR] Neither .env nor .env.example found.${RESET}"
-        exit 1
-    fi
-fi
-echo -e "  ${GREEN}✓${RESET} Configuration (.env) loaded"
-
-# 4. Harness & TypeScript Modules
-echo -e "${BOLD}[3/4] Testing execution harnesses...${RESET}"
-if [[ ! -d "src/tools/cli-harness/node_modules" ]]; then
-    echo -e "  ${YELLOW}!${RESET} Installing CLI harness dependencies with Bun..."
-    (cd src/tools/cli-harness && bun install)
-fi
-
-# Run instant IPC preflight check for Bun headless harness
-if uv run python -c "from OpenAgent.harness import Harness; h=Harness(); h.system_info(); h.close()" 2>/dev/null; then
-    echo -e "  ${GREEN}✓${RESET} Headless Bun harness IPC operational (bash, read, write, edit, applescript, grep, glob)"
-else
-    echo -e "${RED}[ERROR] Failed to start execution harness over stdio IPC.${RESET}"
-    exit 1
-fi
-
-# Run preflight check for native macOS computer-use harness
-if uv run python -c "from OpenAgent.mac_adapter import MacAdapter; MacAdapter()" 2>/dev/null; then
-    echo -e "  ${GREEN}✓${RESET} Native macOS computer-use harness operational (vision, clicks, keys, AX inspection)"
-else
-    echo -e "  ${YELLOW}[WARN] Native macOS computer-use harness could not initialize.${RESET}"
-fi
-
-# Run preflight check for Browser Harness CDP
-if uv run python -c "import browser_harness; from OpenAgent.browser_adapter import BrowserAdapter; BrowserAdapter()" 2>/dev/null; then
-    echo -e "  ${GREEN}✓${RESET} Browser Harness CDP operational (Chrome background control, AX tree, domain skills)"
-else
-    echo -e "  ${YELLOW}[WARN] Browser Harness CDP could not initialize.${RESET}"
-fi
-
-# Run preflight check for Firecrawl Self-Hosted Web Engine
-if curl -s -m 2 http://localhost:3002/test >/dev/null 2>&1 || curl -s -m 2 http://localhost:3002/ >/dev/null 2>&1; then
-    echo -e "  ${GREEN}✓${RESET} Firecrawl Web Ingestion & Extraction Engine online (http://localhost:3002)"
-else
-    echo -e "  ${YELLOW}ℹ${RESET} Firecrawl Engine not running at http://localhost:3002 (standby mode)."
-    echo -e "    To spin up local self-hosted Firecrawl: ${BOLD}(cd src/tools/firecrawl && docker compose up -d)${RESET}"
-fi
-
-# Check macOS Accessibility permission (required to inspect WhatsApp UI and capture hotkeys)
-if ! uv run python -c "from ApplicationServices import AXIsProcessTrusted; assert AXIsProcessTrusted() is True" 2>/dev/null; then
-    echo -e "  ${RED}✗ [PERMISSION REQUIRED]${RESET} Accessibility permission is missing for this terminal!"
-    echo -e "    macOS blocks untrusted processes from inspecting WhatsApp UI and intercepting tool calls."
-    echo -e "    ${BOLD}Grant access in:${RESET} System Settings → Privacy & Security → Accessibility"
-    echo -e "    Toggle ON ${BOLD}${TERM_PROGRAM:-Terminal}${RESET} (or add your terminal app with '+')."
-    uv run python -c "from ApplicationServices import AXIsProcessTrustedWithOptions, kAXTrustedCheckOptionPrompt; AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: True})" 2>/dev/null || true
-    echo -e "    ${YELLOW}After enabling, restart: ./start.sh${RESET}"
-    exit 1
-fi
-echo -e "  ${GREEN}✓${RESET} macOS Accessibility trusted (WhatsApp UI inspection online)"
-
-
-# 5. WhatsApp Desktop Status
-echo -e "${BOLD}[4/4] Ensuring WhatsApp Desktop is active...${RESET}"
-if ! pgrep -il "whatsapp" >/dev/null 2>&1; then
-    echo -e "  ${BLUE}→${RESET} Launching WhatsApp Desktop in background..."
-    open -g -j -a WhatsApp 2>/dev/null || open -g -j /Applications/*WhatsApp*.app 2>/dev/null || true
-    sleep 1.5
-fi
-
-# Ensure WhatsApp is hidden to keep user screen clean
-if pgrep -il "whatsapp" >/dev/null 2>&1; then
-    osascript -e 'tell application "System Events" to set visible of (every process whose name contains "WhatsApp") to false' 2>/dev/null || true
-    echo -e "  ${GREEN}✓${RESET} WhatsApp Desktop ready & backgrounded"
-else
-    echo -e "  ${YELLOW}[WARN] WhatsApp Desktop is not running.${RESET}"
-    echo -e "         Please start WhatsApp Desktop, log in, and open the chat with your assistant."
-fi
-
-echo -e "\n${BOLD}${GREEN}========================================================"
-echo "          🚀 SYSTEM ONLINE & READY FOR JARVIS          "
-echo -e "========================================================${RESET}"
-echo -e "• Hotkey: ${BOLD}Hold F8${RESET} to talk; release to send (Esc to exit)"
-echo -e "• WhatsApp: Screen clean / backgrounded"
-echo -e "• Harness: Intercepting & executing incoming tool calls automatically"
-echo -e "--------------------------------------------------------\n"
-
-# Execute bridge runner with any extra arguments passed into this script
-exec uv run python -m OpenAgent.main run "$@"
-
+exec python3 "$ROOT_DIR/boot.py" "$@"
