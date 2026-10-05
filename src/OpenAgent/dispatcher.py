@@ -31,9 +31,16 @@ except ImportError:
     FirecrawlAdapter = None  # type: ignore[assignment,misc]
     FirecrawlError = Exception  # type: ignore[assignment,misc]
 
+try:
+    from .loco_adapter import LocoAdapter, LocoError
+except ImportError:
+    LocoAdapter = None  # type: ignore[assignment,misc]
+    LocoError = Exception  # type: ignore[assignment,misc]
+
 _DEFAULT_MAC_ADAPTER: Optional[Any] = None
 _DEFAULT_BROWSER_ADAPTER: Optional[Any] = None
 _DEFAULT_FIRECRAWL_ADAPTER: Optional[Any] = None
+_DEFAULT_LOCO_ADAPTER: Optional[Any] = None
 
 
 def get_default_mac_adapter() -> Optional[Any]:
@@ -64,6 +71,16 @@ def get_default_firecrawl_adapter() -> Optional[Any]:
         except Exception as exc:
             logger.warning("Could not initialize default FirecrawlAdapter: %s", exc)
     return _DEFAULT_FIRECRAWL_ADAPTER
+
+
+def get_default_loco_adapter() -> Optional[Any]:
+    global _DEFAULT_LOCO_ADAPTER
+    if _DEFAULT_LOCO_ADAPTER is None and LocoAdapter is not None:
+        try:
+            _DEFAULT_LOCO_ADAPTER = LocoAdapter()
+        except Exception as exc:
+            logger.warning("Could not initialize default LocoAdapter: %s", exc)
+    return _DEFAULT_LOCO_ADAPTER
 
 
 logger = logging.getLogger("openagent.dispatcher")
@@ -355,8 +372,9 @@ def execute_tool_call(
     mac_adapter: Optional[Any] = None,
     browser_adapter: Optional[Any] = None,
     firecrawl_adapter: Optional[Any] = None,
+    loco_adapter: Optional[Any] = None,
 ) -> Dict[str, Any]:
-    """Execute a parsed tool call using the headless harness, native macOS adapter, browser adapter, or Firecrawl.
+    """Execute a parsed tool call using the headless harness, native macOS adapter, browser adapter, Firecrawl, or LocoAgent.
 
     Returns a standardized dictionary:
     {"status": "ok" | "error", "tool": name, "result": ..., "error": ...}
@@ -380,6 +398,9 @@ def execute_tool_call(
             firecrawl_adapter = mac_adapter.firecrawl
         else:
             firecrawl_adapter = get_default_firecrawl_adapter()
+
+    if loco_adapter is None:
+        loco_adapter = get_default_loco_adapter()
 
     try:
         # --- Native macOS Computer-Use Primitives (macos-harness) ---
@@ -913,10 +934,164 @@ def execute_tool_call(
             res = firecrawl_adapter.doctor()
             return {"status": "ok", "tool": tool, "result": res}
 
+        # --- LocoAgent Social Media Automation Engine ---
+        elif tool in ("social_setup", "social_setup_chrome", "setup_chrome"):
+            if loco_adapter is None:
+                raise RuntimeError("LocoAgent social automation adapter is not available on this system")
+            target = args.get("target") or args.get("platform", "x")
+            reset = bool(args.get("reset", False))
+            all_targets = bool(args.get("all", False))
+            res = loco_adapter.setup_chrome(target=target, reset=reset, all_targets=all_targets)
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("social_targets", "social_platforms", "social_status"):
+            if loco_adapter is None:
+                raise RuntimeError("LocoAgent social automation adapter is not available on this system")
+            res = loco_adapter.list_targets_status()
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("social_doctor", "social_health"):
+            if loco_adapter is None:
+                raise RuntimeError("LocoAgent social automation adapter is not available on this system")
+            res = loco_adapter.doctor()
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("social_post", "post_tweet", "social_tweet", "tweet"):
+            if loco_adapter is None:
+                raise RuntimeError("LocoAgent social automation adapter is not available on this system")
+            text = args.get("text") or args.get("content") or args.get("tweet")
+            if not text:
+                raise ValueError("Missing 'text' argument for social_post")
+            platform = args.get("platform") or args.get("target", "x")
+            media = args.get("media") or args.get("media_path") or args.get("image")
+            res = loco_adapter.post_content(platform=platform, text=str(text), media_path=media)
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("social_reply", "reply_tweet", "social_comment"):
+            if loco_adapter is None:
+                raise RuntimeError("LocoAgent social automation adapter is not available on this system")
+            url = args.get("url") or args.get("post_url") or args.get("tweet_url")
+            text = args.get("text") or args.get("content") or args.get("reply")
+            if not url or not text:
+                raise ValueError("Missing 'url' or 'text' argument for social_reply")
+            platform = args.get("platform") or args.get("target", "x")
+            res = loco_adapter.reply_to_post(platform=platform, post_url=str(url), text=str(text))
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("social_like", "like_tweet", "like_post"):
+            if loco_adapter is None:
+                raise RuntimeError("LocoAgent social automation adapter is not available on this system")
+            url = args.get("url") or args.get("post_url") or args.get("tweet_url")
+            if not url:
+                raise ValueError("Missing 'url' argument for social_like")
+            platform = args.get("platform") or args.get("target", "x")
+            res = loco_adapter.like_post(platform=platform, post_url=str(url))
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("social_search", "search_social", "search_tweets"):
+            if loco_adapter is None:
+                raise RuntimeError("LocoAgent social automation adapter is not available on this system")
+            query = args.get("query") or args.get("q")
+            if not query:
+                raise ValueError("Missing 'query' argument for social_search")
+            platform = args.get("platform") or args.get("target", "x")
+            tab = args.get("tab", "latest")
+            res = loco_adapter.search(platform=platform, query=str(query), tab=str(tab))
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("social_screenshot", "social_see"):
+            if loco_adapter is None:
+                raise RuntimeError("LocoAgent social automation adapter is not available on this system")
+            platform = args.get("platform") or args.get("target", "x")
+            full = bool(args.get("full", False))
+            annotate = bool(args.get("annotate", False))
+            res = loco_adapter.screenshot(platform=platform, full=full, annotate=annotate)
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("social_workflow", "workflow"):
+            if loco_adapter is None:
+                raise RuntimeError("LocoAgent social automation adapter is not available on this system")
+            action = args.get("action", "list").lower()
+            wf_id = args.get("id") or args.get("workflow_id")
+            if action == "list":
+                res = loco_adapter.workflow_list()
+            elif action == "status":
+                res = loco_adapter.workflow_status(workflow_id=wf_id)
+            elif action == "run":
+                if not wf_id:
+                    raise ValueError("Missing 'id' argument for workflow run")
+                res = loco_adapter.workflow_run(workflow_id=str(wf_id))
+            elif action == "start":
+                if not wf_id:
+                    raise ValueError("Missing 'id' argument for workflow start")
+                res = loco_adapter.workflow_start(workflow_id=str(wf_id))
+            elif action == "stop":
+                if not wf_id:
+                    raise ValueError("Missing 'id' argument for workflow stop")
+                res = loco_adapter.workflow_stop(workflow_id=str(wf_id))
+            elif action == "daemon":
+                if not wf_id:
+                    raise ValueError("Missing 'id' argument for workflow daemon")
+                interval = int(args.get("interval", 60))
+                res = loco_adapter.workflow_daemon(workflow_id=str(wf_id), interval=interval)
+            elif action == "history":
+                if not wf_id:
+                    raise ValueError("Missing 'id' argument for workflow history")
+                res = loco_adapter.workflow_history(workflow_id=str(wf_id))
+            else:
+                raise ValueError(f"Unknown workflow action: '{action}'")
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("social_agent_task", "social_task", "social_mission"):
+            if loco_adapter is None:
+                raise RuntimeError("LocoAgent social automation adapter is not available on this system")
+            prompt = args.get("prompt") or args.get("task")
+            if not prompt:
+                raise ValueError("Missing 'prompt' argument for social_agent_task")
+            model = args.get("model")
+            timeout = float(args.get("timeout", 300.0))
+            res = loco_adapter.run_autonomous_task(prompt=str(prompt), model=model, timeout=timeout)
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("social_dedup_check", "social_check"):
+            if loco_adapter is None:
+                raise RuntimeError("LocoAgent social automation adapter is not available on this system")
+            platform = args.get("platform") or args.get("target", "x")
+            action_name = args.get("action")
+            url = args.get("url")
+            if not action_name or not url:
+                raise ValueError("Missing 'action' or 'url' argument for social_dedup_check")
+            res = loco_adapter.check_dedup(platform=platform, action=action_name, url=url)
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("social_log", "social_log_action"):
+            if loco_adapter is None:
+                raise RuntimeError("LocoAgent social automation adapter is not available on this system")
+            platform = args.get("platform") or args.get("target", "x")
+            action_name = args.get("action")
+            url = args.get("url")
+            if not action_name or not url:
+                raise ValueError("Missing 'action' or 'url' argument for social_log")
+            status_val = args.get("status", "success")
+            note = args.get("note", "")
+            res = loco_adapter.log_action(platform=platform, action=action_name, url=url, status=status_val, note=note)
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("social_exec", "social_ab"):
+            if loco_adapter is None:
+                raise RuntimeError("LocoAgent social automation adapter is not available on this system")
+            platform = args.get("platform") or args.get("target", "x")
+            cmd = args.get("command") or args.get("cmd")
+            if not cmd:
+                raise ValueError("Missing 'command' argument for social_exec")
+            timeout = float(args.get("timeout", 35.0))
+            res = loco_adapter.exec_agent_browser(platform=platform, command=str(cmd), timeout=timeout)
+            return {"status": "ok", "tool": tool, "result": res}
+
         else:
             raise ValueError(f"Unknown harness tool: '{tool}'")
 
-    except (HarnessError, FirecrawlError) as err:
+    except (HarnessError, FirecrawlError, LocoError) as err:
         logger.warning("Execution error for tool '%s': %s", tool, err)
         return {"status": "error", "tool": tool, "error": str(err)}
     except Exception as exc:
@@ -1170,6 +1345,67 @@ def format_tool_response(response: Dict[str, Any], max_length: int = MAX_WHATSAP
 
     elif tool in ("firecrawl_doctor", "firecrawl_health"):
         body = f"Firecrawl Health: {result.get('status', 'unknown')}\nEndpoint: {result.get('api_url', '')}\nReachable: {result.get('reachable', False)}"
+
+    elif tool in ("social_targets", "social_platforms", "social_status"):
+        targets = result.get("targets", {})
+        tot = result.get("total", len(targets))
+        online = result.get("online_count", 0)
+        body = f"Social Media Platforms ({online}/{tot} online via Chrome CDP):\n"
+        for plat, info in targets.items():
+            status_symbol = "🟢" if info.get("online") else "⚪️"
+            account_str = f" [Account: @{info.get('account')}]" if info.get("account") else ""
+            body += f"{status_symbol} {plat.upper()}: port {info.get('cdp_port')}{account_str}\n"
+
+    elif tool in ("social_setup", "social_setup_chrome"):
+        body = f"Chrome Setup for '{result.get('target', 'all')}': CDP online: {result.get('cdp_online', False)}\nOutput: {result.get('output', '')}"
+
+    elif tool in ("social_doctor", "social_health"):
+        body = f"LocoAgent Doctor:\n{result.get('output', '')}"
+
+    elif tool in ("social_post", "post_tweet", "social_tweet", "tweet"):
+        body = f"✅ Post Published to {result.get('action', 'social media').upper()}:\n\"{result.get('text', '')}\""
+        if result.get("_send_attachment"):
+            body += "\n[Screenshot confirmation queued for WhatsApp delivery]"
+
+    elif tool in ("social_reply", "reply_tweet", "social_comment"):
+        if result.get("skipped"):
+            body = f"⏭️ Reply Skipped: {result.get('reason')} ({result.get('url')})"
+        else:
+            body = f"✅ Reply Sent on {result.get('action', 'social media').upper()}:\nTarget: {result.get('url', '')}\nReply: \"{result.get('reply_text', '')}\""
+            if result.get("_send_attachment"):
+                body += "\n[Screenshot confirmation queued for WhatsApp delivery]"
+
+    elif tool in ("social_like", "like_tweet", "like_post"):
+        if result.get("skipped"):
+            body = f"⏭️ Like Skipped: {result.get('reason')} ({result.get('url')})"
+        else:
+            body = f"❤️ Liked Post: {result.get('url')}"
+
+    elif tool in ("social_search", "search_social", "search_tweets"):
+        body = f"🔍 Search Results for '{result.get('query')}' on {result.get('platform', '').upper()}:\n{result.get('results_preview', '')}"
+        if result.get("_send_attachment"):
+            body += "\n[Search snapshot screenshot queued for WhatsApp delivery]"
+
+    elif tool in ("social_screenshot", "social_see"):
+        body = f"📸 Screenshot captured on {result.get('platform', 'target').upper()} (port {result.get('cdp_port')})"
+        if result.get("_send_attachment"):
+            body += "\n[Screenshot queued for WhatsApp delivery]"
+
+    elif tool in ("social_workflow", "workflow"):
+        body = f"🔁 Social Workflow Output:\n{result.get('output', '')}"
+
+    elif tool in ("social_agent_task", "social_task", "social_mission"):
+        body = f"🤖 Autonomous Social Mission Completed:\nTask: {result.get('task_prompt', '')}\nOutput:\n{result.get('output', '')}"
+
+    elif tool in ("social_dedup_check", "social_check"):
+        status_word = "ALREADY DONE (Skipping)" if result.get("already_done") else "NOT DONE YET (Safe to proceed)"
+        body = f"Operation Check [{result.get('platform')}: {result.get('action')}]: {status_word}\nURL: {result.get('url')}"
+
+    elif tool in ("social_log", "social_log_action"):
+        body = f"Operation Logged: {result.get('logged')} (details: {result.get('details')})"
+
+    elif tool in ("social_exec", "social_ab"):
+        body = f"Agent-Browser Exec [{result.get('platform')}@CDP {result.get('cdp_port')}]:\n{result.get('output', '')}"
 
     elif tool in ("system_info", "instructions", "system_prompt", "mac_ax", "ax", "mac_browser", "browser", "mac_doctor", "doctor"):
         body = json.dumps(result, indent=2)

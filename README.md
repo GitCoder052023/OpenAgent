@@ -42,26 +42,27 @@ Running 100% locally on your Mac, OpenAgent intercepts structured tool calls fro
 ┌────────────────────────────────────────────────────────────────────────┐
 │                          OpenAgent (The Body)                          │
 │               Voice Pipeline • Safety Guard • Harness IPC              │
-└──────┬───────────────────────┬──────────────────────┬────────────────┬─┘
-       │                       │                      │                │
-       ▼                       ▼                      ▼                ▼
-┌──────────────┐      ┌─────────────────┐    ┌─────────────────┐┌───────────────┐
-│ Headless Dev │      │ Native Computer │    │ Real Browser    ││ Firecrawl Web │
-│ (Bun / TS)   │      │ (macOS APIs)    │    │ (CDP Harness)   ││ (Self-Hosted) │
-│ Shell • Code │      │ Clicks • Vision │    │ Tabs • AX • DOM ││ Scrape • Crawl│
-└──────┬───────┘      └────────┬────────┘    └────────┬────────┘└───────┬───────┘
-       └───────────────────────┼──────────────────────┴─────────────────┘
-                               ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                      macOS, Chrome & The Web (The World)               │
-│                  Your Local System, Apps, Web & Logins                 │
-└────────────────────────────────────────────────────────────────────────┘
+└──────┬───────────────────┬───────────────────┬───────────────────┬───────────────────┬─┘
+       │                   │                   │                   │                   │
+       ▼                   ▼                   ▼                   ▼                   ▼
+┌──────────────┐  ┌─────────────────┐ ┌─────────────────┐ ┌───────────────┐ ┌─────────────────┐
+│ Headless Dev │  │ Native Computer │ │ Real Browser    │ │ Firecrawl Web │ │ Social Engine   │
+│ (Bun / TS)   │  │ (macOS APIs)    │ │ (CDP Harness)   │ │ (Self-Hosted) │ │ (LocoAgent CDP) │
+│ Shell • Code │  │ Clicks • Vision │ │ Tabs • AX • DOM │ │ Scrape• Crawl │ │ X•LinkedIn•etc. │
+└──────┬───────┘  └────────┬────────┘ └────────┬────────┘ └───────┬───────┘ └────────┬────────┘
+       └───────────────────┴───────────────────┼───────────────────┴───────────────────┘
+                                               ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                              macOS, Chrome & The Social Web                            │
+│                        Your Local System, Apps, Web & Social Media                     │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 > **Instinct thinks. OpenAgent acts.**
 
 ## Core Features
 
+* **Autonomous Social Media Automation (LocoAgent Engine)**: Operates your real, authenticated social accounts across **X/Twitter, LinkedIn, Reddit, Instagram, Facebook, Threads, YouTube, TikTok, and GitHub** via isolated, persistent Chrome CDP sessions. Features anti-detection cookie isolation, 37+ platform operation playbooks, an append-only deduplication ledger (`persona/operation-log.json`) to prevent duplicate interactions, and deterministic workflow daemons (`hf-papers-to-x`, `x-search-reply`) that publish updates and report verification screenshots straight to WhatsApp.
 * **Real Browser Control (CDP Harness)**: Connects directly to your real, authenticated Chrome browser. Operates background tabs (`new_tab`, `switch_tab`), dispatches compositor clicks, queries internal Accessibility trees (`browser_ax`), fills framework-controlled forms cleanly (`browser_fill`), and uses pre-built domain skills for 80+ platforms (Amazon, GitHub, YouTube, X, etc.) without stealing physical focus.
 * **Self-Hosted Web Ingestion & Extraction (Firecrawl Engine)**: 100% local, self-hosted web scraper and crawler engine running on Docker. Turns any web page into clean, LLM-ready Markdown in one shot (`firecrawl_scrape`), performs web searches with full Markdown results (`firecrawl_search`), runs recursive domain crawlers (`firecrawl_crawl`), maps site architectures (`firecrawl_map`), and extracts structured JSON schemas (`firecrawl_extract`) without cloud API limits.
 * **High-Speed Voice Pipeline**: Hold **`F8`** to talk (Push-to-Talk) or use hands-free wake word (*"Wake up Jarvis"*). Features local RMS silence gating, background audio playback, and instant barge-in interruption.
@@ -229,6 +230,26 @@ Instinct controls your Mac by wrapping structured JSON calls inside a resilient 
 | `firecrawl_extract` | Extract structured JSON data matching a schema or prompt | `urls`, `prompt`, `schema` |
 | `firecrawl_doctor` | Inspect health of self-hosted local Firecrawl daemon | *(none)* |
 
+### Social Media Automation Tools (LocoAgent Engine)
+
+Operate real social accounts across **X/Twitter, LinkedIn, Reddit, Instagram, Facebook, Threads, YouTube, TikTok, and GitHub** with persistent anti-detection Chrome profiles:
+
+| Tool | Description | Key Arguments |
+| --- | --- | --- |
+| `social_targets` | Inspect all configured social platforms and live CDP port status | *(none)* |
+| `social_setup` | Launch persistent, isolated Chrome browser for a social platform | `target`, `all`, `reset` |
+| `social_post` | Publish a post or tweet with optional image/media attachment | `text`, `platform`, `media` |
+| `social_reply` | Reply to a post or tweet with anti-deduplication check | `url`, `text`, `platform` |
+| `social_like` | Like or react to a post with anti-deduplication check | `url`, `platform` |
+| `social_search` | Search social media discussions by keyword/hashtag | `query`, `platform`, `tab` |
+| `social_screenshot` | Capture live social feed screenshot delivered to WhatsApp | `platform`, `full`, `annotate` |
+| `social_workflow` | Control automation pipelines (`run`, `start`, `stop`, `daemon`, `status`) | `action`, `id`, `interval` |
+| `social_agent_task` | Delegate an end-to-end autonomous social media mission | `prompt`, `model`, `timeout` |
+| `social_dedup_check` | Check if a URL was already interacted with in persistent ledger | `platform`, `action`, `url` |
+| `social_log` | Record a successful interaction into the operation log | `platform`, `action`, `url`, `status`, `note` |
+| `social_exec` | Execute direct `agent-browser` CDP command on any target | `platform`, `command` |
+| `social_doctor` | Run health checks on Bun, agent-browser CLI, and Chrome CDP | *(none)* |
+
 > Full schema specifications and example payloads are available in [`docs/JARVIS_INSTRUCTIONS.md`](docs/JARVIS_INSTRUCTIONS.md).
 
 ## Configuration
@@ -251,6 +272,10 @@ OpenAgent is configured via `.env` in the project root:
 | `FIRECRAWL_API_URL` | `http://localhost:3002` | Local self-hosted Firecrawl API daemon endpoint |
 | `FIRECRAWL_API_KEY` | *(empty)* | Optional API key (unauthenticated by default when self-hosting) |
 | `FIRECRAWL_TIMEOUT` | `60.0` | Timeout in seconds for web scraping and crawls |
+| `LOCOAGENT_ENABLED` | `true` | Enable LocoAgent social automation engine |
+| `LOCOAGENT_ROOT` | `src/tools/locoagent` | Directory path for LocoAgent checkout |
+| `LOCOAGENT_DEFAULT_PLATFORM` | `x` | Default social media target platform |
+| `LOCOAGENT_TIMEOUT` | `120.0` | Timeout in seconds for social automation commands |
 | `BRIDGE_LOG_FILE` | `~/Library/Logs/OpenAgent/bridge.jsonl` | Diagnostic JSONL event log path |
 
 ## Security & Safety Model
@@ -307,6 +332,7 @@ OpenAgent is built with gratitude on the shoulders of the open-source agent tool
 - **[Browser Use](https://github.com/browser-use/browser-use)** — Directly integrating **[Browser Harness](https://github.com/browser-use/browser-harness)** for high-speed Chrome CDP automation and domain skills, alongside **[macOS Harness](https://github.com/browser-use/macos-harness)** for pioneering native macOS computer-use foundations.
 - **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** & **[Vosk](https://alphacephei.com/vosk/)** — Lightweight, local, low-latency audio intelligence.
 - **[Firecrawl](https://github.com/firecrawl/firecrawl)** — Pioneering open-source web scraping, crawling, and clean LLM markdown extraction engine.
+- **[LocoAgent](https://github.com/LocoreMind/locoagent)** — Autonomous social media agent by LocoreMind providing persistent real-browser sessions, operation deduplication, and platform playbooks.
 
 ---
 

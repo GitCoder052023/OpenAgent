@@ -53,6 +53,10 @@ class Config:
     firecrawl_api_url: str = "http://localhost:3002"
     firecrawl_api_key: str = ""
     firecrawl_timeout: float = 60.0
+    locoagent_enabled: bool = True
+    locoagent_root: str = ""
+    locoagent_default_platform: str = "x"
+    locoagent_timeout: float = 120.0
 
     @classmethod
     def from_env(cls):
@@ -83,6 +87,15 @@ class Config:
         except (ValueError, TypeError):
             firecrawl_timeout = 60.0
 
+        loco_enabled_env = os.getenv("LOCOAGENT_ENABLED", "true").strip().lower()
+        locoagent_enabled = loco_enabled_env in ("true", "1", "yes", "on")
+        locoagent_root = os.getenv("LOCOAGENT_ROOT", "").strip()
+        locoagent_default_platform = os.getenv("LOCOAGENT_DEFAULT_PLATFORM", "x").strip().lower()
+        try:
+            locoagent_timeout = float(os.getenv("LOCOAGENT_TIMEOUT", cls.locoagent_timeout))
+        except (ValueError, TypeError):
+            locoagent_timeout = 120.0
+
         return cls(number=os.getenv("BRIDGE_WHATSAPP_NUMBER", cls.number),
                    model=os.getenv("BRIDGE_WHISPER_MODEL", cls.model),
                    whisper_cli=os.getenv("BRIDGE_WHISPER_CLI", cls.whisper_cli),
@@ -105,5 +118,9 @@ class Config:
                    ledger_path=ledger_path,
                    firecrawl_api_url=firecrawl_api_url,
                    firecrawl_api_key=firecrawl_api_key,
-                   firecrawl_timeout=firecrawl_timeout)
+                   firecrawl_timeout=firecrawl_timeout,
+                   locoagent_enabled=locoagent_enabled,
+                   locoagent_root=locoagent_root,
+                   locoagent_default_platform=locoagent_default_platform,
+                   locoagent_timeout=locoagent_timeout)
 

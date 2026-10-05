@@ -155,9 +155,21 @@ def main():
     except Exception as exc:
         print(f"Firecrawl Engine: DISABLED ({exc}).")
 
-    event("watcher_config", list_calibrated=bool(cfg.message_list_path), direction_calibrated=bool(cfg.incoming_marker), harness=bool(harness), mac_adapter=bool(mac_adapter), firecrawl=bool(firecrawl_adapter), safe_mode=cfg.safe_mode)
+    loco_adapter = None
+    if cfg.locoagent_enabled:
+        try:
+            from .loco_adapter import LocoAdapter
+            loco_adapter = LocoAdapter(
+                root=cfg.locoagent_root or None,
+                timeout=cfg.locoagent_timeout,
+            )
+            print("Social Media Engine (LocoAgent): ENABLED (X, LinkedIn, Reddit, Instagram, Facebook, Threads, YouTube, TikTok online).")
+        except Exception as exc:
+            print(f"Social Media Engine (LocoAgent): DISABLED ({exc}).")
+
+    event("watcher_config", list_calibrated=bool(cfg.message_list_path), direction_calibrated=bool(cfg.incoming_marker), harness=bool(harness), mac_adapter=bool(mac_adapter), firecrawl=bool(firecrawl_adapter), loco=bool(loco_adapter), safe_mode=cfg.safe_mode)
     has_voice = bool(cfg.message_list_path and cfg.incoming_marker and cfg.voice_play_marker and cfg.voice_pause_marker)
-    has_tools = bool(cfg.message_list_path and (cfg.incoming_marker or not cfg.safe_mode) and (harness is not None or mac_adapter is not None or firecrawl_adapter is not None))
+    has_tools = bool(cfg.message_list_path and (cfg.incoming_marker or not cfg.safe_mode) and (harness is not None or mac_adapter is not None or firecrawl_adapter is not None or loco_adapter is not None))
 
     if has_voice or has_tools:
         if has_voice:
@@ -168,7 +180,7 @@ def main():
         def hear():
             while not stop.is_set():
                 try:
-                    watch(cfg, stop=stop, state=watcher_state, pause=sending, desk=desk, harness=harness, playing=playing, user_recording=user_recording, mac_adapter=mac_adapter, firecrawl_adapter=firecrawl_adapter)
+                    watch(cfg, stop=stop, state=watcher_state, pause=sending, desk=desk, harness=harness, playing=playing, user_recording=user_recording, mac_adapter=mac_adapter, firecrawl_adapter=firecrawl_adapter, loco_adapter=loco_adapter)
                 except Exception as exc:
                     if stop.is_set(): break
                     print(f"\n[Watcher error] {exc} (restarting)")

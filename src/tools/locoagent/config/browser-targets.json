@@ -4,8 +4,8 @@
     "x": {
       "cdpPort": 9222,
       "useLegacyProfile": true,
-      "proxy": "http://127.0.0.1:6738",
-      "account": "mashijiann"
+      "proxy": null,
+      "account": "user"
     },
     "linkedin": {
       "cdpPort": 9223,
@@ -15,8 +15,28 @@
       "cdpPort": 9224,
       "proxy": null
     },
-    "google": {
+    "instagram": {
       "cdpPort": 9225,
+      "proxy": null
+    },
+    "facebook": {
+      "cdpPort": 9226,
+      "proxy": null
+    },
+    "threads": {
+      "cdpPort": 9227,
+      "proxy": null
+    },
+    "youtube": {
+      "cdpPort": 9228,
+      "proxy": null
+    },
+    "tiktok": {
+      "cdpPort": 9229,
+      "proxy": null
+    },
+    "github": {
+      "cdpPort": 9230,
       "proxy": null
     }
   }

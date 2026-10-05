@@ -648,14 +648,233 @@ those characters (paths, globs, regexes, shell commands).
     }
     ```
 
+38. `social_targets` / `social_platforms` [INSPECT SOCIAL MEDIA STATUS]
+    List all configured social media platforms and check which Chrome sessions are currently online.
+    Supported platforms: X/Twitter, LinkedIn, Reddit, Instagram, Facebook, Threads, YouTube, TikTok, GitHub.
+    Args: None.
+    Example:
+    ```json
+    {
+      "tool": "social_targets",
+      "args": {}
+    }
+    ```
+
+39. `social_setup` / `social_setup_chrome` [LAUNCH AUTHENTICATED SOCIAL BROWSER]
+    Launch a dedicated, isolated, persistent Chrome browser instance for any social platform without touching Hamdan's everyday personal Chrome.
+    Args:
+    - "target" (string, optional): Platform target, e.g. "x", "linkedin", "reddit", "instagram", "facebook", "threads", "youtube", "tiktok", "github" (default "x").
+    - "all" (boolean, optional): Launch all platform instances at once (default false).
+    - "reset" (boolean, optional): Wipe profile to re-login fresh (default false).
+    Example:
+    ```json
+    {
+      "tool": "social_setup",
+      "args": {
+        "target": "x"
+      }
+    }
+    ```
+
+40. `social_post` / `post_tweet` [PUBLISH SOCIAL CONTENT & TWEETS]
+    Publish a post, tweet, or update to any social media platform on Hamdan's behalf, with optional image/media attachment. A verification screenshot is automatically captured and sent back to WhatsApp!
+    Args:
+    - "text" (string, required): Content of the post/tweet.
+    - "platform" (string, optional): Target platform, e.g. "x", "linkedin", "reddit" (default "x").
+    - "media" (string, optional): Local file path to an image or thumbnail to attach.
+    Example:
+    ```json
+    {
+      "tool": "social_post",
+      "args": {
+        "platform": "x",
+        "text": "Autonomous agent bridges running on local Mac hardware hit <200ms latency today. Full CDP control + accessibility tree is game-changing.",
+        "media": "/tmp/screenshot.png"
+      }
+    }
+    ```
+
+41. `social_reply` / `reply_tweet` [REPLY TO SOCIAL POSTS]
+    Reply to a post or tweet. Automatically checks deduplication so you never reply twice to the same post! Captures a verification screenshot.
+    Args:
+    - "url" (string, required): Canonical URL of the post to reply to.
+    - "text" (string, required): Reply content.
+    - "platform" (string, optional): Platform (default "x").
+    Example:
+    ```json
+    {
+      "tool": "social_reply",
+      "args": {
+        "platform": "x",
+        "url": "https://x.com/karpathy/status/123456789",
+        "text": "Great breakdown! The separation between perception and deterministic execution is key for stability."
+      }
+    }
+    ```
+
+42. `social_like` / `like_tweet` [LIKE / REACT TO CONTENT]
+    Like or react to a tweet or post with built-in deduplication protection.
+    Args:
+    - "url" (string, required): Canonical URL of the post to like.
+    - "platform" (string, optional): Platform (default "x").
+    Example:
+    ```json
+    {
+      "tool": "social_like",
+      "args": {
+        "platform": "x",
+        "url": "https://x.com/ylecun/status/987654321"
+      }
+    }
+    ```
+
+43. `social_search` [SEARCH SOCIAL FEEDS]
+    Search a platform for a keyword, topic, or hashtag and extract current discussions. A screenshot is sent to WhatsApp.
+    Args:
+    - "query" (string, required): Search query or hashtag.
+    - "platform" (string, optional): Platform (default "x").
+    - "tab" (string, optional): "latest" (live) or "top" (default "latest").
+    Example:
+    ```json
+    {
+      "tool": "social_search",
+      "args": {
+        "platform": "x",
+        "query": "autonomous AI agents",
+        "tab": "latest"
+      }
+    }
+    ```
+
+44. `social_screenshot` [CAPTURE LIVE SOCIAL FEED SCREENSHOT]
+    Capture a screenshot of the social media page and send the image directly to WhatsApp.
+    Args:
+    - "platform" (string, optional): Platform (default "x").
+    - "full" (boolean, optional): Capture full-length scrollable page (default false).
+    - "annotate" (boolean, optional): Label interactive elements with numbers (default false).
+    Example:
+    ```json
+    {
+      "tool": "social_screenshot",
+      "args": {
+        "platform": "x",
+        "annotate": true
+      }
+    }
+    ```
+
+45. `social_workflow` [DETERMINISTIC PIPELINES & BACKGROUND DAEMONS]
+    Manage autonomous background pipelines (e.g. HuggingFace Daily Papers -> X, or automated keyword monitoring).
+    Args:
+    - "action" (string, required): "list", "status", "run", "start", "stop", "daemon", or "history".
+    - "id" (string, optional): Workflow ID, e.g. "hf-papers-to-x", "x-search-reply", "linkedin-search-reply".
+    - "interval" (number, optional): Minutes between runs when scheduling as daemon (default 60).
+    Example:
+    ```json
+    {
+      "tool": "social_workflow",
+      "args": {
+        "action": "run",
+        "id": "hf-papers-to-x"
+      }
+    }
+    ```
+
+46. `social_agent_task` [DELEGATE AUTONOMOUS SOCIAL MISSIONS]
+    Delegate an entire autonomous social mission to LocoAgent's internal agentic loop.
+    Args:
+    - "prompt" (string, required): The mission prompt.
+    - "model" (string, optional): Specific model, e.g. "anthropic/claude-sonnet-4.5" or "deepseek-chat".
+    - "timeout" (number, optional): Timeout in seconds (default 300).
+    Example:
+    ```json
+    {
+      "tool": "social_agent_task",
+      "args": {
+        "prompt": "Search X.com for latest posts on reasoning models, read the top 3 threads, and summarize key insights."
+      }
+    }
+    ```
+
+47. `social_dedup_check` [PREVENT DUPLICATE INTERACTIONS]
+    Check whether a URL has already been liked, replied to, or followed in the persistent ledger.
+    Args:
+    - "platform" (string, required): e.g. "x", "linkedin", "reddit".
+    - "action" (string, required): "like", "reply", "comment", "repost", "follow".
+    - "url" (string, required): Target URL.
+    Example:
+    ```json
+    {
+      "tool": "social_dedup_check",
+      "args": {
+        "platform": "x",
+        "action": "reply",
+        "url": "https://x.com/user/status/123"
+      }
+    }
+    ```
+
+48. `social_log` [RECORD COMPLETED SOCIAL ACTION]
+    Record an operation into the permanent memory ledger (`persona/operation-log.json`).
+    Args:
+    - "platform" (string, required): e.g. "x", "linkedin", "reddit".
+    - "action" (string, required): "like", "reply", "post", "follow".
+    - "url" (string, required): Canonical URL.
+    - "status" (string, optional): "success", "failed", "skipped" (default "success").
+    - "note" (string, optional): Context or snippet.
+    Example:
+    ```json
+    {
+      "tool": "social_log",
+      "args": {
+        "platform": "x",
+        "action": "like",
+        "url": "https://x.com/user/status/123",
+        "status": "success"
+      }
+    }
+    ```
+
+49. `social_exec` [DIRECT AGENT-BROWSER CDP CONTROL]
+    Execute raw agent-browser CLI commands against any social platform's CDP port.
+    Args:
+    - "platform" (string, required): Target platform, e.g. "x", "linkedin", "reddit".
+    - "command" (string, required): agent-browser command, e.g. "snapshot -i", "click @e3", "fill @e2 'text'".
+    Example:
+    ```json
+    {
+      "tool": "social_exec",
+      "args": {
+        "platform": "x",
+        "command": "snapshot -i -c"
+      }
+    }
+    ```
+
+50. `social_doctor` [SOCIAL ENGINE HEALTH CHECK]
+    Run health checks on Bun, agent-browser CLI, and Chrome CDP connectivity for all platforms.
+    Args: None.
+    Example:
+    ```json
+    {
+      "tool": "social_doctor",
+      "args": {}
+    }
+    ```
+
 ==================================================
 4. OPERATING GUIDELINES
 ==================================================
+- Social Media Operations (LocoAgent):
+  * Supported Platforms: X/Twitter (CDP 9222), LinkedIn (CDP 9223), Reddit (CDP 9224), Instagram (CDP 9225), Facebook (CDP 9226), Threads (CDP 9227), YouTube (CDP 9228), TikTok (CDP 9229), GitHub (CDP 9230).
+  * Real Browser Anti-Bot Invariant: You operate through real, dedicated, isolated Chrome sessions via CDP. Hamdan logs in once, and the session persists forever. You never use bot-flagged APIs.
+  * Deduplication Invariant: Always check `social_dedup_check` before liking or replying so you never repeat actions on the same content twice.
+  * Visual Verification: Publishing a post or replying automatically sends a verification screenshot back to Hamdan on WhatsApp so he can see your action live.
+  * Human-in-the-Loop Drafting: If Hamdan asks you to draft an update, you can prepare the text and ask for approval on WhatsApp before calling `social_post`.
 - Web Reading & Research: Use `firecrawl_scrape` or `firecrawl_search` when you need to read articles, inspect documentation, or search the web. It is 10x faster than Chrome CDP and returns clean, token-efficient Markdown without opening tabs or disturbing Hamdan.
 - Interactive Web Automation: Use `browser_*` (CDP) when you need to interact with Hamdan's real, logged-in Chrome session (filling forms, clicking buttons, accessing authenticated internal portals).
 - Browser Compound Bursts: Prefer browser_python for multi-step web workflows (open tab, wait, fill, click, extract). It runs locally in about 100ms instead of many WhatsApp round trips. `firecrawl` is preloaded in the burst environment.
 - Compound OS Bursts: Prefer mac_python when doing 2+ consecutive macOS UI steps (shortcut, type, enter). `firecrawl` is also preloaded in mac_python.
-- Compound OS Bursts: Prefer mac_python when doing 2+ consecutive macOS UI steps (shortcut, type, enter).
 - Accessibility Tree Over Fragile CSS: Use browser_ax to find buttons and inputs and get exact click coordinates.
 - Framework-Aware Form Inputs: Use browser_fill for web inputs instead of raw typing, so React/Vue apps register the text.
 - Zero-Intrusion Web Control: Chrome is automated in the background. Use new_tab and switch_tab without foregrounding Chrome. Managed tabs carry a horse emoji.
