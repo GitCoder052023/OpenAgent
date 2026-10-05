@@ -35,11 +35,16 @@
   </p>
 </div>
 
----
+# **🔥 Firecrawl (OpenAgent Self-Hosted Edition)**
 
-# **🔥 Firecrawl**
+> [!NOTE]
+> **OpenAgent Customization Notice (October 2026)**
+> This is a customized, stripped-down distribution of Firecrawl tailored specifically for local self-hosting within **OpenAgent**.
+> - **Retained**: Core API gateway (`apps/api`), Playwright browser worker (`apps/playwright-service-ts`), NuQ Postgres schema (`apps/nuq-postgres`), native Python SDK (`apps/python-sdk`), and Docker Compose orchestration.
+> - **Stripped**: Unused foreign language SDKs (.NET, Elixir, Go, Java, PHP, Ruby, Rust), external demo apps, and cloud test suites to optimize local disk footprint and build times.
+> - **License**: This component is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE) by Mendable / Firecrawl contributors.
 
-**Supercharge your AI agents with data from the web and beyond. Building the library for superintelligence. 🔥** Open source and available as a [hosted service](https://firecrawl.dev/?ref=github).
+**Supercharge your AI agents with data from the web and beyond.** Open source and self-hosted locally on your Mac.
 
 _Pst. Hey, you, join our stargazers :)_
 
