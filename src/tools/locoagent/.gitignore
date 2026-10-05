@@ -63,9 +63,6 @@ workflows/state.json
 workflows/.tmp/
 workflows/.locks/
 
-# Persona (private identity and runtime data)
-persona/
-
 # Internal docs (not for public repo)
 internal-docs/
 

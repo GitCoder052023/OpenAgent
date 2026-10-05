@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "description": "Social agent operation log and cross-session deduplication ledger.",
+  "operations": []
+}
