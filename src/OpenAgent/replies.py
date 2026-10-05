@@ -583,7 +583,7 @@ def _wait_for_completion(cfg, button_path, dur, stop, get_snapshot, user_recordi
     event("echo_guard", state="playback_wait_expired", level="warning", elapsed_s=round(time.monotonic() - started, 2), duration_s=dur, saw_pause=saw_pause)
 
 
-def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None, pause=None, desk=None, harness=None, playing=None, ledger_path=None, user_recording=None, mac_adapter=None):
+def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_button, state=None, pause=None, desk=None, harness=None, playing=None, ledger_path=None, user_recording=None, mac_adapter=None, firecrawl_adapter=None):
     """Play new inbound notes and/or dispatch incoming tool calls over WhatsApp.
 
     WhatsApp remains completely hidden in the background while running.
@@ -795,7 +795,7 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                         attachments_to_send = []
                         for call in tool_calls:
                             t_name = call.get("tool", "unknown")
-                            res = execute_tool_call(harness, call, mac_adapter=mac_adapter)
+                            res = execute_tool_call(harness, call, mac_adapter=mac_adapter, firecrawl_adapter=firecrawl_adapter)
                             responses.append(res)
                             inner = res.get("result")
                             if isinstance(inner, dict) and inner.get("_send_attachment"):

@@ -1,0 +1,312 @@
+import "dotenv/config";
+import { config } from "./config";
+import { shutdownTracing } from "./otel";
+import express, { NextFunction, Request, Response } from "express";
+import bodyParser from "body-parser";
+import cors from "cors";
+import {
+  getGenerateLlmsTxtQueue,
+  getDeepResearchQueue,
+  getBillingQueue,
+  getPrecrawlQueue,
+} from "./services/queue-service";
+import { v0Router } from "./routes/v0";
+import os from "os";
+import { logger } from "./lib/logger";
+import { adminRouter } from "./routes/admin";
+import http from "node:http";
+import https from "node:https";
+import { v1Router } from "./routes/v1";
+import expressWs from "express-ws";
+import { ErrorResponse, RequestWithMaybeACUC } from "./controllers/v1/types";
+import { ZodError } from "zod";
+import { QueueFullError } from "./lib/queue-full-error";
+import { v7 as uuidv7 } from "uuid";
+import { cacheableLookup } from "./scraper/scrapeURL/lib/cacheableLookup";
+import { v2Router } from "./routes/v2";
+import { exchangeRouter } from "./routes/exchange";
+import { labsRouter } from "./routes/labs";
+import { registerMcpActionLogIngestRoute } from "./routes/mcp-action-logs";
+import { startMcpActionLogRetentionWorkerIfEnabled } from "./services/mcp/action-logs";
+import { db } from "./db/connection";
+import { nuqShutdown } from "./services/worker/nuq";
+import { getErrorContactMessage } from "./lib/deployment";
+import { initializeBlocklist } from "./scraper/WebScraper/utils/blocklist";
+import { warmExchangeCatalog } from "./lib/exchange";
+import { initializeEngineForcing } from "./scraper/WebScraper/utils/engine-forcing";
+import responseTime from "response-time";
+import { shutdownWebhookQueue } from "./services/webhook";
+import { shutdownIndexerQueue } from "./services/indexing/indexer-queue";
+import { isKeylessConfigured } from "./lib/keyless";
+import { shutdownPubSubLogging } from "./services/logging/log_job";
+import { notFoundHandler } from "./lib/not-found";
+
+const { createBullBoard } = require("@bull-board/api");
+const { BullMQAdapter } = require("@bull-board/api/bullMQAdapter");
+const { ExpressAdapter } = require("@bull-board/express");
+
+const numCPUs = config.ENV === "local" ? 2 : os.cpus().length;
+logger.info(`Number of CPUs: ${numCPUs} available`);
+
+logger.info("Network info dump", {
+  networkInterfaces: os.networkInterfaces(),
+});
+
+if (isKeylessConfigured() && !config.KEYLESS_CONVERSION_HMAC_SECRET) {
+  logger.warn(
+    "Keyless conversion cohort logging is disabled: set KEYLESS_CONVERSION_HMAC_SECRET to enable privacy-safe quota-to-account measurement",
+  );
+}
+
+// Install cacheable lookup for all other requests
+cacheableLookup.install(http.globalAgent);
+cacheableLookup.install(https.globalAgent);
+
+// Initialize Express with WebSocket support
+const expressApp = express();
+const ws = expressWs(expressApp);
+const app = ws.app;
+
+global.isProduction = config.IS_PRODUCTION;
+
+// Capture the exact request bytes so integrations that sign the raw payload
+// (e.g. Slack's X-Slack-Signature) can verify it after body parsing. Typed with
+// the node http types body-parser's `verify` hook expects.
+const captureRawBody = (
+  req: http.IncomingMessage,
+  _res: http.ServerResponse,
+  buf: Buffer,
+) => {
+  if (buf && buf.length) {
+    (req as http.IncomingMessage & { rawBody?: Buffer }).rawBody = buf;
+  }
+};
+
+registerMcpActionLogIngestRoute(app);
+
+app.use(bodyParser.urlencoded({ extended: true, verify: captureRawBody }));
+app.use(bodyParser.json({ limit: "10mb", verify: captureRawBody }));
+
+app.use(cors()); // Add this line to enable CORS
+
+app.use(responseTime());
+
+app.disable("x-powered-by");
+
+if (config.EXPRESS_TRUST_PROXY) {
+  app.set("trust proxy", config.EXPRESS_TRUST_PROXY);
+}
+
+const serverAdapter = new ExpressAdapter();
+
+const { addQueue, removeQueue, setQueues, replaceQueues } = createBullBoard({
+  queues: [
+    new BullMQAdapter(getGenerateLlmsTxtQueue()),
+    new BullMQAdapter(getDeepResearchQueue()),
+    new BullMQAdapter(getBillingQueue()),
+    new BullMQAdapter(getPrecrawlQueue()),
+    // SIEM audit delivery runs on RabbitMQ; inspect it in the broker's
+    // management UI, not here.
+  ],
+  serverAdapter: serverAdapter,
+});
+
+if (config.BULL_AUTH_KEY) {
+  serverAdapter.setBasePath(`/admin/${config.BULL_AUTH_KEY}/queues`);
+  app.use(`/admin/${config.BULL_AUTH_KEY}/queues`, serverAdapter.getRouter());
+} else {
+  logger.warn("BULL_AUTH_KEY is not set; admin routes are disabled.");
+}
+
+app.get("/", (_, res) => {
+  res.json({
+    message: "Firecrawl API",
+    documentation_url: "https://docs.firecrawl.dev",
+  });
+});
+
+app.get("/e2e-test", (_, res) => {
+  res.status(200).send("OK");
+});
+
+// register router
+app.use(v0Router);
+app.use("/v1", v1Router);
+app.use("/v2", v2Router);
+app.use("/labs", labsRouter);
+app.use("/exchange", exchangeRouter);
+app.use(adminRouter);
+
+const DEFAULT_PORT = config.PORT;
+const HOST = config.HOST;
+
+async function startServer(port = DEFAULT_PORT) {
+  try {
+    await initializeBlocklist();
+    initializeEngineForcing();
+    warmExchangeCatalog();
+  } catch (error) {
+    logger.error("Failed to initialize API startup dependencies", {
+      error,
+    });
+    throw error;
+  }
+
+  const mcpActionLogRetention = startMcpActionLogRetentionWorkerIfEnabled({
+    enabled: config.MCP_ACTION_LOG_STORAGE_ENABLED,
+    db,
+  });
+  const server = app.listen(Number(port), HOST, (error?: Error) => {
+    if (error) {
+      logger.error("Failed to start HTTP server", { error, port, host: HOST });
+      throw error;
+    }
+
+    logger.info(`Worker ${process.pid} listening on port ${port}`);
+  });
+
+  const exitHandler = async () => {
+    logger.info("SIGTERM signal received: closing HTTP server");
+    mcpActionLogRetention?.stop();
+    if (config.IS_KUBERNETES) {
+      // Account for GCE load balancer drain timeout
+      logger.info("Waiting 60s for GCE load balancer drain timeout");
+      await new Promise(resolve => setTimeout(resolve, 60000));
+    }
+    server.close(() => {
+      logger.info("Server closed.");
+      nuqShutdown().finally(() => {
+        shutdownWebhookQueue().finally(() => {
+          shutdownIndexerQueue().finally(async () => {
+            await shutdownPubSubLogging();
+            await shutdownTracing();
+            logger.info("NUQ shutdown complete");
+            process.exit(0);
+          });
+        });
+      });
+    });
+  };
+
+  if (require.main === module) {
+    process.on("SIGTERM", exitHandler);
+    process.on("SIGINT", exitHandler);
+  }
+  return server;
+}
+
+if (require.main === module) {
+  startServer().catch(error => {
+    logger.error("Failed to start server", { error });
+    process.exit(1);
+  });
+}
+
+app.get("/is-production", (req, res) => {
+  res.send({ isProduction: global.isProduction });
+});
+
+// Terminal handler for unmatched paths. Must stay after every route and before
+// the error middleware below, or Express falls back to its default HTML page.
+app.use(notFoundHandler);
+
+app.use(
+  (
+    err: unknown,
+    req: Request<{}, ErrorResponse, undefined>,
+    res: Response<ErrorResponse>,
+    next: NextFunction,
+  ) => {
+    if (err instanceof QueueFullError) {
+      res.status(429).json({
+        success: false,
+        error: err.message,
+      });
+    } else if (err instanceof ZodError) {
+      // In zod v4, ZodError uses 'issues' instead of 'errors'
+      const issues = err.issues;
+
+      if (
+        Array.isArray(issues) &&
+        issues.find(x => x.message === "URL uses unsupported protocol")
+      ) {
+        logger.warn("Unsupported protocol error: " + JSON.stringify(req.body));
+      }
+
+      // Check for unrecognized_keys errors and replace with custom message
+      const hasUnrecognizedKeys = issues.some(
+        e => e.code === "unrecognized_keys",
+      );
+      const strictMessage =
+        "Unrecognized key in body -- please review the v2 API documentation for request body changes";
+
+      const customErrorMessage = hasUnrecognizedKeys
+        ? strictMessage
+        : issues.length > 0 && issues[0].code === "custom"
+          ? issues[0].message
+          : "Bad Request";
+
+      res.status(400).json({
+        success: false,
+        code: "BAD_REQUEST",
+        error: customErrorMessage,
+        details: issues,
+      });
+    } else {
+      next(err);
+    }
+  },
+);
+
+app.use(
+  (
+    err: unknown,
+    req: RequestWithMaybeACUC<{}, ErrorResponse, undefined>,
+    res: Response<ErrorResponse>,
+    next: NextFunction,
+  ) => {
+    if (
+      err instanceof SyntaxError &&
+      "status" in err &&
+      err.status === 400 &&
+      "body" in err
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: "BAD_REQUEST_INVALID_JSON",
+        error: "Bad request, malformed JSON",
+      });
+    }
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "status" in err &&
+      (err as { status?: number }).status === 413
+    ) {
+      return res.status(413).json({
+        success: false,
+        error: "Request body is too large",
+      });
+    }
+
+    const id = uuidv7();
+
+    logger.error(
+      "Error occurred in request! (" + req.path + ") -- ID " + id + " -- ",
+      {
+        error: err,
+        errorId: id,
+        path: req.path,
+        teamId: req.acuc?.team_id,
+        team_id: req.acuc?.team_id,
+      },
+    );
+    res.status(500).json({
+      success: false,
+      code: "UNKNOWN_ERROR",
+      error: getErrorContactMessage(id),
+    });
+  },
+);
+
+logger.info(`Worker ${process.pid} started`);

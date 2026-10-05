@@ -50,6 +50,9 @@ class Config:
     voice_model: str = "models/vosk-model-small-en-us-0.15"
     voice_silence_seconds: float = 2.0
     ledger_path: str = ""
+    firecrawl_api_url: str = "http://localhost:3002"
+    firecrawl_api_key: str = ""
+    firecrawl_timeout: float = 60.0
 
     @classmethod
     def from_env(cls):
@@ -73,6 +76,13 @@ class Config:
 
         ledger_path = os.getenv("BRIDGE_LEDGER_FILE", "").strip()
 
+        firecrawl_api_url = os.getenv("FIRECRAWL_API_URL", cls.firecrawl_api_url).rstrip("/")
+        firecrawl_api_key = os.getenv("FIRECRAWL_API_KEY", cls.firecrawl_api_key)
+        try:
+            firecrawl_timeout = float(os.getenv("FIRECRAWL_TIMEOUT", cls.firecrawl_timeout))
+        except (ValueError, TypeError):
+            firecrawl_timeout = 60.0
+
         return cls(number=os.getenv("BRIDGE_WHATSAPP_NUMBER", cls.number),
                    model=os.getenv("BRIDGE_WHISPER_MODEL", cls.model),
                    whisper_cli=os.getenv("BRIDGE_WHISPER_CLI", cls.whisper_cli),
@@ -92,5 +102,8 @@ class Config:
                    hotkey=hotkey,
                    voice_model=os.getenv("BRIDGE_VOICE_MODEL", cls.voice_model),
                    voice_silence_seconds=float(os.getenv("BRIDGE_VOICE_SILENCE_SECONDS", cls.voice_silence_seconds)),
-                   ledger_path=ledger_path)
+                   ledger_path=ledger_path,
+                   firecrawl_api_url=firecrawl_api_url,
+                   firecrawl_api_key=firecrawl_api_key,
+                   firecrawl_timeout=firecrawl_timeout)
 

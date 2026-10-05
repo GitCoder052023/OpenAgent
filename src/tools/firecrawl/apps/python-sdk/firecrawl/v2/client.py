@@ -1,0 +1,1911 @@
+"""
+Main Firecrawl v2 API client.
+
+This module provides the main client class that orchestrates all v2 functionality.
+"""
+
+import os
+from pathlib import Path
+from typing import Optional, List, Dict, Any, Callable, Union, Literal, BinaryIO
+from .types import (
+    ClientConfig,
+    ParseFormat,
+    ParseOptions,
+    ScrapeOptions,
+    Document,
+    SearchRequest,
+    SearchData,
+    DeveloperSearchResponse,
+    DeveloperSearchType,
+    SourceOption,
+    CategoryOption,
+    FindToolsData,
+    AlexandriaCall,
+    AlexandriaScrapeData,
+    CrawlRequest,
+    CrawlResponse,
+    CrawlJob,
+    CrawlParamsRequest,
+    PDFParser,
+    ImageParser,
+    CrawlParamsData,
+    WebhookConfig,
+    AgentWebhookConfig,
+    AgentExchangeOptions,
+    MonitorWebhookConfig,
+    CrawlErrorsResponse,
+    ActiveCrawlsResponse,
+    MapOptions,
+    MapData,
+    FormatOption,
+    WaitAction,
+    ScreenshotAction,
+    ClickAction,
+    WriteAction,
+    PressAction,
+    ScrollAction,
+    ScrapeAction,
+    ExecuteJavascriptAction,
+    PDFAction,
+    Location,
+    PaginationConfig,
+    AgentOptions,
+    AuditMetadata,
+    ThreatProtectionOptions,
+    Monitor,
+    MonitorCheck,
+    MonitorCheckDetail,
+    MonitorCreateRequest,
+    MonitorNotification,
+    MonitorSchedule,
+    MonitorTarget,
+    MonitorUpdateRequest,
+)
+from .utils.http_client import HttpClient
+from .utils.error_handler import FirecrawlError
+from .methods import scrape as scrape_module
+from .methods import parse as parse_module
+from .methods import crawl as crawl_module  
+from .methods import batch as batch_module
+from .methods import search as search_module
+from .methods import developer as developer_module
+from .methods import map as map_module
+from .methods import batch as batch_methods
+from .methods import usage as usage_methods
+from .methods import extract as extract_module
+from .methods import agent as agent_module
+from .methods import browser as browser_module
+from .methods import monitor as monitor_module
+from .methods import research as research_module
+from .methods.research_docs import (
+    CLIENT_INSPECT_PAPER_DOC,
+    CLIENT_READ_PAPER_DOC,
+    CLIENT_RELATED_PAPERS_DOC,
+    CLIENT_SEARCH_GITHUB_DOC,
+    CLIENT_SEARCH_PAPERS_DOC,
+    doc,
+)
+from .watcher import Watcher
+
+# Kwargs that map to ScrapeOptions fields. Used by async crawl normalization
+# to extract scrape kwargs from **kwargs before building CrawlRequest.
+# Does not include "integration" (crawl-level param, not a scrape option).
+_SCRAPE_OPTION_KEYS = frozenset({
+    "formats", "headers", "include_tags", "exclude_tags",
+    "only_main_content", "timeout", "wait_for", "mobile",
+    "parsers", "actions", "location", "skip_tls_verification",
+    "remove_base64_images", "fast_mode", "use_mock", "block_ads",
+    "proxy", "max_age", "store_in_cache", "lockdown", "threat_protection",
+    "profile", "audit_metadata",
+})
+
+
+class FirecrawlClient:
+    """
+    Main Firecrawl v2 API client.
+
+    This client provides a clean, modular interface to all Firecrawl functionality.
+    """
+
+    @staticmethod
+    def _is_cloud_service(url: str) -> bool:
+        return "api.firecrawl.dev" in url.lower()
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        api_url: str = "https://api.firecrawl.dev",
+        timeout: Optional[float] = None,
+        max_retries: int = 3,
+        backoff_factor: float = 0.5,
+        origin: Optional[str] = None,
+    ):
+        """
+        Initialize the Firecrawl client.
+
+        Args:
+            api_key: Firecrawl API key (or set FIRECRAWL_API_KEY env var)
+            api_url: Base URL for the Firecrawl API
+            timeout: Request timeout in seconds
+            max_retries: Maximum number of retries for failed requests
+            backoff_factor: Exponential backoff factor for retries (e.g. 0.5 means wait 0.5s, then 1s, then 2s between retries)
+            origin: Attribution string stamped into API request payloads
+                (defaults to ``python-sdk@<version>``)
+        """
+        if api_key is None:
+            api_key = os.getenv("FIRECRAWL_API_KEY")
+
+        # No API key is allowed: scrape, search, and interact fall back to the
+        # keyless free tier (rate-limited per IP). The HTTP client only sends an
+        # Authorization header when a key is present, and other methods return
+        # 401 from the API until a key is provided.
+
+        self.config = ClientConfig(
+            api_key=api_key,
+            api_url=api_url,
+            timeout=timeout,
+            max_retries=max_retries,
+            backoff_factor=backoff_factor
+        )
+
+        self.http_client = HttpClient(
+            api_key,
+            api_url,
+            timeout=timeout,
+            max_retries=max_retries,
+            backoff_factor=backoff_factor,
+            origin=origin,
+        )
+    
+    def scrape(
+        self,
+        url: Optional[str] = None,
+        *,
+        auto_resume: Optional[bool] = None,
+        alexandria: Optional[Union[AlexandriaCall, Dict[str, Any], List[Union[AlexandriaCall, Dict[str, Any]]]]] = None,
+        request_id: Optional[str] = None,
+        formats: Optional[List['FormatOption']] = None,
+        headers: Optional[Dict[str, str]] = None,
+        include_tags: Optional[List[str]] = None,
+        exclude_tags: Optional[List[str]] = None,
+        only_main_content: Optional[bool] = None,
+        timeout: Optional[int] = None,
+        wait_for: Optional[int] = None,
+        mobile: Optional[bool] = None,
+        parsers: Optional[Union[List[str], List[Union[str, PDFParser, ImageParser]]]] = None,
+        actions: Optional[List[Union['WaitAction', 'ScreenshotAction', 'ClickAction', 'WriteAction', 'PressAction', 'ScrollAction', 'ScrapeAction', 'ExecuteJavascriptAction', 'PDFAction']]] = None,
+        location: Optional['Location'] = None,
+        skip_tls_verification: Optional[bool] = None,
+        remove_base64_images: Optional[bool] = None,
+        fast_mode: Optional[bool] = None,
+        use_mock: Optional[str] = None,
+        block_ads: Optional[bool] = None,
+        proxy: Optional[str] = None,
+        max_age: Optional[int] = None,
+        store_in_cache: Optional[bool] = None,
+        lockdown: Optional[bool] = None,
+        threat_protection: Optional[ThreatProtectionOptions] = None,
+        profile: Optional[Dict[str, Any]] = None,
+        audit_metadata: Optional[AuditMetadata] = None,
+        integration: Optional[str] = None,
+        domain_tools: Optional[bool] = None,
+        tool_detail: Optional[Literal["compact", "summary", "full"]] = None,
+    ) -> Union[Document, AlexandriaScrapeData]:
+        """
+        Scrape a single URL and return the document.
+        Args:
+            url: URL to scrape
+            formats: List of formats to scrape
+            headers: Dictionary of headers to use
+            include_tags: List of tags to include
+            exclude_tags: List of tags to exclude
+            only_main_content: Whether to only scrape the main content
+            timeout: Timeout in milliseconds
+            wait_for: Wait for a specific element to be present
+            mobile: Whether to use mobile mode
+            parsers: List of parsers to use
+            actions: List of actions to perform
+            location: Location to scrape
+            skip_tls_verification: Whether to skip TLS verification
+            remove_base64_images: Whether to remove base64 images
+            fast_mode: Whether to use fast mode
+            use_mock: Whether to use mock mode
+            block_ads: Whether to block ads
+            proxy: Proxy to use
+            max_age: Maximum age of the cache
+            store_in_cache: Whether to store the result in the cache
+            lockdown: Serve only previously cached results; never make outbound requests. Returns 404 SCRAPE_LOCKDOWN_CACHE_MISS on cache miss.
+            threat_protection: Enterprise per-request override of the team's threat protection policy
+            profile: Browser profile for persistent state (e.g. {"name": "my-profile", "saveChanges": True})
+            tool_detail: "compact" returns provider, capability and description; "summary" (default) adds metadata; "full" includes contracts when domain discovery is enabled.
+            audit_metadata: Metadata to include in SIEM logging events
+        Returns:
+            Document
+        """
+        options = ScrapeOptions(
+            **{k: v for k, v in dict(
+                formats=formats,
+                headers=headers,
+                include_tags=include_tags,
+                exclude_tags=exclude_tags,
+                only_main_content=only_main_content,
+                timeout=timeout,
+                wait_for=wait_for,
+                mobile=mobile,
+                parsers=parsers,
+                actions=actions,
+                location=location,
+                skip_tls_verification=skip_tls_verification,
+                remove_base64_images=remove_base64_images,
+                fast_mode=fast_mode,
+                use_mock=use_mock,
+                block_ads=block_ads,
+                proxy=proxy,
+                max_age=max_age,
+                store_in_cache=store_in_cache,
+                lockdown=lockdown,
+                threat_protection=threat_protection,
+                profile=profile,
+                audit_metadata=audit_metadata,
+                integration=integration,
+                domain_tools=domain_tools,
+                tool_detail=tool_detail,
+            ).items() if v is not None}
+        ) if any(v is not None for v in [formats, headers, include_tags, exclude_tags, only_main_content, timeout, wait_for, mobile, parsers, actions, location, skip_tls_verification, remove_base64_images, fast_mode, use_mock, block_ads, proxy, max_age, store_in_cache, lockdown, threat_protection, profile, audit_metadata, integration, domain_tools, tool_detail]) else None
+        if alexandria is not None:
+            if url is not None or auto_resume is not None or (options and set(options.model_dump(exclude_none=True, exclude_unset=True)) - {"timeout", "integration"}):
+                raise ValueError("alexandria cannot be combined with URL scrape options")
+            return self.scrape_alexandria(alexandria, timeout=timeout, integration=integration, request_id=request_id)
+        if request_id is not None:
+            raise ValueError("request_id requires alexandria")
+        return scrape_module.scrape(self.http_client, url, options, auto_resume=auto_resume)
+
+    def scrape_alexandria(
+        self,
+        calls: Union[AlexandriaCall, Dict[str, Any], List[Union[AlexandriaCall, Dict[str, Any]]]],
+        *,
+        timeout: Optional[int] = None,
+        integration: Optional[str] = None,
+        request_id: Optional[str] = None,
+    ) -> AlexandriaScrapeData:
+        """
+        Execute up to 10 Alexandria capabilities in one request.
+
+        Args:
+            calls: Alexandria calls, each with provider, capability and optional options
+            timeout: Request timeout in milliseconds
+            integration: Integration tag for the request
+
+        Returns:
+            AlexandriaScrapeData with one result (or error) per call and the total credits cost
+        """
+        return scrape_module.scrape_alexandria(
+            self.http_client, calls, timeout=timeout, integration=integration, request_id=request_id
+        )
+
+    def find_tools(self, **options) -> FindToolsData:
+        """Explore providers and contracts without executing discovered tools.
+
+        Filter by urls, providers, categories, groups, or capabilities. Use level
+        (providers/groups/tools), expand, limit, and offset to control disclosure.
+        Follow a returned next request with scrape(alexandria=next).
+        """
+        result = self.scrape_alexandria({"provider": "firecrawl", "capability": "find-tools", "options": options})
+        item = result.alexandria[0]
+        if item.error:
+            from .utils.error_handler import FirecrawlError
+            raise FirecrawlError(
+                item.error.message,
+                item.error.status,
+                request_id=result.request_id,
+                code=item.error.code,
+                charge_id=item.error.charge_id,
+            )
+        return FindToolsData(**item.data)
+
+    # Research paper index (/v2/search/research)
+    @doc(CLIENT_SEARCH_PAPERS_DOC)
+    def search_papers(self, query: str, **kwargs):
+        return research_module.search_papers(self.http_client, query, **kwargs)
+
+    @doc(CLIENT_INSPECT_PAPER_DOC)
+    def inspect_paper(self, paper_id: str):
+        return research_module.inspect_paper(self.http_client, paper_id)
+
+    @doc(CLIENT_READ_PAPER_DOC)
+    def read_paper(self, paper_id: str, query: str, **kwargs):
+        return research_module.read_paper(self.http_client, paper_id, query, **kwargs)
+
+    @doc(CLIENT_RELATED_PAPERS_DOC)
+    def related_papers(self, paper_id: str, intent: str, **kwargs):
+        return research_module.related_papers(self.http_client, paper_id, intent, **kwargs)
+
+    @doc(CLIENT_SEARCH_GITHUB_DOC)
+    def search_github(self, query: str, **kwargs):
+        return research_module.search_github(self.http_client, query, **kwargs)
+
+    def interact(
+        self,
+        job_id: str,
+        code: Optional[str] = None,
+        *,
+        prompt: Optional[str] = None,
+        language: Literal["python", "node", "bash"] = "node",
+        timeout: Optional[int] = None,
+        origin: Optional[str] = None,
+    ):
+        """
+        Interact with the browser session associated with a scrape job.
+
+        Either ``code`` or ``prompt`` must be provided.
+
+        Args:
+            job_id: Scrape job ID
+            code: Code to execute (optional if prompt is provided)
+            prompt: Natural-language instruction for the browser agent (optional if code is provided)
+            language: Programming language ("python", "node", or "bash")
+            timeout: Execution timeout in seconds (1-300)
+            origin: Optional request origin tag
+
+        Returns:
+            BrowserExecuteResponse with execution result
+        """
+        return scrape_module.interact(
+            self.http_client,
+            job_id,
+            code,
+            prompt=prompt,
+            language=language,
+            timeout=timeout,
+            origin=origin,
+        )
+
+    def stop_interaction(self, job_id: str):
+        """
+        Stop the interaction session associated with a scrape job.
+
+        Args:
+            job_id: Scrape job ID
+
+        Returns:
+            BrowserDeleteResponse
+        """
+        return scrape_module.stop_interaction(self.http_client, job_id)
+
+    def stop_interactive_browser(self, job_id: str):
+        """Deprecated alias for stop_interaction()."""
+        return self.stop_interaction(job_id)
+
+    def scrape_execute(
+        self,
+        job_id: str,
+        code: Optional[str] = None,
+        *,
+        prompt: Optional[str] = None,
+        language: Literal["python", "node", "bash"] = "node",
+        timeout: Optional[int] = None,
+        origin: Optional[str] = None,
+    ):
+        """Deprecated alias for interact()."""
+        return self.interact(
+            job_id,
+            code,
+            prompt=prompt,
+            language=language,
+            timeout=timeout,
+            origin=origin,
+        )
+
+    def delete_scrape_browser(self, job_id: str):
+        """Deprecated alias for stop_interaction()."""
+        return self.stop_interaction(job_id)
+
+    def scrape_url(self, url: str, **kwargs):
+        """V1 compatibility alias for agent recovery. Prefer scrape()."""
+        return self.scrape(url, **kwargs)
+
+    def crawl_url(self, url: str, **kwargs):
+        """V1 compatibility alias for agent recovery. Prefer crawl()."""
+        return self.crawl(url, **kwargs)
+
+    def map_url(self, url: str, **kwargs):
+        """V1 compatibility alias for agent recovery. Prefer map()."""
+        return self.map(url, **kwargs)
+
+    def async_crawl_url(self, url: str, **kwargs):
+        """V1 compatibility alias for agent recovery. Prefer start_crawl()."""
+        return self.start_crawl(url, **kwargs)
+
+    def check_crawl_status(self, id: str, **kwargs):
+        """V1 compatibility alias for agent recovery. Prefer get_crawl_status()."""
+        return self.get_crawl_status(id, **kwargs)
+
+    def check_crawl_errors(self, id: str):
+        """V1 compatibility alias for agent recovery. Prefer get_crawl_errors()."""
+        return self.get_crawl_errors(id)
+
+    def batch_scrape_urls(self, urls, **kwargs):
+        """V1 compatibility alias for agent recovery. Prefer batch_scrape()."""
+        return self.batch_scrape(urls, **kwargs)
+
+    def async_batch_scrape_urls(self, urls, **kwargs):
+        """V1 compatibility alias for agent recovery. Prefer start_batch_scrape()."""
+        return self.start_batch_scrape(urls, **kwargs)
+
+    def check_batch_scrape_status(self, id: str, **kwargs):
+        """V1 compatibility alias for agent recovery. Prefer get_batch_scrape_status()."""
+        return self.get_batch_scrape_status(id, **kwargs)
+
+    def check_batch_scrape_errors(self, id: str):
+        """V1 compatibility alias for agent recovery. Prefer get_batch_scrape_errors()."""
+        return self.get_batch_scrape_errors(id)
+
+    def parse(
+        self,
+        file: Union[str, Path, bytes, bytearray, BinaryIO],
+        *,
+        filename: Optional[str] = None,
+        content_type: Optional[str] = None,
+        options: Optional[ParseOptions] = None,
+    ) -> Document:
+        """
+        Parse an uploaded file using the v2 parse endpoint.
+
+        Args:
+            file: File path, bytes, bytearray, or binary file-like object
+            filename: Optional explicit filename (required for raw bytes without extension)
+            content_type: Optional explicit MIME type
+            options: Parse-compatible options. Parse rejects change tracking and
+                browser-only options such as actions, wait_for, location, and mobile.
+
+        Returns:
+            Document
+        """
+        return parse_module.parse(
+            self.http_client,
+            file,
+            options=options,
+            filename=filename,
+            content_type=content_type,
+        )
+
+    def get_parse_formats(self) -> List[ParseFormat]:
+        """
+        List the file formats the parse endpoint accepts.
+
+        Returns:
+            List of ParseFormat entries. ``available`` is False for formats
+            that are known but disabled on this deployment.
+        """
+        return parse_module.get_parse_formats(self.http_client)
+
+
+    def search(
+        self,
+        query: str,
+        *,
+        sources: Optional[List[SourceOption]] = None,
+        domain_tools: Optional[bool] = None,
+        tool_detail: Optional[Literal["compact", "summary", "full"]] = None,
+        categories: Optional[List[CategoryOption]] = None,
+        include_domains: Optional[List[str]] = None,
+        exclude_domains: Optional[List[str]] = None,
+        limit: Optional[int] = None,
+        tbs: Optional[str] = None,
+        location: Optional[str] = None,
+        country: Optional[str] = None,
+        ignore_invalid_urls: Optional[bool] = None,
+        timeout: Optional[int] = None,
+        highlights: Optional[bool] = None,
+        scrape_options: Optional[ScrapeOptions] = None,
+        integration: Optional[str] = None,
+        enterprise: Optional[List[str]] = None,
+        threat_protection: Optional[ThreatProtectionOptions] = None,
+    ) -> SearchData:
+        """
+        Search for documents.
+
+        Args:
+            query: Search query string
+            tool_detail: "compact" (default) returns provider, capability and description; "summary" adds metadata and a follow-up request; "full" includes contracts.
+            limit: Maximum number of results to return (default: 5)
+            tbs: Time-based search filter
+            location: Location string for search
+            country: Country code that geo-targets the search results
+            timeout: Request timeout in milliseconds (default: 300000)
+            highlights: Generate query-relevant highlights for search results
+                (default: true)
+            page_options: Options for scraping individual pages
+            enterprise: Enterprise search options. Use ["zdr"] for end-to-end
+                Zero Data Retention or ["anon"] for anonymized search. Must be
+                enabled for your team.
+            threat_protection: Enterprise per-request override of the team's
+                threat protection policy
+
+        Returns:
+            SearchData containing the search results
+        """
+        request = SearchRequest(
+            query=query,
+            sources=sources,
+            domain_tools=domain_tools,
+            tool_detail=tool_detail,
+            categories=categories,
+            include_domains=include_domains,
+            exclude_domains=exclude_domains,
+            limit=limit,
+            tbs=tbs,
+            location=location,
+            country=country,
+            ignore_invalid_urls=ignore_invalid_urls,
+            timeout=timeout,
+            highlights=highlights,
+            scrape_options=scrape_options,
+            integration=integration,
+            enterprise=enterprise,
+            threat_protection=threat_protection,
+        )
+
+        return search_module.search(self.http_client, request)
+
+    def developer_search(
+        self,
+        query: str,
+        *,
+        k: Optional[int] = None,
+        passages: Optional[int] = None,
+        types: Optional[List[DeveloperSearchType]] = None,
+        repos: Optional[List[str]] = None,
+        sources: Optional[List[str]] = None,
+        language: Optional[str] = None,
+        topic: Optional[List[str]] = None,
+        license: Optional[str] = None,
+        min_stars: Optional[int] = None,
+        max_stars: Optional[int] = None,
+        archived: Optional[bool] = None,
+        fork: Optional[bool] = None,
+        skills: Optional[Literal["only"]] = None,
+    ) -> DeveloperSearchResponse:
+        """Search the dedicated developer index with full filters and evidence."""
+        return developer_module.developer_search(
+            self.http_client,
+            query,
+            k=k,
+            passages=passages,
+            types=types,
+            repos=repos,
+            sources=sources,
+            language=language,
+            topic=topic,
+            license=license,
+            min_stars=min_stars,
+            max_stars=max_stars,
+            archived=archived,
+            fork=fork,
+            skills=skills,
+        )
+    
+    def crawl(
+        self,
+        url: str,
+        *,
+        prompt: Optional[str] = None,
+        exclude_paths: Optional[List[str]] = None,
+        include_paths: Optional[List[str]] = None,
+        max_discovery_depth: Optional[int] = None,
+        sitemap: Optional[Literal["only", "include", "skip"]] = None,
+        ignore_sitemap: Optional[bool] = None,
+        ignore_query_parameters: bool = False,
+        limit: Optional[int] = None,
+        crawl_entire_domain: bool = False,
+        allow_external_links: bool = False,
+        allow_subdomains: bool = False,
+        ignore_robots_txt: bool = False,
+        delay: Optional[int] = None,
+        max_concurrency: Optional[int] = None,
+        webhook: Optional[Union[str, WebhookConfig]] = None,
+        scrape_options: Optional[ScrapeOptions] = None,
+        formats: Optional[List['FormatOption']] = None,
+        headers: Optional[Dict[str, str]] = None,
+        include_tags: Optional[List[str]] = None,
+        exclude_tags: Optional[List[str]] = None,
+        only_main_content: Optional[bool] = None,
+        wait_for: Optional[int] = None,
+        mobile: Optional[bool] = None,
+        parsers: Optional[Union[List[str], List[Union[str, PDFParser, ImageParser]]]] = None,
+        actions: Optional[List[Union['WaitAction', 'ScreenshotAction', 'ClickAction', 'WriteAction', 'PressAction', 'ScrollAction', 'ScrapeAction', 'ExecuteJavascriptAction', 'PDFAction']]] = None,
+        location: Optional['Location'] = None,
+        skip_tls_verification: Optional[bool] = None,
+        remove_base64_images: Optional[bool] = None,
+        fast_mode: Optional[bool] = None,
+        use_mock: Optional[str] = None,
+        block_ads: Optional[bool] = None,
+        proxy: Optional[str] = None,
+        max_age: Optional[int] = None,
+        store_in_cache: Optional[bool] = None,
+        lockdown: Optional[bool] = None,
+        threat_protection: Optional[ThreatProtectionOptions] = None,
+        profile: Optional[Dict[str, Any]] = None,
+        audit_metadata: Optional[AuditMetadata] = None,
+        regex_on_full_url: bool = False,
+        deduplicate_similar_urls: bool = True,
+        zero_data_retention: bool = False,
+        poll_interval: int = 2,
+        timeout: Optional[int] = None,
+        request_timeout: Optional[float] = None,
+        integration: Optional[str] = None,
+    ) -> CrawlJob:
+        """
+        Start a crawl job and wait for it to complete.
+
+        Args:
+            url: Target URL to start crawling from
+            prompt: Optional prompt to guide the crawl
+            exclude_paths: Patterns of URLs to exclude
+            include_paths: Patterns of URLs to include
+            max_discovery_depth: Maximum depth for finding new URLs
+            sitemap: Sitemap usage mode ("only" | "include" | "skip")
+            ignore_sitemap: Deprecated alias for sitemap ("skip" when true, "include" when false)
+            ignore_query_parameters: Ignore URL parameters
+            limit: Maximum pages to crawl
+            crawl_entire_domain: Follow parent directory links
+            allow_external_links: Follow external domain links
+            allow_subdomains: Follow subdomains
+            ignore_robots_txt: Whether to ignore robots.txt rules
+            delay: Delay in seconds between scrapes
+            max_concurrency: Maximum number of concurrent scrapes
+            webhook: Webhook configuration for notifications
+            scrape_options: Page scraping configuration (takes precedence over direct scrape kwargs)
+            formats: Output formats (convenience kwarg, ignored if scrape_options is set)
+            headers: HTTP headers for scraping (convenience kwarg)
+            include_tags: HTML tags to include (convenience kwarg)
+            exclude_tags: HTML tags to exclude (convenience kwarg)
+            only_main_content: Restrict to main content (convenience kwarg)
+            wait_for: Wait condition in ms (convenience kwarg)
+            mobile: Emulate mobile viewport (convenience kwarg)
+            parsers: Parser list (convenience kwarg)
+            actions: Browser actions (convenience kwarg)
+            location: Location settings (convenience kwarg)
+            skip_tls_verification: Skip TLS verification (convenience kwarg)
+            remove_base64_images: Remove base64 images (convenience kwarg)
+            fast_mode: Prefer faster modes (convenience kwarg)
+            use_mock: Use mock source (convenience kwarg)
+            block_ads: Block ads (convenience kwarg)
+            proxy: Proxy setting (convenience kwarg)
+            max_age: Cache max age (convenience kwarg)
+            store_in_cache: Cache results (convenience kwarg)
+            lockdown: Serve only cached results (convenience kwarg)
+            threat_protection: Enterprise threat protection override (convenience kwarg)
+            profile: Browser profile (convenience kwarg)
+            audit_metadata: Metadata to include in SIEM logging events
+            regex_on_full_url: Apply includePaths/excludePaths regex to the full URL (including query parameters) instead of just the pathname
+            deduplicate_similar_urls: Whether to deduplicate similar URLs during crawl (default: True)
+            zero_data_retention: Whether to delete data after 24 hours
+            poll_interval: Seconds between status checks
+            timeout: Maximum seconds to wait for the entire crawl job to complete (None for no timeout)
+            request_timeout: Timeout (in seconds) for each individual HTTP request, including pagination requests when fetching results. If there are multiple pages, each page request gets this timeout
+
+        Returns:
+            CrawlJob when job completes
+
+        Raises:
+            ValueError: If request is invalid
+            Exception: If the crawl fails to start or complete
+            TimeoutError: If timeout is reached
+        """
+        if scrape_options is None:
+            scrape_kwargs = {k: v for k, v in dict(
+                formats=formats, headers=headers, include_tags=include_tags,
+                exclude_tags=exclude_tags, only_main_content=only_main_content,
+                wait_for=wait_for, mobile=mobile, parsers=parsers, actions=actions,
+                location=location, skip_tls_verification=skip_tls_verification,
+                remove_base64_images=remove_base64_images, fast_mode=fast_mode,
+                use_mock=use_mock, block_ads=block_ads, proxy=proxy,
+                max_age=max_age, store_in_cache=store_in_cache, lockdown=lockdown,
+                threat_protection=threat_protection, profile=profile,
+                audit_metadata=audit_metadata,
+            ).items() if v is not None}
+            if scrape_kwargs:
+                scrape_options = ScrapeOptions(**scrape_kwargs)
+
+        resolved_sitemap = sitemap
+        if resolved_sitemap is None and ignore_sitemap is not None:
+            resolved_sitemap = "skip" if ignore_sitemap else "include"
+
+        request_kwargs = {
+            "url": url,
+            "prompt": prompt,
+            "exclude_paths": exclude_paths,
+            "include_paths": include_paths,
+            "max_discovery_depth": max_discovery_depth,
+            "ignore_query_parameters": ignore_query_parameters,
+            "limit": limit,
+            "crawl_entire_domain": crawl_entire_domain,
+            "allow_external_links": allow_external_links,
+            "allow_subdomains": allow_subdomains,
+            "ignore_robots_txt": ignore_robots_txt,
+            "delay": delay,
+            "max_concurrency": max_concurrency,
+            "webhook": webhook,
+            "scrape_options": scrape_options,
+            "regex_on_full_url": regex_on_full_url,
+            "deduplicate_similar_urls": deduplicate_similar_urls,
+            "zero_data_retention": zero_data_retention,
+            "integration": integration,
+        }
+        if resolved_sitemap is not None:
+            request_kwargs["sitemap"] = resolved_sitemap
+
+        request = CrawlRequest(**request_kwargs)
+
+        return crawl_module.crawl(
+            self.http_client,
+            request,
+            poll_interval=poll_interval,
+            timeout=timeout,
+            request_timeout=request_timeout,
+        )
+    
+    def start_crawl(
+        self,
+        url: str,
+        *,
+        prompt: Optional[str] = None,
+        exclude_paths: Optional[List[str]] = None,
+        include_paths: Optional[List[str]] = None,
+        max_discovery_depth: Optional[int] = None,
+        sitemap: Optional[Literal["only", "include", "skip"]] = None,
+        ignore_sitemap: Optional[bool] = None,
+        ignore_query_parameters: bool = False,
+        limit: Optional[int] = None,
+        crawl_entire_domain: bool = False,
+        allow_external_links: bool = False,
+        allow_subdomains: bool = False,
+        ignore_robots_txt: bool = False,
+        delay: Optional[int] = None,
+        max_concurrency: Optional[int] = None,
+        webhook: Optional[Union[str, WebhookConfig]] = None,
+        scrape_options: Optional[ScrapeOptions] = None,
+        formats: Optional[List['FormatOption']] = None,
+        headers: Optional[Dict[str, str]] = None,
+        include_tags: Optional[List[str]] = None,
+        exclude_tags: Optional[List[str]] = None,
+        only_main_content: Optional[bool] = None,
+        timeout: Optional[int] = None,
+        wait_for: Optional[int] = None,
+        mobile: Optional[bool] = None,
+        parsers: Optional[Union[List[str], List[Union[str, PDFParser, ImageParser]]]] = None,
+        actions: Optional[List[Union['WaitAction', 'ScreenshotAction', 'ClickAction', 'WriteAction', 'PressAction', 'ScrollAction', 'ScrapeAction', 'ExecuteJavascriptAction', 'PDFAction']]] = None,
+        location: Optional['Location'] = None,
+        skip_tls_verification: Optional[bool] = None,
+        remove_base64_images: Optional[bool] = None,
+        fast_mode: Optional[bool] = None,
+        use_mock: Optional[str] = None,
+        block_ads: Optional[bool] = None,
+        proxy: Optional[str] = None,
+        max_age: Optional[int] = None,
+        store_in_cache: Optional[bool] = None,
+        lockdown: Optional[bool] = None,
+        threat_protection: Optional[ThreatProtectionOptions] = None,
+        profile: Optional[Dict[str, Any]] = None,
+        audit_metadata: Optional[AuditMetadata] = None,
+        regex_on_full_url: bool = False,
+        deduplicate_similar_urls: bool = True,
+        zero_data_retention: bool = False,
+        integration: Optional[str] = None,
+    ) -> CrawlResponse:
+        """
+        Start an asynchronous crawl job.
+
+        Args:
+            url: Target URL to start crawling from
+            prompt: Optional prompt to guide the crawl
+            exclude_paths: Patterns of URLs to exclude
+            include_paths: Patterns of URLs to include
+            max_discovery_depth: Maximum depth for finding new URLs
+            sitemap: Sitemap usage mode ("only" | "include" | "skip")
+            ignore_sitemap: Deprecated alias for sitemap ("skip" when true, "include" when false)
+            ignore_query_parameters: Ignore URL parameters
+            limit: Maximum pages to crawl
+            crawl_entire_domain: Follow parent directory links
+            allow_external_links: Follow external domain links
+            allow_subdomains: Follow subdomains
+            ignore_robots_txt: Whether to ignore robots.txt rules
+            delay: Delay in seconds between scrapes
+            max_concurrency: Maximum number of concurrent scrapes
+            webhook: Webhook configuration for notifications
+            scrape_options: Page scraping configuration (takes precedence over direct scrape kwargs)
+            formats: Output formats (convenience kwarg, ignored if scrape_options is set)
+            headers: HTTP headers for scraping (convenience kwarg)
+            include_tags: HTML tags to include (convenience kwarg)
+            exclude_tags: HTML tags to exclude (convenience kwarg)
+            only_main_content: Restrict to main content (convenience kwarg)
+            timeout: Scrape timeout in milliseconds (convenience kwarg)
+            wait_for: Wait condition in ms (convenience kwarg)
+            mobile: Emulate mobile viewport (convenience kwarg)
+            parsers: Parser list (convenience kwarg)
+            actions: Browser actions (convenience kwarg)
+            location: Location settings (convenience kwarg)
+            skip_tls_verification: Skip TLS verification (convenience kwarg)
+            remove_base64_images: Remove base64 images (convenience kwarg)
+            fast_mode: Prefer faster modes (convenience kwarg)
+            use_mock: Use mock source (convenience kwarg)
+            block_ads: Block ads (convenience kwarg)
+            proxy: Proxy setting (convenience kwarg)
+            max_age: Cache max age (convenience kwarg)
+            store_in_cache: Cache results (convenience kwarg)
+            lockdown: Serve only cached results (convenience kwarg)
+            threat_protection: Enterprise threat protection override (convenience kwarg)
+            profile: Browser profile (convenience kwarg)
+            audit_metadata: Metadata to include in SIEM logging events
+            regex_on_full_url: Apply includePaths/excludePaths regex to the full URL (including query parameters) instead of just the pathname
+            deduplicate_similar_urls: Whether to deduplicate similar URLs during crawl (default: True)
+            zero_data_retention: Whether to delete data after 24 hours
+
+        Returns:
+            CrawlResponse with job information
+
+        Raises:
+            ValueError: If request is invalid
+            Exception: If the crawl operation fails to start
+        """
+        if scrape_options is None:
+            scrape_kwargs = {k: v for k, v in dict(
+                formats=formats, headers=headers, include_tags=include_tags,
+                exclude_tags=exclude_tags, only_main_content=only_main_content,
+                timeout=timeout, wait_for=wait_for, mobile=mobile,
+                parsers=parsers, actions=actions,
+                location=location, skip_tls_verification=skip_tls_verification,
+                remove_base64_images=remove_base64_images, fast_mode=fast_mode,
+                use_mock=use_mock, block_ads=block_ads, proxy=proxy,
+                max_age=max_age, store_in_cache=store_in_cache, lockdown=lockdown,
+                threat_protection=threat_protection, profile=profile,
+                audit_metadata=audit_metadata,
+            ).items() if v is not None}
+            if scrape_kwargs:
+                scrape_options = ScrapeOptions(**scrape_kwargs)
+
+        resolved_sitemap = sitemap
+        if resolved_sitemap is None and ignore_sitemap is not None:
+            resolved_sitemap = "skip" if ignore_sitemap else "include"
+
+        request_kwargs = {
+            "url": url,
+            "prompt": prompt,
+            "exclude_paths": exclude_paths,
+            "include_paths": include_paths,
+            "max_discovery_depth": max_discovery_depth,
+            "ignore_query_parameters": ignore_query_parameters,
+            "limit": limit,
+            "crawl_entire_domain": crawl_entire_domain,
+            "allow_external_links": allow_external_links,
+            "allow_subdomains": allow_subdomains,
+            "ignore_robots_txt": ignore_robots_txt,
+            "delay": delay,
+            "max_concurrency": max_concurrency,
+            "webhook": webhook,
+            "scrape_options": scrape_options,
+            "regex_on_full_url": regex_on_full_url,
+            "deduplicate_similar_urls": deduplicate_similar_urls,
+            "zero_data_retention": zero_data_retention,
+            "integration": integration,
+        }
+        if resolved_sitemap is not None:
+            request_kwargs["sitemap"] = resolved_sitemap
+
+        request = CrawlRequest(**request_kwargs)
+
+        return crawl_module.start_crawl(self.http_client, request)
+
+    def wait_crawl(
+        self,
+        job_id: str,
+        poll_interval: int = 2,
+        timeout: Optional[int] = None,
+        *,
+        request_timeout: Optional[float] = None,
+    ) -> CrawlJob:
+        """
+        Poll a crawl job until it reaches a terminal state.
+
+        Args:
+            job_id: ID of the crawl job
+            poll_interval: Seconds between status checks
+            timeout: Maximum seconds to wait for the whole job (None waits indefinitely)
+            request_timeout: Optional timeout (in seconds) for each status request
+
+        Returns:
+            CrawlJob in a terminal state ("completed", "failed", or "cancelled")
+
+        Raises:
+            CrawlJobTimeoutError: If the job does not finish within timeout (a
+                ``TimeoutError`` subclass that carries ``job_id`` and ``timeout``)
+        """
+        return crawl_module.wait_for_crawl_completion(
+            self.http_client,
+            job_id,
+            poll_interval=poll_interval,
+            timeout=timeout,
+            request_timeout=request_timeout,
+        )
+
+    def get_crawl_status(
+        self,
+        job_id: str,
+        pagination_config: Optional[PaginationConfig] = None,
+        *,
+        request_timeout: Optional[float] = None,
+    ) -> CrawlJob:
+        """
+        Get the status of a crawl job.
+        
+        Args:
+            job_id: ID of the crawl job
+            pagination_config: Optional configuration for pagination behavior
+            request_timeout: Timeout (in seconds) for each individual HTTP request. When auto-pagination 
+                is enabled (default) and there are multiple pages of results, this timeout applies to 
+                each page request separately, not to the entire operation
+            
+        Returns:
+            CrawlJob with current status and data
+            
+        Raises:
+            Exception: If the status check fails
+        """
+        return crawl_module.get_crawl_status(
+            self.http_client,
+            job_id,
+            pagination_config=pagination_config,
+            request_timeout=request_timeout,
+        )
+
+    def get_crawl_status_page(
+        self,
+        next_url: str,
+        *,
+        request_timeout: Optional[float] = None,
+    ) -> CrawlJob:
+        """
+        Fetch a single page of crawl results using a next URL.
+
+        Args:
+            next_url: Opaque next URL from a prior crawl status response
+            request_timeout: Timeout (in seconds) for the HTTP request
+
+        Returns:
+            CrawlJob with the page data and next URL (if any)
+        """
+        return crawl_module.get_crawl_status_page(
+            self.http_client,
+            next_url,
+            request_timeout=request_timeout,
+        )
+    
+    def get_crawl_errors(self, crawl_id: str) -> CrawlErrorsResponse:
+        """
+        Retrieve error details and robots.txt blocks for a given crawl job.
+        
+        Args:
+            crawl_id: The ID of the crawl job
+        
+        Returns:
+            CrawlErrorsResponse containing per-URL errors and robots-blocked URLs
+        """
+        return crawl_module.get_crawl_errors(self.http_client, crawl_id)
+    
+    def get_active_crawls(self) -> ActiveCrawlsResponse:
+        """
+        Get a list of currently active crawl jobs.
+        
+        Returns:
+            ActiveCrawlsResponse containing a list of active crawl jobs.
+        """
+        return crawl_module.get_active_crawls(self.http_client)
+    
+    def active_crawls(self) -> ActiveCrawlsResponse:
+        """
+        List currently active crawl jobs for the authenticated team.
+        
+        Returns:
+            ActiveCrawlsResponse containing the list of active crawl jobs
+        """
+        return self.get_active_crawls()
+
+    def map(
+        self,
+        url: str,
+        *,
+        search: Optional[str] = None,
+        include_subdomains: Optional[bool] = None,
+        ignore_query_parameters: Optional[bool] = None,
+        limit: Optional[int] = None,
+        sitemap: Optional[Literal["only", "include", "skip"]] = None,
+        timeout: Optional[int] = None,
+        integration: Optional[str] = None,
+        location: Optional[Location] = None,
+        threat_protection: Optional[ThreatProtectionOptions] = None,
+        audit_metadata: Optional[AuditMetadata] = None,
+    ) -> MapData:
+        """Map a URL and return discovered links.
+
+        Args:
+            url: Root URL to explore
+            search: Optional substring filter for discovered links
+            include_subdomains: Whether to include subdomains
+            ignore_query_parameters: Whether to ignore query parameters when mapping
+            limit: Maximum number of links to return
+            sitemap: Sitemap usage mode ("only" | "include" | "skip")
+            timeout: Request timeout in milliseconds
+            threat_protection: Enterprise per-request override of the team's
+                threat protection policy
+            audit_metadata: Metadata to include in SIEM logging events
+
+        Returns:
+            MapData containing the discovered links
+        """
+        options = MapOptions(
+            search=search,
+            include_subdomains=include_subdomains,
+            ignore_query_parameters=ignore_query_parameters,
+            limit=limit,
+            sitemap=sitemap if sitemap is not None else "include",
+            timeout=timeout,
+            integration=integration,
+            location=location,
+            threat_protection=threat_protection,
+            audit_metadata=audit_metadata,
+        ) if any(v is not None for v in [search, include_subdomains, ignore_query_parameters, limit, sitemap, timeout, integration, location, threat_protection, audit_metadata]) else None
+
+        return map_module.map(self.http_client, url, options)
+
+    def create_monitor(
+        self,
+        name: str,
+        schedule: Union[MonitorSchedule, Dict[str, Any]],
+        targets: List[Union[MonitorTarget, Dict[str, Any]]],
+        *,
+        webhook: Optional[Union[MonitorWebhookConfig, Dict[str, Any]]] = None,
+        notification: Optional[MonitorNotification] = None,
+        retention_days: Optional[int] = None,
+        goal: Optional[str] = None,
+        judge_enabled: Optional[bool] = None,
+    ) -> Monitor:
+        """Create a scheduled monitor."""
+        if isinstance(schedule, dict):
+            schedule = MonitorSchedule(**schedule)
+        request = MonitorCreateRequest(
+            name=name,
+            schedule=schedule,
+            targets=targets,
+            webhook=webhook,
+            notification=notification,
+            retention_days=retention_days,
+            goal=goal,
+            judge_enabled=judge_enabled,
+        )
+        return monitor_module.create_monitor(self.http_client, request)
+
+    def list_monitors(
+        self,
+        *,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> List[Monitor]:
+        """List monitors for the authenticated team."""
+        return monitor_module.list_monitors(self.http_client, limit=limit, offset=offset)
+
+    def get_monitor(self, monitor_id: str) -> Monitor:
+        """Get a monitor by ID."""
+        return monitor_module.get_monitor(self.http_client, monitor_id)
+
+    def update_monitor(
+        self,
+        monitor_id: str,
+        *,
+        name: Optional[str] = None,
+        status: Optional[Literal["active", "paused"]] = None,
+        schedule: Optional[Union[MonitorSchedule, Dict[str, Any]]] = None,
+        webhook: Optional[Union[MonitorWebhookConfig, Dict[str, Any]]] = None,
+        notification: Optional[Union[MonitorNotification, Dict[str, Any]]] = None,
+        targets: Optional[List[Union[MonitorTarget, Dict[str, Any]]]] = None,
+        retention_days: Optional[int] = None,
+        goal: Optional[str] = None,
+        judge_enabled: Optional[bool] = None,
+    ) -> Monitor:
+        """Update a monitor."""
+        if isinstance(schedule, dict):
+            schedule = MonitorSchedule(**schedule)
+        request = MonitorUpdateRequest(
+            name=name,
+            status=status,
+            schedule=schedule,
+            webhook=webhook,
+            notification=notification,
+            targets=targets,
+            retention_days=retention_days,
+            goal=goal,
+            judge_enabled=judge_enabled,
+        )
+        return monitor_module.update_monitor(self.http_client, monitor_id, request)
+
+    def delete_monitor(self, monitor_id: str) -> bool:
+        """Delete a monitor."""
+        return monitor_module.delete_monitor(self.http_client, monitor_id)
+
+    def run_monitor(self, monitor_id: str) -> MonitorCheck:
+        """Run a monitor manually."""
+        return monitor_module.run_monitor(self.http_client, monitor_id)
+
+    def list_monitor_checks(
+        self,
+        monitor_id: str,
+        *,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> List[MonitorCheck]:
+        """List checks for a monitor."""
+        return monitor_module.list_monitor_checks(
+            self.http_client,
+            monitor_id,
+            limit=limit,
+            offset=offset,
+        )
+
+    def get_monitor_check(
+        self,
+        monitor_id: str,
+        check_id: str,
+        *,
+        limit: Optional[int] = None,
+        skip: Optional[int] = None,
+        status: Optional[Literal["same", "new", "changed", "removed", "error"]] = None,
+        pagination_config: Optional[PaginationConfig] = None,
+    ) -> MonitorCheckDetail:
+        """Get a monitor check with page results, auto-paginated by default."""
+        return monitor_module.get_monitor_check(
+            self.http_client,
+            monitor_id,
+            check_id,
+            limit=limit,
+            skip=skip,
+            status=status,
+            pagination_config=pagination_config,
+        )
+    
+    def cancel_crawl(self, crawl_id: str) -> bool:
+        """
+        Cancel a crawl job.
+        
+        Args:
+            crawl_id: The ID of the crawl job to cancel
+            
+        Returns:
+            bool: True if the crawl was cancelled, False otherwise
+        """
+        return crawl_module.cancel_crawl(self.http_client, crawl_id)
+
+    def crawl_params_preview(self, url: str, prompt: str) -> CrawlParamsData:
+        """Derive crawl parameters from natural-language prompt.
+
+        Args:
+            url: Root URL
+            prompt: Instruction describing how to crawl
+
+        Returns:
+            CrawlParamsData with normalized crawl configuration
+        """
+        request = CrawlParamsRequest(url=url, prompt=prompt)
+        return crawl_module.crawl_params_preview(self.http_client, request)
+
+    def start_extract(
+        self,
+        urls: Optional[List[str]] = None,
+        *,
+        prompt: Optional[str] = None,
+        schema: Optional[Dict[str, Any]] = None,
+        system_prompt: Optional[str] = None,
+        allow_external_links: Optional[bool] = None,
+        enable_web_search: Optional[bool] = None,
+        show_sources: Optional[bool] = None,
+        scrape_options: Optional['ScrapeOptions'] = None,
+        ignore_invalid_urls: Optional[bool] = None,
+        integration: Optional[str] = None,
+        agent: Optional[AgentOptions] = None,
+        threat_protection: Optional[ThreatProtectionOptions] = None,
+    ):
+        """Start an extract job (non-blocking).
+
+        .. deprecated::
+            The extract endpoint is in maintenance mode and its use is discouraged.
+            Review https://docs.firecrawl.dev/developer-guides/usage-guides/choosing-the-data-extractor
+            to find a replacement.
+
+        Args:
+            urls: URLs to extract from (optional)
+            prompt: Natural-language instruction for extraction
+            schema: Target JSON schema for the output
+            system_prompt: Optional system instruction
+            allow_external_links: Allow hyperlinks in output
+            enable_web_search: Whether to augment with web search
+            show_sources: Include per-field/source mapping when available
+            scrape_options: Scrape options applied prior to extraction
+            ignore_invalid_urls: Skip invalid URLs instead of failing
+            integration: Integration tag/name
+            agent: Agent configuration
+            threat_protection: Enterprise per-request override of the team's
+                threat protection policy
+        Returns:
+            Response payload with job id/status (poll with get_extract_status)
+        """
+        return extract_module.start_extract(
+            self.http_client,
+            urls,
+            prompt=prompt,
+            schema=schema,
+            system_prompt=system_prompt,
+            allow_external_links=allow_external_links,
+            enable_web_search=enable_web_search,
+            show_sources=show_sources,
+            scrape_options=scrape_options,
+            ignore_invalid_urls=ignore_invalid_urls,
+            integration=integration,
+            agent=agent,
+            threat_protection=threat_protection,
+        )
+
+    def extract(
+        self,
+        urls: Optional[List[str]] = None,
+        *,
+        prompt: Optional[str] = None,
+        schema: Optional[Dict[str, Any]] = None,
+        system_prompt: Optional[str] = None,
+        allow_external_links: Optional[bool] = None,
+        enable_web_search: Optional[bool] = None,
+        show_sources: Optional[bool] = None,
+        scrape_options: Optional['ScrapeOptions'] = None,
+        ignore_invalid_urls: Optional[bool] = None,
+        poll_interval: int = 2,
+        timeout: Optional[int] = None,
+        integration: Optional[str] = None,
+        agent: Optional[AgentOptions] = None,
+        threat_protection: Optional[ThreatProtectionOptions] = None,
+    ):
+        """Extract structured data and wait until completion.
+
+        .. deprecated::
+            The extract endpoint is in maintenance mode and its use is discouraged.
+            Review https://docs.firecrawl.dev/developer-guides/usage-guides/choosing-the-data-extractor
+            to find a replacement.
+
+        Args:
+            urls: URLs to extract from (optional)
+            prompt: Natural-language instruction for extraction
+            schema: Target JSON schema for the output
+            system_prompt: Optional system instruction
+            allow_external_links: Allow hyperlinks in output
+            enable_web_search: Whether to augment with web search
+            show_sources: Include per-field/source mapping when available
+            scrape_options: Scrape options applied prior to extraction
+            ignore_invalid_urls: Skip invalid URLs instead of failing
+            poll_interval: Seconds between status checks
+            timeout: Maximum seconds to wait (None for no timeout)
+            integration: Integration tag/name
+            agent: Agent configuration
+            threat_protection: Enterprise per-request override of the team's
+                threat protection policy
+        Returns:
+            Final extract response when completed
+        """
+        return extract_module.extract(
+            self.http_client,
+            urls,
+            prompt=prompt,
+            schema=schema,
+            system_prompt=system_prompt,
+            allow_external_links=allow_external_links,
+            enable_web_search=enable_web_search,
+            show_sources=show_sources,
+            scrape_options=scrape_options,
+            ignore_invalid_urls=ignore_invalid_urls,
+            poll_interval=poll_interval,
+            timeout=timeout,
+            integration=integration,
+            agent=agent,
+            threat_protection=threat_protection,
+        )
+
+    def start_batch_scrape(
+        self,
+        urls: List[str],
+        *,
+        formats: Optional[List['FormatOption']] = None,
+        headers: Optional[Dict[str, str]] = None,
+        include_tags: Optional[List[str]] = None,
+        exclude_tags: Optional[List[str]] = None,
+        only_main_content: Optional[bool] = None,
+        timeout: Optional[int] = None,
+        wait_for: Optional[int] = None,
+        mobile: Optional[bool] = None,
+        parsers: Optional[Union[List[str], List[Union[str, PDFParser, ImageParser]]]] = None,
+        actions: Optional[List[Union['WaitAction', 'ScreenshotAction', 'ClickAction', 'WriteAction', 'PressAction', 'ScrollAction', 'ScrapeAction', 'ExecuteJavascriptAction', 'PDFAction']]] = None,
+        location: Optional['Location'] = None,
+        skip_tls_verification: Optional[bool] = None,
+        remove_base64_images: Optional[bool] = None,
+        fast_mode: Optional[bool] = None,
+        use_mock: Optional[str] = None,
+        block_ads: Optional[bool] = None,
+        proxy: Optional[str] = None,
+        max_age: Optional[int] = None,
+        store_in_cache: Optional[bool] = None,
+        lockdown: Optional[bool] = None,
+        threat_protection: Optional[ThreatProtectionOptions] = None,
+        audit_metadata: Optional[AuditMetadata] = None,
+        webhook: Optional[Union[str, WebhookConfig]] = None,
+        append_to_id: Optional[str] = None,
+        ignore_invalid_urls: Optional[bool] = None,
+        max_concurrency: Optional[int] = None,
+        zero_data_retention: Optional[bool] = None,
+        integration: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+    ):
+        """Start a batch scrape job over multiple URLs (non-blocking).
+
+        Args:
+            urls: List of URLs to scrape
+            formats: Output formats to collect per URL
+            headers: HTTP headers
+            include_tags: HTML tags to include
+            exclude_tags: HTML tags to exclude
+            only_main_content: Restrict scraping to main content
+            timeout: Per-request timeout in milliseconds
+            wait_for: Wait condition in milliseconds
+            mobile: Emulate mobile viewport
+            parsers: Parser list (e.g., ["pdf"])
+            actions: Browser actions to perform
+            location: Location settings
+            skip_tls_verification: Skip TLS verification
+            remove_base64_images: Remove base64 images from output
+            fast_mode: Prefer faster scraping modes
+            use_mock: Use a mock data source (internal/testing)
+            block_ads: Block ads during scraping
+            proxy: Proxy setting
+            max_age: Cache max age
+            store_in_cache: Whether to store results in cache
+            lockdown: Serve only previously cached results; never make outbound requests.
+            threat_protection: Enterprise per-request override of the team's threat protection policy
+            audit_metadata: Metadata to include in SIEM logging events
+            webhook: Webhook configuration
+            append_to_id: Append to an existing batch job
+            ignore_invalid_urls: Skip invalid URLs without failing
+            max_concurrency: Max concurrent scrapes
+            zero_data_retention: Delete data after 24 hours
+            integration: Integration tag/name
+            idempotency_key: Header used to deduplicate starts
+
+        Returns:
+            Response payload with job id (poll with get_batch_scrape_status)
+        """
+        options = ScrapeOptions(
+            **{k: v for k, v in dict(
+                formats=formats,
+                headers=headers,
+                include_tags=include_tags,
+                exclude_tags=exclude_tags,
+                only_main_content=only_main_content,
+                timeout=timeout,
+                wait_for=wait_for,
+                mobile=mobile,
+                parsers=parsers,
+                actions=actions,
+                location=location,
+                skip_tls_verification=skip_tls_verification,
+                remove_base64_images=remove_base64_images,
+                fast_mode=fast_mode,
+                use_mock=use_mock,
+                block_ads=block_ads,
+                proxy=proxy,
+                max_age=max_age,
+                store_in_cache=store_in_cache,
+                lockdown=lockdown,
+                threat_protection=threat_protection,
+            ).items() if v is not None}
+        ) if any(v is not None for v in [formats, headers, include_tags, exclude_tags, only_main_content, timeout, wait_for, mobile, parsers, actions, location, skip_tls_verification, remove_base64_images, fast_mode, use_mock, block_ads, proxy, max_age, store_in_cache, lockdown, threat_protection]) else None
+
+        return batch_module.start_batch_scrape(
+            self.http_client,
+            urls,
+            options=options,
+            webhook=webhook,
+            append_to_id=append_to_id,
+            ignore_invalid_urls=ignore_invalid_urls,
+            max_concurrency=max_concurrency,
+            zero_data_retention=zero_data_retention,
+            integration=integration,
+            audit_metadata=audit_metadata,
+            idempotency_key=idempotency_key,
+        )
+
+    def get_batch_scrape_status(
+        self, 
+        job_id: str,
+        pagination_config: Optional[PaginationConfig] = None
+    ):
+        """Get current status and any scraped data for a batch job.
+
+        Args:
+            job_id: Batch job ID
+            pagination_config: Optional configuration for pagination behavior
+
+        Returns:
+            Status payload including counts and partial data
+        """
+        return batch_module.get_batch_scrape_status(
+            self.http_client, 
+            job_id,
+            pagination_config=pagination_config
+        )
+
+    def get_batch_scrape_status_page(
+        self,
+        next_url: str,
+        *,
+        request_timeout: Optional[float] = None,
+    ):
+        """Fetch a single page of batch scrape results using a next URL.
+
+        Args:
+            next_url: Opaque next URL from a prior batch scrape status response
+            request_timeout: Timeout (in seconds) for the HTTP request
+
+        Returns:
+            BatchScrapeJob with the page data and next URL (if any)
+        """
+        return batch_module.get_batch_scrape_status_page(
+            self.http_client,
+            next_url,
+            request_timeout=request_timeout,
+        )
+
+    def cancel_batch_scrape(self, job_id: str) -> bool:
+        """Cancel a running batch scrape job.
+
+        Args:
+            job_id: Batch job ID
+
+        Returns:
+            True if the job was cancelled
+        """
+        return batch_module.cancel_batch_scrape(self.http_client, job_id)
+
+    def get_batch_scrape_errors(self, job_id: str):
+        """Retrieve error details for a batch scrape job.
+
+        Args:
+            job_id: Batch job ID
+
+        Returns:
+            Errors and robots-blocked URLs for the job
+        """
+        return batch_methods.get_batch_scrape_errors(self.http_client, job_id)
+
+    def get_extract_status(self, job_id: str):
+        """Get the current status (and data if completed) of an extract job.
+
+        .. deprecated::
+            The extract endpoint is in maintenance mode and its use is discouraged.
+            Review https://docs.firecrawl.dev/developer-guides/usage-guides/choosing-the-data-extractor
+            to find a replacement.
+
+        Args:
+            job_id: Extract job ID
+
+        Returns:
+            Extract response payload with status and optional data
+        """
+        return extract_module.get_extract_status(self.http_client, job_id)
+
+    def start_agent(
+        self,
+        urls: Optional[List[str]] = None,
+        *,
+        prompt: str,
+        schema: Optional[Any] = None,
+        integration: Optional[str] = None,
+        max_credits: Optional[int] = None,
+        strict_constrain_to_urls: Optional[bool] = None,
+        model: Optional[Literal["spark-1-pro", "spark-1-mini", "spark-2"]] = None,
+        effort: Optional[Literal["low", "medium", "high"]] = None,
+        webhook: Optional[Union[str, AgentWebhookConfig]] = None,
+        threat_protection: Optional[ThreatProtectionOptions] = None,
+        audit_metadata: Optional[AuditMetadata] = None,
+        thread_id: Optional[str] = None,
+        mode: Optional[Literal["extract", "chat"]] = None,
+        exchange: Optional[Union[AgentExchangeOptions, Dict[str, Any]]] = None,
+    ):
+        """Start an agent job (non-blocking).
+
+        Args:
+            urls: URLs to process (optional)
+            prompt: Natural-language instruction for the agent
+            schema: Target JSON schema for the output (dict or Pydantic BaseModel)
+            integration: Integration tag/name
+            max_credits: Maximum credits to use (optional)
+            model: Model to use for the agent ("spark-2", the default; "spark-1-pro" and "spark-1-mini" are deprecated and run spark-2)
+            effort: Reasoning effort for the agent ("low", "medium", or "high")
+            webhook: Webhook URL or configuration for notifications
+            threat_protection: Enterprise per-request override of the team's
+                threat protection policy
+            audit_metadata: Metadata to include in SIEM logging events
+            thread_id: Continue an existing thread instead of starting one
+            mode: "extract" (default) or "chat"
+            exchange: Data provider options, forwarded as sent
+        Returns:
+            Response payload with job id/status (poll with get_agent_status)
+        """
+        return agent_module.start_agent(
+            self.http_client,
+            urls,
+            prompt=prompt,
+            schema=schema,
+            integration=integration,
+            max_credits=max_credits,
+            strict_constrain_to_urls=strict_constrain_to_urls,
+            model=model,
+            effort=effort,
+            webhook=webhook,
+            threat_protection=threat_protection,
+            audit_metadata=audit_metadata,
+            thread_id=thread_id,
+            mode=mode,
+            exchange=exchange,
+        )
+
+    def agent(
+        self,
+        urls: Optional[List[str]] = None,
+        *,
+        prompt: str,
+        schema: Optional[Any] = None,
+        integration: Optional[str] = None,
+        poll_interval: int = 2,
+        timeout: Optional[int] = None,
+        max_credits: Optional[int] = None,
+        strict_constrain_to_urls: Optional[bool] = None,
+        model: Optional[Literal["spark-1-pro", "spark-1-mini", "spark-2"]] = None,
+        effort: Optional[Literal["low", "medium", "high"]] = None,
+        webhook: Optional[Union[str, AgentWebhookConfig]] = None,
+        threat_protection: Optional[ThreatProtectionOptions] = None,
+        audit_metadata: Optional[AuditMetadata] = None,
+        thread_id: Optional[str] = None,
+        mode: Optional[Literal["extract", "chat"]] = None,
+        exchange: Optional[Union[AgentExchangeOptions, Dict[str, Any]]] = None,
+    ):
+        """Run an agent and wait until completion.
+
+        Args:
+            urls: URLs to process (optional)
+            prompt: Natural-language instruction for the agent
+            schema: Target JSON schema for the output (dict or Pydantic BaseModel)
+            integration: Integration tag/name
+            poll_interval: Seconds between status checks
+            timeout: Maximum seconds to wait (None for no timeout)
+            max_credits: Maximum credits to use (optional)
+            model: Model to use for the agent ("spark-2", the default; "spark-1-pro" and "spark-1-mini" are deprecated and run spark-2)
+            effort: Reasoning effort for the agent ("low", "medium", or "high")
+            webhook: Webhook URL or configuration for notifications
+            threat_protection: Enterprise per-request override of the team's
+                threat protection policy
+            audit_metadata: Metadata to include in SIEM logging events
+            thread_id: Continue an existing thread instead of starting one
+            mode: "extract" (default) or "chat"
+            exchange: Data provider options, forwarded as sent
+        Returns:
+            Final agent response when completed
+        """
+        return agent_module.agent(
+            self.http_client,
+            urls,
+            prompt=prompt,
+            schema=schema,
+            integration=integration,
+            poll_interval=poll_interval,
+            timeout=timeout,
+            max_credits=max_credits,
+            strict_constrain_to_urls=strict_constrain_to_urls,
+            model=model,
+            effort=effort,
+            webhook=webhook,
+            threat_protection=threat_protection,
+            audit_metadata=audit_metadata,
+            thread_id=thread_id,
+            mode=mode,
+            exchange=exchange,
+        )
+
+    def get_agent_status(self, job_id: str):
+        """Get the current status (and data if completed) of an agent job.
+
+        Args:
+            job_id: Agent job ID
+
+        Returns:
+            Agent response payload with status and optional data
+        """
+        return agent_module.get_agent_status(self.http_client, job_id)
+
+    def cancel_agent(self, job_id: str) -> bool:
+        """Cancel a running agent job.
+
+        Args:
+            job_id: Agent job ID
+
+        Returns:
+            True if the agent was cancelled
+        """
+        return agent_module.cancel_agent(self.http_client, job_id)
+
+    def list_agents(self, *, before: Optional[int] = None):
+        """List agent runs, most recent first.
+
+        Pages are fixed at 20 runs. To fetch the next page, pass the `before`
+        value from the previous page's `next` URL. This method does not
+        auto-paginate.
+
+        Args:
+            before: Only return agent runs created before this unix ms timestamp
+
+        Returns:
+            AgentListResponse with the list of agent runs and optional next URL
+        """
+        return agent_module.list_agents(self.http_client, before=before)
+
+    def get_agent_thread(self, thread_id: str, *, include_data: bool = False):
+        """Get a thread and its runs, oldest turn first.
+
+        Args:
+            thread_id: Thread ID, as returned by start_agent or get_agent_status
+            include_data: Inline each succeeded run's data
+
+        Returns:
+            AgentThreadResponse with the thread and its runs
+        """
+        return agent_module.get_agent_thread(
+            self.http_client, thread_id, include_data=include_data
+        )
+
+    def get_agent_trace(self, job_id: str, *, live_view: bool = False):
+        """Get the execution trace of an agent job (spark-2 runs only).
+
+        Args:
+            job_id: Agent job ID
+            live_view: Also include currently active browser sessions with live view URLs
+
+        Returns:
+            AgentTraceResponse with the ordered trace events
+        """
+        return agent_module.get_agent_trace(self.http_client, job_id, live_view=live_view)
+
+    def get_agent_snapshot(self, job_id: str, snapshot_id: str):
+        """Get the full content of an artifact snapshot referenced by a trace event.
+
+        Args:
+            job_id: Agent job ID
+            snapshot_id: Snapshot ID from an artifact.updated trace event
+
+        Returns:
+            AgentSnapshotResponse with the snapshot content
+        """
+        return agent_module.get_agent_snapshot(self.http_client, job_id, snapshot_id)
+
+    def get_concurrency(self):
+        """Get current concurrency and maximum allowed for this team/key (v2)."""
+        return usage_methods.get_concurrency(self.http_client)
+
+    def get_credit_usage(self):
+        """Get remaining credits for this team/key (v2)."""
+        return usage_methods.get_credit_usage(self.http_client)
+
+    def get_token_usage(self):
+        """Get recent token usage metrics (v2)."""
+        return usage_methods.get_token_usage(self.http_client)
+
+    def get_credit_usage_historical(self, by_api_key: bool = False):
+        """Get historical credit usage (v2)."""
+        return usage_methods.get_credit_usage_historical(self.http_client, by_api_key)
+
+    def get_token_usage_historical(self, by_api_key: bool = False):
+        """Get historical token usage (v2)."""
+        return usage_methods.get_token_usage_historical(self.http_client, by_api_key)
+
+    def get_queue_status(self):
+        """Get metrics about the team's scrape queue."""
+        return usage_methods.get_queue_status(self.http_client)
+
+    # Browser
+    def browser(
+        self,
+        *,
+        ttl: Optional[int] = None,
+        activity_ttl: Optional[int] = None,
+        stream_web_view: Optional[bool] = None,
+        profile: Optional[Dict[str, Any]] = None,
+    ):
+        """Create a new browser session.
+
+        Args:
+            ttl: Total time-to-live in seconds (30-3600, default 300)
+            activity_ttl: Inactivity TTL in seconds (10-3600)
+            stream_web_view: Whether to enable webview streaming
+            profile: Profile config with ``name`` (str) and
+                optional ``save_changes`` (bool, default ``True``)
+
+        Returns:
+            BrowserCreateResponse with session id and CDP URL
+        """
+        return browser_module.browser(
+            self.http_client,
+            ttl=ttl,
+            activity_ttl=activity_ttl,
+            stream_web_view=stream_web_view,
+            profile=profile,
+        )
+
+    def browser_execute(
+        self,
+        session_id: str,
+        code: str,
+        *,
+        language: Literal["python", "node", "bash"] = "bash",
+        timeout: Optional[int] = None,
+    ):
+        """Execute code in a browser session.
+
+        Args:
+            session_id: Browser session ID
+            code: Code to execute
+            language: Programming language ("python", "node", or "bash")
+            timeout: Execution timeout in seconds (1-300, default 30)
+
+        Returns:
+            BrowserExecuteResponse with execution result
+        """
+        return browser_module.browser_execute(
+            self.http_client,
+            session_id,
+            code,
+            language=language,
+            timeout=timeout,
+        )
+
+    def delete_browser(self, session_id: str):
+        """Delete a browser session.
+
+        Args:
+            session_id: Browser session ID
+
+        Returns:
+            BrowserDeleteResponse
+        """
+        return browser_module.delete_browser(self.http_client, session_id)
+
+    def list_browsers(
+        self,
+        *,
+        status: Optional[Literal["active", "destroyed"]] = None,
+    ):
+        """List browser sessions.
+
+        Args:
+            status: Filter by session status ("active" or "destroyed")
+
+        Returns:
+            BrowserListResponse with list of sessions
+        """
+        return browser_module.list_browsers(
+            self.http_client,
+            status=status,
+        )
+
+    def watcher(
+        self,
+        job_id: str,
+        *,
+        kind: Literal["crawl", "batch"] = "crawl",
+        poll_interval: int = 2,
+        timeout: Optional[int] = None,
+    ) -> Watcher:
+        """Create a watcher for crawl or batch jobs.
+
+        Args:
+            job_id: Job ID to watch
+            kind: Job kind ("crawl" or "batch")
+            poll_interval: Seconds between status checks
+            timeout: Maximum seconds to watch (None for no timeout)
+
+        Returns:
+            Watcher instance
+        """
+        return Watcher(self, job_id, kind=kind, poll_interval=poll_interval, timeout=timeout)
+
+    def batch_scrape(
+        self,
+        urls: List[str],
+        *,
+        formats: Optional[List['FormatOption']] = None,
+        headers: Optional[Dict[str, str]] = None,
+        include_tags: Optional[List[str]] = None,
+        exclude_tags: Optional[List[str]] = None,
+        only_main_content: Optional[bool] = None,
+        timeout: Optional[int] = None,
+        wait_for: Optional[int] = None,
+        mobile: Optional[bool] = None,
+        parsers: Optional[Union[List[str], List[Union[str, PDFParser, ImageParser]]]] = None,
+        actions: Optional[List[Union['WaitAction', 'ScreenshotAction', 'ClickAction', 'WriteAction', 'PressAction', 'ScrollAction', 'ScrapeAction', 'ExecuteJavascriptAction', 'PDFAction']]] = None,
+        location: Optional['Location'] = None,
+        skip_tls_verification: Optional[bool] = None,
+        remove_base64_images: Optional[bool] = None,
+        fast_mode: Optional[bool] = None,
+        use_mock: Optional[str] = None,
+        block_ads: Optional[bool] = None,
+        proxy: Optional[str] = None,
+        max_age: Optional[int] = None,
+        store_in_cache: Optional[bool] = None,
+        lockdown: Optional[bool] = None,
+        threat_protection: Optional[ThreatProtectionOptions] = None,
+        audit_metadata: Optional[AuditMetadata] = None,
+        webhook: Optional[Union[str, WebhookConfig]] = None,
+        append_to_id: Optional[str] = None,
+        ignore_invalid_urls: Optional[bool] = None,
+        max_concurrency: Optional[int] = None,
+        zero_data_retention: Optional[bool] = None,
+        integration: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+        poll_interval: int = 2,
+        wait_timeout: Optional[int] = None,
+    ):
+        """
+        Start a batch scrape job and wait until completion.
+        """
+        options = ScrapeOptions(
+            **{k: v for k, v in dict(
+                formats=formats,
+                headers=headers,
+                include_tags=include_tags,
+                exclude_tags=exclude_tags,
+                only_main_content=only_main_content,
+                timeout=timeout,
+                wait_for=wait_for,
+                mobile=mobile,
+                parsers=parsers,
+                actions=actions,
+                location=location,
+                skip_tls_verification=skip_tls_verification,
+                remove_base64_images=remove_base64_images,
+                fast_mode=fast_mode,
+                use_mock=use_mock,
+                block_ads=block_ads,
+                proxy=proxy,
+                max_age=max_age,
+                store_in_cache=store_in_cache,
+                lockdown=lockdown,
+                threat_protection=threat_protection,
+            ).items() if v is not None}
+        ) if any(v is not None for v in [formats, headers, include_tags, exclude_tags, only_main_content, timeout, wait_for, mobile, parsers, actions, location, skip_tls_verification, remove_base64_images, fast_mode, use_mock, block_ads, proxy, max_age, store_in_cache, lockdown, threat_protection]) else None
+
+        return batch_module.batch_scrape(
+            self.http_client,
+            urls,
+            options=options,
+            webhook=webhook,
+            append_to_id=append_to_id,
+            ignore_invalid_urls=ignore_invalid_urls,
+            max_concurrency=max_concurrency,
+            zero_data_retention=zero_data_retention,
+            integration=integration,
+            audit_metadata=audit_metadata,
+            idempotency_key=idempotency_key,
+            poll_interval=poll_interval,
+            timeout=wait_timeout,
+        )
+    

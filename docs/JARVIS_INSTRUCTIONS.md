@@ -535,10 +535,126 @@ those characters (paths, globs, regexes, shell commands).
     }
     ```
 
+31. `firecrawl_scrape` (or `scrape`) [INSTANT WEB PAGE TO MARKDOWN]
+    Scrape any URL into clean, token-efficient LLM Markdown in a single shot without opening or disturbing Chrome!
+    Automatically strips ads, navigation bars, and footers. Handles dynamic JavaScript rendering.
+    Args:
+    - "url" (string, required): Destination web page URL.
+    - "formats" (array of strings, optional): ["markdown"], ["html"], ["screenshot"]. Default ["markdown"].
+    - "only_main_content" (boolean, optional): Only extract the article / core body (default true).
+    - "wait_for" (number, optional): Milliseconds to wait before scraping (default 0).
+    Example:
+    ```json
+    {
+      "tool": "firecrawl_scrape",
+      "args": {
+        "url": "https://docs.github.com/en/rest",
+        "only_main_content": true
+      }
+    }
+    ```
+
+32. `firecrawl_search` [SEARCH WEB WITH IN-PLACE CONTENT EXTRACTION]
+    Search the web and receive full Markdown page contents from the top results in one call!
+    Args:
+    - "query" (string, required): Search query string.
+    - "limit" (number, optional): Maximum results to retrieve (default 5).
+    Example:
+    ```json
+    {
+      "tool": "firecrawl_search",
+      "args": {
+        "query": "OpenAgent macOS automation release notes",
+        "limit": 3
+      }
+    }
+    ```
+
+33. `firecrawl_crawl` [RECURSIVE SITE INGESTION]
+    Start a background recursive crawl of an entire website or documentation section.
+    Args:
+    - "url" (string, required): Root domain or sub-path to crawl.
+    - "max_depth" (number, optional): Maximum link recursion depth (default 2).
+    - "limit" (number, optional): Maximum pages to crawl (default 10).
+    Example:
+    ```json
+    {
+      "tool": "firecrawl_crawl",
+      "args": {
+        "url": "https://fastapi.tiangolo.com/tutorial/",
+        "max_depth": 2,
+        "limit": 10
+      }
+    }
+    ```
+
+34. `firecrawl_status`
+    Check the status and results of an ongoing or completed `firecrawl_crawl` job.
+    Args:
+    - "job_id" (string, required): Job ID returned by `firecrawl_crawl`.
+    Example:
+    ```json
+    {
+      "tool": "firecrawl_status",
+      "args": {
+        "job_id": "crawl-1234-abcd"
+      }
+    }
+    ```
+
+35. `firecrawl_map` [SITEMAP & URL DISCOVERY]
+    Map out and discover all internal URLs across a domain without downloading page bodies.
+    Args:
+    - "url" (string, required): Domain URL to map.
+    - "search" (string, optional): Keyword or pattern to filter discovered links.
+    - "limit" (number, optional): Maximum URLs to return (default 100).
+    Example:
+    ```json
+    {
+      "tool": "firecrawl_map",
+      "args": {
+        "url": "https://python.org",
+        "search": "pep",
+        "limit": 50
+      }
+    }
+    ```
+
+36. `firecrawl_extract` [AI STRUCTURED DATA EXTRACTION]
+    Extract structured JSON data matching a schema or prompt from web pages.
+    Args:
+    - "urls" (array or string, required): Target URL(s).
+    - "prompt" (string, optional): Prompt describing the information to extract.
+    - "schema" (object, optional): JSON schema describing expected fields.
+    Example:
+    ```json
+    {
+      "tool": "firecrawl_extract",
+      "args": {
+        "urls": ["https://news.ycombinator.com"],
+        "prompt": "Extract the top 5 stories with title, points, and author"
+      }
+    }
+    ```
+
+37. `firecrawl_doctor`
+    Check the health and responsiveness of the self-hosted local Firecrawl daemon.
+    Args: None.
+    Example:
+    ```json
+    {
+      "tool": "firecrawl_doctor",
+      "args": {}
+    }
+    ```
+
 ==================================================
 4. OPERATING GUIDELINES
 ==================================================
-- Browser Compound Bursts: Prefer browser_python for multi-step web workflows (open tab, wait, fill, click, extract). It runs locally in about 100ms instead of many WhatsApp round trips.
+- Web Reading & Research: Use `firecrawl_scrape` or `firecrawl_search` when you need to read articles, inspect documentation, or search the web. It is 10x faster than Chrome CDP and returns clean, token-efficient Markdown without opening tabs or disturbing Hamdan.
+- Interactive Web Automation: Use `browser_*` (CDP) when you need to interact with Hamdan's real, logged-in Chrome session (filling forms, clicking buttons, accessing authenticated internal portals).
+- Browser Compound Bursts: Prefer browser_python for multi-step web workflows (open tab, wait, fill, click, extract). It runs locally in about 100ms instead of many WhatsApp round trips. `firecrawl` is preloaded in the burst environment.
+- Compound OS Bursts: Prefer mac_python when doing 2+ consecutive macOS UI steps (shortcut, type, enter). `firecrawl` is also preloaded in mac_python.
 - Compound OS Bursts: Prefer mac_python when doing 2+ consecutive macOS UI steps (shortcut, type, enter).
 - Accessibility Tree Over Fragile CSS: Use browser_ax to find buttons and inputs and get exact click coordinates.
 - Framework-Aware Form Inputs: Use browser_fill for web inputs instead of raw typing, so React/Vue apps register the text.

@@ -1,0 +1,2153 @@
+import { z } from "zod";
+import {
+  MAX_PATH_PATTERNS,
+  MAX_PATH_PATTERN_LENGTH,
+  MAX_TOTAL_PATH_PATTERNS,
+  MAX_TOTAL_PATH_PATTERN_CHARS,
+  collectPathPatternIssues,
+} from "../../../lib/crawl-regex";
+import {
+  scrapeRequestSchema,
+  parseRequestSchema,
+  scrapeOptions,
+  extractRequestSchema,
+  crawlRequestSchema,
+  mapRequestSchema,
+  batchScrapeRequestSchema,
+  searchRequestSchema,
+  ScrapeRequest,
+  ScrapeRequestInput,
+  ExtractRequest,
+  ExtractRequestInput,
+  CrawlRequest,
+  CrawlRequestInput,
+  MapRequest,
+  MapRequestInput,
+  BatchScrapeRequest,
+  BatchScrapeRequestInput,
+  SearchRequest,
+  SearchRequestInput,
+  toV2CrawlerOptions,
+} from "../../../controllers/v2/types";
+import {
+  createMonitorSchema,
+  updateMonitorSchema,
+} from "../../../services/monitoring/types";
+import { getNextMonitorRunAt } from "../../../services/monitoring/cron";
+
+describe("V2 Types Validation", () => {
+  describe("scrapeRequestSchema", () => {
+    it("should accept valid minimal scrape request", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.url).toBe("https://example.com");
+      expect(result.origin).toBe("api");
+      expect(result.formats).toEqual([{ type: "markdown" }]);
+      expect(result.skipTlsVerification).toBe(true);
+    });
+
+    it("should preserve explicit skipTlsVerification false", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        skipTlsVerification: false,
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.skipTlsVerification).toBe(false);
+    });
+
+    it("should default skipTlsVerification to false when custom headers are used", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        headers: {
+          "x-test": "true",
+        },
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.skipTlsVerification).toBe(false);
+    });
+
+    it("should accept valid scrape request with format objects", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [{ type: "markdown" }, { type: "html" }],
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.formats).toEqual([{ type: "markdown" }, { type: "html" }]);
+    });
+
+    it("should accept valid scrape request with string formats (preprocessed)", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: ["markdown", "html"],
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.formats).toEqual([{ type: "markdown" }, { type: "html" }]);
+    });
+
+    it("should only allow rawBase64 as the sole format", () => {
+      expect(
+        scrapeRequestSchema.parse({
+          url: "https://example.com/file",
+          formats: ["rawBase64"],
+        }).formats,
+      ).toEqual([{ type: "rawBase64" }]);
+
+      expect(() =>
+        scrapeRequestSchema.parse({
+          url: "https://example.com/file",
+          formats: ["markdown", "rawBase64"],
+        }),
+      ).toThrow("The rawBase64 format cannot be combined with other formats");
+    });
+
+    it("should accept video format as string and object", () => {
+      const stringInput: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: ["video"],
+      };
+      const objectInput: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [{ type: "video" }],
+      };
+
+      expect(scrapeRequestSchema.parse(stringInput).formats).toEqual([
+        { type: "video" },
+      ]);
+      expect(scrapeRequestSchema.parse(objectInput).formats).toEqual([
+        { type: "video" },
+      ]);
+    });
+
+    it("should accept valid scrape request with json format options", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [
+          {
+            type: "json",
+            schema: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+              },
+            },
+          },
+        ],
+        timeout: 30000,
+        proxy: "basic", // Use basic proxy to avoid auto/stealth timeout transformation
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.formats).toHaveLength(1);
+      expect(result.formats[0].type).toBe("json");
+      expect(result.timeout).toBe(60000); // Should be transformed from 30000
+    });
+
+    it("should reject JSON schemas structured outputs cannot express", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [
+          {
+            type: "json",
+            schema: {
+              type: "object",
+              properties: { events: { type: "array" } },
+            },
+          },
+        ],
+      };
+
+      const result = scrapeRequestSchema.safeParse(input);
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map(issue => issue.message)).toContain(
+        'Invalid JSON schema at "properties.events": arrays must define "items".',
+      );
+    });
+
+    it("should accept JSON schemas with capitalized types and oneOf", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [
+          {
+            type: "json",
+            schema: {
+              type: "object",
+              properties: {
+                name: { type: "String" },
+                slot: { oneOf: [{ type: "string" }, { type: "number" }] },
+              },
+            },
+          },
+        ],
+      };
+
+      expect(() => scrapeRequestSchema.parse(input)).not.toThrow();
+    });
+
+    it("should reject unsupported changeTracking schemas", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [
+          "markdown",
+          {
+            type: "changeTracking",
+            modes: ["json"],
+            schema: {
+              type: "object",
+              properties: {
+                price: { type: "object", properties: {}, allOf: [] },
+              },
+            },
+          },
+        ],
+      };
+
+      const result = scrapeRequestSchema.safeParse(input);
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map(issue => issue.message)).toContain(
+        'Invalid JSON schema at "properties.price": "allOf" is not supported for JSON extraction.',
+      );
+    });
+
+    it("should accept query format without markdown", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [{ type: "query", prompt: "What is Firecrawl?" }],
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.formats).toEqual([
+        { type: "query", prompt: "What is Firecrawl?", mode: "freeform" },
+      ]);
+    });
+
+    it("should accept query format directQuote mode", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [
+          {
+            type: "query",
+            prompt: "What is Firecrawl?",
+            mode: "directQuote",
+          },
+        ],
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.formats).toEqual([
+        { type: "query", prompt: "What is Firecrawl?", mode: "directQuote" },
+      ]);
+    });
+
+    it("should accept question format", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [{ type: "question", question: "What is Firecrawl?" }],
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.formats).toEqual([
+        { type: "question", question: "What is Firecrawl?" },
+      ]);
+    });
+
+    it("should accept highlights format", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [{ type: "highlights", query: "What is Firecrawl?" }],
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.formats).toEqual([
+        { type: "highlights", query: "What is Firecrawl?" },
+      ]);
+    });
+
+    it("should reject invalid question and highlights fields", () => {
+      expect(() =>
+        scrapeRequestSchema.parse({
+          url: "https://example.com",
+          formats: [{ type: "question", question: "" }],
+        } satisfies ScrapeRequestInput),
+      ).toThrow();
+
+      expect(() =>
+        scrapeRequestSchema.parse({
+          url: "https://example.com",
+          formats: [{ type: "question", prompt: "What is Firecrawl?" } as any],
+        }),
+      ).toThrow();
+
+      expect(() =>
+        scrapeRequestSchema.parse({
+          url: "https://example.com",
+          formats: [{ type: "highlights", query: "" }],
+        } satisfies ScrapeRequestInput),
+      ).toThrow();
+
+      expect(() =>
+        scrapeRequestSchema.parse({
+          url: "https://example.com",
+          formats: [
+            { type: "highlights", prompt: "What is Firecrawl?" } as any,
+          ],
+        }),
+      ).toThrow();
+    });
+
+    it("should accept valid scrape request with changeTracking format", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [
+          { type: "markdown" },
+          {
+            type: "changeTracking",
+            schema: {
+              type: "object",
+              properties: {
+                changes: { type: "array", items: { type: "string" } },
+              },
+            },
+            modes: ["json"],
+            tag: "test-tag",
+          },
+        ],
+        timeout: 30000,
+        proxy: "basic", // Use basic proxy to avoid auto/stealth timeout transformation
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.formats).toHaveLength(2);
+      expect(result.timeout).toBe(60000); // Should be transformed
+      expect(result.waitFor).toBeGreaterThanOrEqual(5000); // Should be at least 5000
+    });
+
+    it("should reject changeTracking without markdown", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [
+          {
+            type: "changeTracking",
+          },
+        ],
+      };
+
+      expect(() => scrapeRequestSchema.parse(input)).toThrow(
+        "The changeTracking format requires the markdown format to be specified as well",
+      );
+    });
+
+    it("should reject multiple screenshot formats", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [
+          { type: "screenshot", fullPage: false },
+          { type: "screenshot", fullPage: true },
+        ],
+      };
+
+      expect(() => scrapeRequestSchema.parse(input)).toThrow(
+        "You may only specify one screenshot format",
+      );
+    });
+
+    it("should accept screenshot format with options", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [
+          {
+            type: "screenshot",
+            fullPage: true,
+            quality: 90,
+            viewport: {
+              width: 1920,
+              height: 1080,
+            },
+          },
+        ],
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.formats[0].type).toBe("screenshot");
+      expect((result.formats[0] as any).fullPage).toBe(true);
+      expect((result.formats[0] as any).quality).toBe(90);
+    });
+
+    it("should accept attributes format with selectors", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [
+          {
+            type: "attributes",
+            selectors: [
+              {
+                selector: ".product",
+                attribute: "data-product-id",
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.formats[0].type).toBe("attributes");
+      expect((result.formats[0] as any).selectors).toHaveLength(1);
+    });
+
+    it("should reject invalid URL", () => {
+      const input = {
+        url: "not-a-url",
+      };
+
+      expect(() => scrapeRequestSchema.parse(input)).toThrow();
+    });
+
+    it("should reject missing URL", () => {
+      const input = {};
+
+      expect(() => scrapeRequestSchema.parse(input)).toThrow();
+    });
+
+    it("should reject waitFor exceeding timeout/2", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        timeout: 1000,
+        waitFor: 600,
+      };
+
+      expect(() => scrapeRequestSchema.parse(input)).toThrow(
+        "waitFor must not exceed half of timeout",
+      );
+    });
+
+    it("should accept waitFor within timeout/2", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        timeout: 1000,
+        waitFor: 400,
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.waitFor).toBe(400);
+      expect(result.timeout).toBe(1000);
+    });
+
+    it("should apply default values correctly", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.origin).toBe("api");
+      expect(result.formats).toEqual([{ type: "markdown" }]);
+      expect(result.onlyMainContent).toBe(true);
+      expect(result.onlyCleanContent).toBe(false);
+      expect(result.waitFor).toBe(0);
+      expect(result.mobile).toBe(false);
+      expect(result.removeBase64Images).toBe(true);
+      expect(result.fastMode).toBe(false);
+      expect(result.blockAds).toBe(true);
+      expect(result.proxy).toBe("auto"); // v2 default is "auto"
+      expect(result.storeInCache).toBe(true);
+    });
+
+    it("should accept scrape request with onlyCleanContent=true", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        onlyCleanContent: true,
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.onlyCleanContent).toBe(true);
+    });
+
+    it("should accept valid integration value", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        integration: "dify",
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.integration).toBe("dify");
+    });
+
+    it("should accept integration value starting with underscore", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        integration: "_custom",
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.integration).toBe("_custom");
+    });
+
+    it("should reject invalid integration value", () => {
+      const input = {
+        url: "https://example.com",
+        integration: "invalid-integration",
+      };
+
+      expect(() => scrapeRequestSchema.parse(input)).toThrow(
+        "Invalid enum value",
+      );
+    });
+
+    it("should handle iframe selector transformation", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        includeTags: ["iframe", "div"],
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.includeTags).toContain('div[data-original-tag="iframe"]');
+    });
+
+    it("should handle parsers with PDF options", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        parsers: [
+          {
+            type: "pdf",
+            maxPages: 100,
+          },
+        ],
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.parsers).toBeDefined();
+      expect((result.parsers as any)[0].type).toBe("pdf");
+      expect((result.parsers as any)[0].maxPages).toBe(100);
+    });
+
+    it("should accept physical page markdown for PDF parsers", () => {
+      const result = scrapeRequestSchema.parse({
+        url: "https://example.com/file.pdf",
+        parsers: [{ type: "pdf", mode: "auto", pages: true }],
+      });
+
+      expect((result.parsers as any)[0].pages).toBe(true);
+    });
+
+    it("should fold the deprecated pageMarkdown alias into pages", () => {
+      const result = scrapeRequestSchema.parse({
+        url: "https://example.com/file.pdf",
+        parsers: [{ type: "pdf", mode: "auto", pageMarkdown: true }],
+      });
+
+      expect((result.parsers as any)[0].pages).toBe(true);
+      expect("pageMarkdown" in (result.parsers as any)[0]).toBe(false);
+    });
+
+    it("should reject non-boolean physical page markdown", () => {
+      expect(() =>
+        scrapeRequestSchema.parse({
+          url: "https://example.com/file.pdf",
+          parsers: [{ type: "pdf", pages: "yes" }],
+        }),
+      ).toThrow();
+      expect(() =>
+        scrapeRequestSchema.parse({
+          url: "https://example.com/file.pdf",
+          parsers: [{ type: "pdf", pageMarkdown: "yes" }],
+        }),
+      ).toThrow();
+    });
+
+    it("should reject PDF parser with maxPages exceeding limit", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        parsers: [
+          {
+            type: "pdf",
+            maxPages: 20000,
+          },
+        ],
+      };
+
+      expect(() => scrapeRequestSchema.parse(input)).toThrow();
+    });
+
+    it("should handle stealth proxy timeout transformation", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        proxy: "stealth",
+        timeout: 30000,
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.timeout).toBe(120000); // Should be transformed
+    });
+
+    it("should handle auto proxy timeout transformation", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        proxy: "auto",
+        timeout: 30000,
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.timeout).toBe(120000); // Should be transformed
+    });
+
+    it("should handle location schema with valid country code", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        location: {
+          country: "US",
+          languages: ["en"],
+        },
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.location?.country).toBe("us"); // Should be transformed to lowercase
+      expect(result.location?.languages).toEqual(["en"]);
+    });
+
+    it("should reject location schema with invalid country code", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        location: {
+          country: "INVALID",
+        },
+      };
+
+      expect(() => scrapeRequestSchema.parse(input)).toThrow(
+        "Invalid country code",
+      );
+    });
+
+    it("should handle valid actions", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        actions: [
+          { type: "click", selector: "button" },
+          { type: "wait", milliseconds: 1000 },
+          { type: "scroll", direction: "down" },
+        ],
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.actions).toHaveLength(3);
+      expect(result.actions?.[0].type).toBe("click");
+      expect(result.actions?.[1].type).toBe("wait");
+    });
+
+    it("should reject wait action with both milliseconds and selector", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        actions: [
+          {
+            type: "wait",
+            milliseconds: 1000,
+            selector: "button",
+          },
+        ],
+      };
+
+      expect(() => scrapeRequestSchema.parse(input)).toThrow(
+        "Either 'milliseconds' or 'selector' must be provided, but not both",
+      );
+    });
+
+    it("should reject more than 50 actions", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        actions: Array.from({ length: 51 }, () => ({
+          type: "click" as const,
+          selector: "button",
+        })),
+      };
+
+      expect(() => scrapeRequestSchema.parse(input)).toThrow(
+        "Number of actions cannot exceed 50",
+      );
+    });
+
+    it("should handle screenshot action with viewport", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        actions: [
+          {
+            type: "screenshot",
+            fullPage: false,
+            quality: 90,
+            viewport: {
+              width: 1920,
+              height: 1080,
+            },
+          },
+        ],
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.actions?.[0].type).toBe("screenshot");
+    });
+
+    it("should reject screenshot action with invalid viewport dimensions", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        actions: [
+          {
+            type: "screenshot",
+            viewport: {
+              width: 10000, // Exceeds max
+              height: 1080,
+            },
+          },
+        ],
+      };
+
+      expect(() => scrapeRequestSchema.parse(input)).toThrow();
+    });
+
+    describe("lockdown", () => {
+      it("should default lockdown to false", () => {
+        const input: ScrapeRequestInput = {
+          url: "https://example.com",
+        };
+
+        const result = scrapeRequestSchema.parse(input);
+        expect(result.lockdown).toBe(false);
+      });
+
+      it("should accept lockdown: true", () => {
+        const input: ScrapeRequestInput = {
+          url: "https://example.com",
+          lockdown: true,
+        };
+
+        const result = scrapeRequestSchema.parse(input);
+        expect(result.lockdown).toBe(true);
+      });
+
+      it("should default maxAge to ~2 years when lockdown is true and maxAge is unset", () => {
+        const input: ScrapeRequestInput = {
+          url: "https://example.com",
+          lockdown: true,
+        };
+
+        const result = scrapeRequestSchema.parse(input);
+        expect(result.maxAge).toBe(2 * 365 * 24 * 60 * 60 * 1000);
+      });
+
+      it("should preserve maxAge when lockdown is true and maxAge is provided", () => {
+        const input: ScrapeRequestInput = {
+          url: "https://example.com",
+          lockdown: true,
+          maxAge: 60000,
+        };
+
+        const result = scrapeRequestSchema.parse(input);
+        expect(result.maxAge).toBe(60000);
+      });
+
+      it("should not set maxAge default when lockdown is false", () => {
+        const input: ScrapeRequestInput = {
+          url: "https://example.com",
+          lockdown: false,
+        };
+
+        const result = scrapeRequestSchema.parse(input);
+        expect(result.maxAge).toBeUndefined();
+      });
+
+      // Profiles require browser state, which a cache-only request cannot supply.
+      it("should reject profile state with lockdown", () => {
+        const input: ScrapeRequestInput = {
+          url: "https://example.com",
+          lockdown: true,
+          actions: [{ type: "click", selector: "button" }],
+          headers: { "X-Custom": "value" },
+          profile: { name: "my-profile" },
+          proxy: "basic",
+          formats: [{ type: "markdown" }, { type: "changeTracking" }],
+        };
+
+        expect(() => scrapeRequestSchema.parse(input)).toThrow(
+          "Profiles require live browsing and cannot be used with lockdown.",
+        );
+      });
+    });
+  });
+
+  describe("parseRequestSchema", () => {
+    it("should reject rawBase64 for file uploads", () => {
+      expect(() =>
+        parseRequestSchema.parse({
+          formats: ["rawBase64"],
+          file: {
+            buffer: Buffer.from("raw upload"),
+            filename: "upload.html",
+            contentType: "text/html",
+            kind: "html",
+          },
+        }),
+      ).toThrow("The rawBase64 format is not supported for parse uploads");
+    });
+  });
+
+  describe("extractRequestSchema", () => {
+    it("should accept valid extract request with urls", () => {
+      const input: ExtractRequestInput = {
+        urls: ["https://example.com"],
+        schema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+          },
+        },
+      };
+
+      const result = extractRequestSchema.parse(input);
+      expect(result.urls).toEqual(["https://example.com"]);
+      expect(result.origin).toBe("api");
+      expect(result.ignoreInvalidURLs).toBe(true); // v2 default is true
+    });
+
+    it("should accept valid extract request with prompt", () => {
+      const input: ExtractRequestInput = {
+        prompt: "Extract the title",
+        schema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+          },
+        },
+      };
+
+      const result = extractRequestSchema.parse(input);
+      expect(result.prompt).toBe("Extract the title");
+    });
+
+    it("should reject extract request without urls or prompt", () => {
+      const input = {
+        schema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+          },
+        },
+      };
+
+      expect(() => extractRequestSchema.parse(input)).toThrow(
+        "Either 'urls' or 'prompt' must be provided",
+      );
+    });
+
+    it("should reject more than 10 URLs", () => {
+      const input: ExtractRequestInput = {
+        urls: Array.from({ length: 11 }, (_, i) => `https://example${i}.com`),
+        schema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+          },
+        },
+      };
+
+      expect(() => extractRequestSchema.parse(input)).toThrow(
+        "Maximum of 10 URLs allowed per request while in beta",
+      );
+    });
+
+    it("should accept up to 10 URLs", () => {
+      const input: ExtractRequestInput = {
+        urls: Array.from({ length: 10 }, (_, i) => `https://example${i}.com`),
+        schema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+          },
+        },
+      };
+
+      const result = extractRequestSchema.parse(input);
+      expect(result.urls).toHaveLength(10);
+    });
+
+    it("should reject JSON schemas structured outputs cannot express", () => {
+      const result = extractRequestSchema.safeParse({
+        urls: ["https://example.com"],
+        schema: {
+          type: "object",
+          properties: { events: { type: "array" } },
+        },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map(issue => issue.message)).toContain(
+        'Invalid JSON schema at "properties.events": arrays must define "items".',
+      );
+    });
+
+    it("should reject invalid JSON schema", () => {
+      const input: ExtractRequestInput = {
+        urls: ["https://example.com"],
+        schema: {
+          type: "invalid-type",
+          properties: "not-an-object",
+        },
+      };
+
+      expect(() => extractRequestSchema.parse(input)).toThrow(
+        "Invalid JSON schema",
+      );
+    });
+
+    it("should transform allowExternalLinks when enableWebSearch is true", () => {
+      const input: ExtractRequestInput = {
+        urls: ["https://example.com"],
+        enableWebSearch: true,
+        schema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+          },
+        },
+      };
+
+      const result = extractRequestSchema.parse(input);
+      expect(result.allowExternalLinks).toBe(true);
+    });
+  });
+
+  describe("crawlRequestSchema", () => {
+    it("should accept valid minimal crawl request", () => {
+      const input: CrawlRequestInput = {
+        url: "https://example.com",
+      };
+
+      const result = crawlRequestSchema.parse(input);
+      expect(result.url).toBe("https://example.com");
+      expect(result.origin).toBe("api");
+      expect(result.limit).toBe(10000);
+      expect(result.scrapeOptions).toBeDefined();
+      expect(result.sitemap).toBe("include");
+    });
+
+    it("should accept valid crawl request with all crawler options", () => {
+      const input: CrawlRequestInput = {
+        url: "https://example.com",
+        includePaths: ["/blog"],
+        excludePaths: ["/admin"],
+        maxDiscoveryDepth: 10,
+        limit: 5000,
+        crawlEntireDomain: true,
+        allowExternalLinks: true,
+        allowSubdomains: true,
+        ignoreRobotsTxt: true,
+        sitemap: "skip",
+        deduplicateSimilarURLs: false,
+        ignoreQueryParameters: true,
+        regexOnFullURL: true,
+        delay: 1,
+        prompt: "Extract blog posts",
+        scrapeOptions: {
+          formats: [{ type: "markdown" }],
+        },
+      };
+
+      const result = crawlRequestSchema.parse(input);
+      expect(result.url).toBe("https://example.com");
+      expect(result.maxDiscoveryDepth).toBe(10);
+      expect(result.crawlEntireDomain).toBe(true);
+      expect(result.sitemap).toBe("skip");
+      expect(result.prompt).toBe("Extract blog posts");
+    });
+
+    it("should apply default scrapeOptions when not provided", () => {
+      const input: CrawlRequestInput = {
+        url: "https://example.com",
+      };
+
+      const result = crawlRequestSchema.parse(input);
+      expect(result.scrapeOptions).toBeDefined();
+      expect(result.scrapeOptions.formats).toEqual([{ type: "markdown" }]);
+    });
+
+    it("should handle sitemap enum values", () => {
+      const input: CrawlRequestInput = {
+        url: "https://example.com",
+        sitemap: "only",
+      };
+
+      const result = crawlRequestSchema.parse(input);
+      expect(result.sitemap).toBe("only");
+    });
+
+    it("should reject invalid sitemap value", () => {
+      const input = {
+        url: "https://example.com",
+        sitemap: "invalid",
+      };
+
+      expect(() => crawlRequestSchema.parse(input)).toThrow();
+    });
+
+    it("should map sitemapOnly to sitemap=only", () => {
+      const result = toV2CrawlerOptions({
+        sitemapOnly: true,
+        ignoreSitemap: false,
+      });
+
+      expect(result.sitemap).toBe("only");
+    });
+
+    it("should accept anchored and substring path patterns", () => {
+      const result = crawlRequestSchema.parse({
+        url: "https://example.com",
+        excludePaths: ["^/?docs(/.*)?$", "/admin"],
+        includePaths: ["^/blog"],
+      });
+
+      expect(result.excludePaths).toEqual(["^/?docs(/.*)?$", "/admin"]);
+      expect(result.includePaths).toEqual(["^/blog"]);
+    });
+
+    it("should reject excludePaths patterns using a negative lookahead", () => {
+      expect(() =>
+        crawlRequestSchema.parse({
+          url: "https://example.com",
+          excludePaths: ["^/?(?!blog|works-with)[^/]+/.+"],
+        }),
+      ).toThrow(
+        /look-around, including look-ahead and look-behind, is not supported/,
+      );
+    });
+
+    it("should reject includePaths patterns using a backreference", () => {
+      expect(() =>
+        crawlRequestSchema.parse({
+          url: "https://example.com",
+          includePaths: ["(a)\\1"],
+        }),
+      ).toThrow(/backreferences/);
+    });
+
+    it("should report the real error without the look-around hint for unrelated syntax errors", () => {
+      let message = "";
+      try {
+        crawlRequestSchema.parse({
+          url: "https://example.com",
+          excludePaths: ["[abc"],
+        });
+      } catch (e) {
+        message = String(e);
+      }
+
+      expect(message).toMatch(/unclosed character class/);
+      expect(message).not.toMatch(/Rewrite the pattern/);
+    });
+
+    it("should state the look-around limitation once and add a rewrite hint", () => {
+      let message = "";
+      try {
+        crawlRequestSchema.parse({
+          url: "https://example.com",
+          excludePaths: ["^/?(?!blog)[^/]+/.+"],
+        });
+      } catch (e) {
+        message = String(e);
+      }
+
+      expect(message.match(/not supported/g)).toHaveLength(1);
+      expect(message).toMatch(/Rewrite the pattern/);
+    });
+
+    it("should accept counted repetitions of word classes that real path filters use", () => {
+      // Unicode \w is hundreds of ranges, so these used to exceed the engine's
+      // compiled-size limit and were silently dropped. Path haystacks are
+      // percent-encoded ASCII, so they are compiled in ASCII mode and are cheap.
+      const result = crawlRequestSchema.parse({
+        url: "https://example.com",
+        includePaths: [
+          "^/[\\w-]{1,100}/[\\w-]{1,100}/[\\w-]{1,100}/?$",
+          "\\w{300}",
+        ],
+      });
+
+      expect(result.includePaths).toHaveLength(2);
+    });
+
+    it("should reject patterns whose compiled form exceeds the size limit", () => {
+      let message = "";
+      try {
+        crawlRequestSchema.parse({
+          url: "https://example.com",
+          excludePaths: ["a{5}{5}{5}{5}{5}{5}"],
+        });
+      } catch (e) {
+        message = String(e);
+      }
+
+      expect(message).toMatch(/exceeds size limit/);
+      expect(message).toMatch(/stacked counted repetitions/);
+    });
+
+    it("should reject Unicode-only constructs with a hint", () => {
+      let message = "";
+      try {
+        crawlRequestSchema.parse({
+          url: "https://example.com",
+          excludePaths: ["^/\\p{Greek}+"],
+        });
+      } catch (e) {
+        message = String(e);
+      }
+
+      expect(message).toMatch(/Unicode not allowed/);
+      expect(message).toMatch(/percent-encoded ASCII/);
+    });
+
+    it("should accept several hundred keyword patterns per field", () => {
+      // Keyword-based filtering sends one short pattern per term; a few
+      // hundred per field must not be rejected by the count cap.
+      const result = crawlRequestSchema.parse({
+        url: "https://example.com",
+        includePaths: Array.from({ length: 300 }, (_, i) => `topic${i}`),
+        excludePaths: Array.from({ length: 300 }, (_, i) => `skip${i}`),
+      });
+      expect(result.includePaths).toHaveLength(300);
+      expect(result.excludePaths).toHaveLength(300);
+    });
+
+    it("should reject more than the maximum number of path patterns", () => {
+      expect(() =>
+        crawlRequestSchema.parse({
+          url: "https://example.com",
+          excludePaths: Array.from(
+            { length: MAX_PATH_PATTERNS + 1 },
+            (_, i) => `^/p${i}`,
+          ),
+        }),
+      ).toThrow(new RegExp(`at most ${MAX_PATH_PATTERNS} patterns`));
+    });
+
+    it("should reject more than the aggregate number of path patterns", () => {
+      // Each field is within its own cap, but together they exceed the budget.
+      const half = Math.floor(MAX_TOTAL_PATH_PATTERNS / 2) + 1;
+      expect(() =>
+        crawlRequestSchema.parse({
+          url: "https://example.com",
+          includePaths: Array.from({ length: half }, (_, i) => `^/a${i}`),
+          excludePaths: Array.from({ length: half }, (_, i) => `^/b${i}`),
+        }),
+      ).toThrow(
+        new RegExp(
+          `together accept at most ${MAX_TOTAL_PATH_PATTERNS} patterns`,
+        ),
+      );
+    });
+
+    it("should report aggregate budget issues at the request root", () => {
+      // excludePaths sits exactly at its own cap; one includePaths pattern
+      // pushes the total over the request-wide budget.
+      const result = crawlRequestSchema.safeParse({
+        url: "https://example.com",
+        excludePaths: Array.from(
+          { length: MAX_PATH_PATTERNS },
+          (_, i) => `^/b${i}`,
+        ),
+        includePaths: ["^/a"],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const issue = result.error.issues.find(i =>
+          /together accept at most/.test(i.message),
+        );
+        expect(issue).toBeDefined();
+        // Neither field is individually at fault, so do not point at one.
+        expect(issue!.path).toEqual([]);
+      }
+    });
+
+    it("should reject path patterns exceeding the aggregate character budget", () => {
+      const pattern = "^/" + "a".repeat(MAX_PATH_PATTERN_LENGTH - 2);
+      const perField =
+        Math.floor(MAX_TOTAL_PATH_PATTERN_CHARS / pattern.length / 2) + 1;
+      expect(() =>
+        crawlRequestSchema.parse({
+          url: "https://example.com",
+          includePaths: Array.from({ length: perField }, () => pattern),
+          excludePaths: Array.from({ length: perField }, () => pattern),
+        }),
+      ).toThrow(
+        new RegExp(
+          `together accept at most ${MAX_TOTAL_PATH_PATTERN_CHARS} characters`,
+        ),
+      );
+    });
+
+    it("should not compile patterns once the count cap is exceeded", () => {
+      let message = "";
+      try {
+        crawlRequestSchema.parse({
+          url: "https://example.com",
+          excludePaths: [
+            ...Array.from({ length: MAX_PATH_PATTERNS }, (_, i) => `^/p${i}`),
+            "[abc",
+          ],
+        });
+      } catch (e) {
+        message = String(e);
+      }
+
+      expect(message).toMatch(
+        new RegExp(`at most ${MAX_PATH_PATTERNS} patterns`),
+      );
+      expect(message).not.toMatch(/unclosed character class/);
+    });
+
+    it("should not derive hints from user pattern text", () => {
+      let message = "";
+      try {
+        crawlRequestSchema.parse({
+          url: "https://example.com",
+          excludePaths: ["[exceeds size limit"],
+        });
+      } catch (e) {
+        message = String(e);
+      }
+
+      expect(message).toMatch(/unclosed character class/);
+      expect(message).not.toMatch(/stacked counted repetitions/);
+    });
+
+    it("should reject path patterns longer than the maximum length", () => {
+      expect(() =>
+        crawlRequestSchema.parse({
+          url: "https://example.com",
+          includePaths: ["^/" + "a".repeat(MAX_PATH_PATTERN_LENGTH)],
+        }),
+      ).toThrow(new RegExp(`at most ${MAX_PATH_PATTERN_LENGTH} characters`));
+    });
+  });
+
+  describe("collectPathPatternIssues", () => {
+    // Options generated from a crawl prompt are merged after schema
+    // validation, so the controller validates them with this helper directly.
+    it("should accept merged options within every limit", () => {
+      expect(
+        collectPathPatternIssues({
+          includePaths: Array.from({ length: 300 }, (_, i) => `topic${i}`),
+          excludePaths: ["^/careers", "^/jobs"],
+        }),
+      ).toEqual([]);
+    });
+
+    it("should report malformed generated fields instead of throwing", () => {
+      expect(
+        collectPathPatternIssues({
+          includePaths: "^/blog",
+          excludePaths: ["^/jobs", 42],
+        }),
+      ).toEqual([
+        {
+          kind: "shape",
+          path: ["includePaths"],
+          message: "includePaths must be an array of strings.",
+        },
+        {
+          kind: "shape",
+          path: ["excludePaths"],
+          message: "excludePaths must be an array of strings.",
+        },
+      ]);
+      expect(collectPathPatternIssues({ includePaths: null })).toEqual([]);
+    });
+
+    it("should report per-field caps that the schema did not see", () => {
+      const issues = collectPathPatternIssues({
+        includePaths: Array.from(
+          { length: MAX_PATH_PATTERNS + 1 },
+          (_, i) => `^/p${i}`,
+        ),
+      });
+      expect(issues).toHaveLength(1);
+      expect(issues[0].kind).toBe("field-cap");
+      expect(issues[0].path).toEqual(["includePaths"]);
+    });
+
+    it("should report the aggregate budget and unsupported syntax", () => {
+      const half = Math.floor(MAX_TOTAL_PATH_PATTERNS / 2) + 1;
+      const budget = collectPathPatternIssues({
+        includePaths: Array.from({ length: half }, (_, i) => `^/a${i}`),
+        excludePaths: Array.from({ length: half }, (_, i) => `^/b${i}`),
+      });
+      expect(budget.map(i => i.kind)).toEqual(["budget"]);
+
+      const syntax = collectPathPatternIssues({
+        excludePaths: ["^/ok", "(?<=a)b"],
+      });
+      expect(syntax.map(i => i.kind)).toEqual(["syntax"]);
+      expect(syntax[0].message).toMatch(/look-around/);
+    });
+  });
+
+  describe("mapRequestSchema", () => {
+    it("should accept valid minimal map request", () => {
+      const input: MapRequestInput = {
+        url: "https://example.com",
+      };
+
+      const result = mapRequestSchema.parse(input);
+      expect(result.url).toBe("https://example.com");
+      expect(result.origin).toBe("api");
+      expect(result.limit).toBe(5000);
+      expect(result.includeSubdomains).toBe(true);
+      expect(result.ignoreQueryParameters).toBe(true);
+      expect(result.sitemap).toBe("include");
+      expect(result.filterByPath).toBe(true);
+      expect(result.useIndex).toBe(true);
+    });
+
+    it("should reject limit exceeding MAX_MAP_LIMIT", () => {
+      const input: MapRequestInput = {
+        url: "https://example.com",
+        limit: 200000,
+      };
+
+      expect(() => mapRequestSchema.parse(input)).toThrow();
+    });
+
+    it("should reject limit below 1", () => {
+      const input: MapRequestInput = {
+        url: "https://example.com",
+        limit: 0,
+      };
+
+      expect(() => mapRequestSchema.parse(input)).toThrow();
+    });
+
+    it("should accept limit within valid range", () => {
+      const input: MapRequestInput = {
+        url: "https://example.com",
+        limit: 10000,
+      };
+
+      const result = mapRequestSchema.parse(input);
+      expect(result.limit).toBe(10000);
+    });
+
+    it("should handle sitemap enum values", () => {
+      const input: MapRequestInput = {
+        url: "https://example.com",
+        sitemap: "only",
+      };
+
+      const result = mapRequestSchema.parse(input);
+      expect(result.sitemap).toBe("only");
+    });
+
+    it("should reject path patterns the engine cannot honour", () => {
+      expect(() =>
+        mapRequestSchema.parse({
+          url: "https://example.com",
+          excludePaths: ["^/?(?!blog)[^/]+/.+"],
+        }),
+      ).toThrow(
+        /look-around, including look-ahead and look-behind, is not supported/,
+      );
+    });
+  });
+
+  describe("batchScrapeRequestSchema", () => {
+    it("should accept valid batch scrape request", () => {
+      const input: BatchScrapeRequestInput = {
+        urls: ["https://example.com", "https://example.org"],
+      };
+
+      const result = batchScrapeRequestSchema.parse(input);
+      expect(result.urls).toHaveLength(2);
+      expect(result.origin).toBe("api");
+      expect(result.ignoreInvalidURLs).toBe(true); // v2 default is true
+    });
+
+    it("should reject empty urls array", () => {
+      const input = {
+        urls: [],
+      };
+
+      expect(() => batchScrapeRequestSchema.parse(input)).toThrow();
+    });
+
+    it("should accept valid UUID for appendToId", () => {
+      const input: BatchScrapeRequestInput = {
+        urls: ["https://example.com"],
+        appendToId: "123e4567-e89b-12d3-a456-426614174000",
+      };
+
+      const result = batchScrapeRequestSchema.parse(input);
+      expect(result.appendToId).toBe("123e4567-e89b-12d3-a456-426614174000");
+    });
+
+    it("should reject invalid UUID for appendToId", () => {
+      const input = {
+        urls: ["https://example.com"],
+        appendToId: "not-a-uuid",
+      };
+
+      expect(() => batchScrapeRequestSchema.parse(input)).toThrow();
+    });
+  });
+
+  describe("searchRequestSchema", () => {
+    it("should accept valid minimal search request", () => {
+      const input: SearchRequestInput = {
+        query: "test query",
+      };
+
+      const result = searchRequestSchema.parse(input);
+      expect(result.query).toBe("test query");
+      expect(result.limit).toBe(10); // v2 default is 10
+      expect(result.lang).toBe("en");
+      expect(result.origin).toBe("api");
+      // Sources are transformed from string array to object array
+      expect(result.sources).toEqual([
+        {
+          type: "web",
+          tbs: undefined,
+          filter: undefined,
+          lang: "en",
+          country: "us",
+          location: undefined,
+        },
+      ]);
+    });
+
+    it("should accept search request with simple sources array", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        sources: ["web", "images"],
+      };
+
+      const result = searchRequestSchema.parse(input);
+      // Sources are transformed from string array to object array
+      // lang defaults to "en" and is applied to web source
+      expect(result.sources).toEqual([
+        {
+          type: "web",
+          tbs: undefined,
+          filter: undefined,
+          lang: "en", // Default lang is applied
+          country: "us",
+          location: undefined,
+        },
+        {
+          type: "images",
+        },
+      ]);
+    });
+
+    it("should accept search request with advanced sources format", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        sources: [
+          {
+            type: "web",
+            tbs: "qdr:d",
+            filter: "active",
+            lang: "en",
+            country: "us",
+            location: "New York",
+          },
+          {
+            type: "images",
+          },
+        ],
+      };
+
+      const result = searchRequestSchema.parse(input);
+      expect(result.sources).toBeDefined();
+      expect(Array.isArray(result.sources)).toBe(true);
+    });
+
+    it("should accept search request with simple categories array", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        categories: ["github", "research"],
+      };
+
+      const result = searchRequestSchema.parse(input);
+      // Categories are transformed from string array to object array
+      expect(result.categories).toEqual([
+        { type: "github" },
+        { type: "research" },
+      ]);
+    });
+
+    it("should accept the developer category and reject its params", () => {
+      expect(
+        searchRequestSchema.parse({ query: "test", categories: ["developer"] })
+          .categories,
+      ).toEqual([{ type: "developer" }]);
+
+      expect(
+        searchRequestSchema.parse({
+          query: "test",
+          categories: [{ type: "developer" }],
+        }).categories,
+      ).toEqual([{ type: "developer" }]);
+
+      expect(() =>
+        searchRequestSchema.parse({
+          query: "test",
+          categories: [{ type: "developer", repos: ["firecrawl/firecrawl"] }],
+        }),
+      ).toThrow();
+    });
+
+    it("should normalize every developer category alias to developer", () => {
+      const aliases = [
+        "repo",
+        "code",
+        "developer",
+        "docs",
+        "devdex",
+        "repo_search",
+        "developer_index",
+      ];
+
+      for (const alias of aliases) {
+        expect(
+          searchRequestSchema.parse({ query: "test", categories: [alias] })
+            .categories,
+        ).toEqual([{ type: "developer" }]);
+
+        expect(
+          searchRequestSchema.parse({
+            query: "test",
+            categories: [{ type: alias }],
+          }).categories,
+        ).toEqual([{ type: "developer" }]);
+      }
+    });
+
+    it("should deduplicate developer aliases into one developer category", () => {
+      expect(
+        searchRequestSchema.parse({
+          query: "test",
+          categories: ["code", "developer"],
+        }).categories,
+      ).toEqual([{ type: "developer" }]);
+
+      expect(
+        searchRequestSchema.parse({
+          query: "test",
+          categories: [{ type: "repo_search" }, { type: "developer" }],
+        }).categories,
+      ).toEqual([{ type: "developer" }]);
+
+      expect(
+        searchRequestSchema.parse({
+          query: "test",
+          categories: ["docs", "developer_index"],
+        }).categories,
+      ).toEqual([{ type: "developer" }]);
+
+      // Developer (and its aliases) is exclusive: combining with any other
+      // category is rejected at the schema.
+      expect(() =>
+        searchRequestSchema.parse({
+          query: "test",
+          categories: ["docs", "github", "developer_index"],
+        }),
+      ).toThrow(/cannot be combined/);
+    });
+
+    it("should reject developer alias params and unknown categories", () => {
+      expect(() =>
+        searchRequestSchema.parse({
+          query: "test",
+          categories: [{ type: "code", repos: ["firecrawl/firecrawl"] }],
+        }),
+      ).toThrow();
+
+      expect(() =>
+        searchRequestSchema.parse({ query: "test", categories: ["bogus"] }),
+      ).toThrow();
+
+      expect(() =>
+        searchRequestSchema.parse({
+          query: "test",
+          categories: [{ type: "bogus" }],
+        }),
+      ).toThrow();
+    });
+
+    it("should accept search request with advanced categories format", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        categories: [
+          {
+            type: "github",
+          },
+          {
+            type: "research",
+          },
+          {
+            type: "pdf",
+          },
+        ],
+      };
+
+      const result = searchRequestSchema.parse(input);
+      expect(result.categories).toBeDefined();
+      expect(Array.isArray(result.categories)).toBe(true);
+    });
+
+    it("should accept search request with includeDomains", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        includeDomains: [" Example.com ", "docs.example.com"],
+      };
+
+      const result = searchRequestSchema.parse(input);
+      expect(result.includeDomains).toEqual([
+        "example.com",
+        "docs.example.com",
+      ]);
+    });
+
+    it("should accept search request with excludeDomains", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        excludeDomains: ["example.com", "spam.example.com"],
+      };
+
+      const result = searchRequestSchema.parse(input);
+      expect(result.excludeDomains).toEqual([
+        "example.com",
+        "spam.example.com",
+      ]);
+    });
+
+    it("should reject search request with includeDomains and excludeDomains", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        includeDomains: ["example.com"],
+        excludeDomains: ["spam.example.com"],
+      };
+
+      expect(() => searchRequestSchema.parse(input)).toThrow(
+        "includeDomains and excludeDomains cannot both be specified",
+      );
+    });
+
+    it("should reject limit exceeding 100", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        limit: 150,
+      };
+
+      expect(() => searchRequestSchema.parse(input)).toThrow();
+    });
+
+    it("should accept limit within valid range", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        limit: 50,
+      };
+
+      const result = searchRequestSchema.parse(input);
+      expect(result.limit).toBe(50);
+    });
+
+    it("should handle enterprise array", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        enterprise: ["default", "zdr"],
+      };
+
+      const result = searchRequestSchema.parse(input);
+      expect(result.enterprise).toEqual(["default", "zdr"]);
+    });
+
+    it("should accept search scrapeOptions with query format", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        scrapeOptions: {
+          formats: [{ type: "query", prompt: "What is Firecrawl?" }],
+        },
+      };
+
+      const result = searchRequestSchema.parse(input);
+      expect(result.scrapeOptions?.formats).toEqual([
+        { type: "query", prompt: "What is Firecrawl?", mode: "freeform" },
+      ]);
+    });
+
+    it("should accept search scrapeOptions with question and highlights formats", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        scrapeOptions: {
+          formats: [
+            { type: "question", question: "What is Firecrawl?" },
+            { type: "highlights", query: "What is Firecrawl?" },
+          ],
+        },
+      };
+
+      const result = searchRequestSchema.parse(input);
+      expect(result.scrapeOptions?.formats).toEqual([
+        { type: "question", question: "What is Firecrawl?" },
+        { type: "highlights", query: "What is Firecrawl?" },
+      ]);
+    });
+
+    it("should reject search scrapeOptions query format with invalid mode", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        scrapeOptions: {
+          formats: [
+            {
+              type: "query",
+              prompt: "What is Firecrawl?",
+              mode: "quoted",
+            } as any,
+          ],
+        },
+      };
+
+      expect(() => searchRequestSchema.parse(input)).toThrow();
+    });
+
+    it("should reject search scrapeOptions query format with directQuote boolean", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        scrapeOptions: {
+          formats: [
+            {
+              type: "query",
+              prompt: "What is Firecrawl?",
+              directQuote: true,
+            } as any,
+          ],
+        },
+      };
+
+      expect(() => searchRequestSchema.parse(input)).toThrow();
+    });
+
+    it("should reject search scrapeOptions query prompt over 10000 characters", () => {
+      const input: SearchRequestInput = {
+        query: "test",
+        scrapeOptions: {
+          formats: [{ type: "query", prompt: "a".repeat(10001) }],
+        },
+      };
+
+      expect(() => searchRequestSchema.parse(input)).toThrow();
+    });
+
+    it("should reject search scrapeOptions question and highlights values over 10000 characters", () => {
+      expect(() =>
+        searchRequestSchema.parse({
+          query: "test",
+          scrapeOptions: {
+            formats: [{ type: "question", question: "a".repeat(10001) }],
+          },
+        } satisfies SearchRequestInput),
+      ).toThrow();
+
+      expect(() =>
+        searchRequestSchema.parse({
+          query: "test",
+          scrapeOptions: {
+            formats: [{ type: "highlights", query: "a".repeat(10001) }],
+          },
+        } satisfies SearchRequestInput),
+      ).toThrow();
+    });
+  });
+
+  describe("Type inference", () => {
+    it("should correctly infer ScrapeRequest type", () => {
+      const result: ScrapeRequest = scrapeRequestSchema.parse({
+        url: "https://example.com",
+      });
+
+      expect(typeof result.url).toBe("string");
+      expect(typeof result.origin).toBe("string");
+      expect(Array.isArray(result.formats)).toBe(true);
+    });
+
+    it("should correctly infer ExtractRequest type", () => {
+      const result: ExtractRequest = extractRequestSchema.parse({
+        urls: ["https://example.com"],
+        schema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+          },
+        },
+      });
+
+      expect(Array.isArray(result.urls)).toBe(true);
+    });
+
+    it("should correctly infer CrawlRequest type", () => {
+      const result: CrawlRequest = crawlRequestSchema.parse({
+        url: "https://example.com",
+      });
+
+      expect(typeof result.url).toBe("string");
+      expect(typeof result.limit).toBe("number");
+      expect(result.scrapeOptions).toBeDefined();
+    });
+
+    it("should correctly infer MapRequest type", () => {
+      const result: MapRequest = mapRequestSchema.parse({
+        url: "https://example.com",
+      });
+
+      expect(typeof result.url).toBe("string");
+      expect(typeof result.limit).toBe("number");
+    });
+
+    it("should correctly infer BatchScrapeRequest type", () => {
+      const result: BatchScrapeRequest = batchScrapeRequestSchema.parse({
+        urls: ["https://example.com"],
+      });
+
+      expect(Array.isArray(result.urls)).toBe(true);
+      expect(result.urls.length).toBeGreaterThan(0);
+    });
+
+    it("should correctly infer SearchRequest type", () => {
+      const result: SearchRequest = searchRequestSchema.parse({
+        query: "test",
+      });
+
+      expect(typeof result.query).toBe("string");
+      expect(typeof result.limit).toBe("number");
+    });
+  });
+
+  describe("scrapeOptions schema", () => {
+    it("should accept valid scrape options", () => {
+      const input = {
+        formats: [{ type: "markdown" }, { type: "html" }],
+        onlyMainContent: false,
+        waitFor: 1000,
+      };
+
+      const result = scrapeOptions.parse(input);
+      expect(result.formats).toHaveLength(2);
+      expect(result.onlyMainContent).toBe(false);
+      expect(result.waitFor).toBe(1000);
+    });
+
+    it("should reject invalid actions wait time", () => {
+      const input = {
+        formats: [{ type: "markdown" }],
+        waitFor: 0,
+        actions: Array.from({ length: 100 }, () => ({
+          type: "wait" as const,
+          milliseconds: 1000,
+        })),
+      };
+
+      expect(() => scrapeOptions.parse(input)).toThrow(
+        "Total wait time (waitFor + wait actions) cannot exceed",
+      );
+    });
+  });
+
+  describe("monitor schedules", () => {
+    it("should accept natural language schedule text", () => {
+      const result = createMonitorSchema.parse({
+        name: "Blog monitor",
+        schedule: {
+          text: "every 30 minutes",
+        },
+        targets: [
+          {
+            type: "scrape",
+            urls: ["https://example.com"],
+          },
+        ],
+      });
+
+      expect(result.schedule).toEqual({
+        cron: "*/30 * * * *",
+        timezone: "UTC",
+      });
+    });
+
+    it("should accept a natural language start minute", () => {
+      const result = updateMonitorSchema.parse({
+        schedule: {
+          text: "every 15 minutes starting at :07",
+        },
+      });
+
+      expect(result.schedule).toEqual({
+        cron: "7-59/15 * * * *",
+        timezone: "UTC",
+      });
+    });
+
+    it("should accept daily am/pm schedule text", () => {
+      const cases = [
+        ["daily at 9am", "0 9 * * *"],
+        ["daily at 9:30am", "30 9 * * *"],
+        ["daily at 5pm", "0 17 * * *"],
+        ["daily at 5:30 pm", "30 17 * * *"],
+        ["daily at 12am", "0 0 * * *"],
+        ["daily at 12pm", "0 12 * * *"],
+      ] as const;
+
+      for (const [text, cron] of cases) {
+        const result = updateMonitorSchema.parse({
+          schedule: { text },
+        });
+
+        expect(result.schedule).toEqual({
+          cron,
+          timezone: "UTC",
+        });
+      }
+    });
+
+    it("should reject invalid daily am/pm hours", () => {
+      expect(() =>
+        updateMonitorSchema.parse({
+          schedule: {
+            text: "daily at 13pm",
+          },
+        }),
+      ).toThrow("Daily schedule hour with am/pm must be between 1 and 12");
+    });
+
+    it("should reject ambiguous schedule definitions", () => {
+      expect(() =>
+        updateMonitorSchema.parse({
+          schedule: {
+            cron: "*/30 * * * *",
+            text: "every 30 minutes",
+          },
+        }),
+      ).toThrow("Schedule must include either cron or text, not both");
+    });
+
+    it("should calculate next runs in the configured timezone", () => {
+      const next = getNextMonitorRunAt(
+        "0 9 * * *",
+        new Date("2026-01-01T13:00:00.000Z"),
+        "America/New_York",
+      );
+
+      expect(next.toISOString()).toBe("2026-01-01T14:00:00.000Z");
+    });
+
+    it("should accept monitor webhook event filters", () => {
+      const result = updateMonitorSchema.parse({
+        webhook: {
+          url: "https://example.com/webhook",
+          events: ["monitor.page", "monitor.check.completed"],
+        },
+      });
+
+      expect(result.webhook?.events).toEqual([
+        "monitor.page",
+        "monitor.check.completed",
+      ]);
+    });
+
+    it("should reject non-monitor webhook event filters", () => {
+      expect(() =>
+        updateMonitorSchema.parse({
+          webhook: {
+            url: "https://example.com/webhook",
+            events: ["completed"],
+          },
+        }),
+      ).toThrow();
+    });
+  });
+
+  describe("monitor search target goal validation", () => {
+    const searchTargets = [
+      { type: "search" as const, queries: ["firecrawl launch"] },
+    ];
+
+    it("create rejects a search target without a goal", () => {
+      expect(() =>
+        createMonitorSchema.parse({
+          name: "Search monitor",
+          schedule: { text: "every 30 minutes" },
+          targets: searchTargets,
+        }),
+      ).toThrow("A search target requires a non-empty goal");
+    });
+
+    it("update accepts a patch adding a search target without restating the goal", () => {
+      // The monitor may already carry a goal; the controller validates the
+      // merged state.
+      const result = updateMonitorSchema.parse({ targets: searchTargets });
+      expect(result.targets).toHaveLength(1);
+    });
+
+    it("update rejects a patch that adds search targets while clearing the goal", () => {
+      for (const goal of [null, "", "   "]) {
+        expect(() =>
+          updateMonitorSchema.parse({ targets: searchTargets, goal }),
+        ).toThrow("A search target requires a non-empty goal");
+      }
+    });
+
+    it("update allows clearing the goal when the patch has no targets (merged state is checked in the controller)", () => {
+      const result = updateMonitorSchema.parse({ goal: null });
+      expect(result.goal).toBeNull();
+    });
+
+    it("create allows a raw search target (judgeEnabled:false) without a goal", () => {
+      const result = createMonitorSchema.parse({
+        name: "Raw search monitor",
+        schedule: { text: "every 30 minutes" },
+        targets: searchTargets,
+        judgeEnabled: false,
+      });
+      expect(result.targets).toHaveLength(1);
+      expect(result.judgeEnabled).toBe(false);
+    });
+
+    it("create still defaults judgeEnabled true when a goal is present", () => {
+      const result = createMonitorSchema.parse({
+        name: "Judged search monitor",
+        schedule: { text: "every 30 minutes" },
+        targets: searchTargets,
+        goal: "Alert when Firecrawl launches",
+      });
+      expect(result.judgeEnabled).toBe(true);
+    });
+
+    it("update with just { goal } does NOT silently enable judging", () => {
+      const result = updateMonitorSchema.parse({ goal: "Alert when X ships" });
+      expect(result.judgeEnabled).toBeUndefined();
+    });
+  });
+
+  describe("Edge cases", () => {
+    it("should handle URL without protocol (should add http://)", () => {
+      const input = {
+        url: "example.com",
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.url).toMatch(/^https?:\/\//);
+    });
+
+    it("should handle undefined integration (optional field)", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      // Integration transform converts undefined/falsy to null
+      expect(result.integration).toBeNull();
+    });
+
+    it("should handle changeTracking format timeout transformation", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [
+          { type: "markdown" },
+          {
+            type: "changeTracking",
+            schema: {
+              type: "object",
+              properties: {
+                changes: { type: "array", items: { type: "string" } },
+              },
+            },
+          },
+        ],
+        timeout: 30000,
+        proxy: "basic", // Use basic proxy to avoid auto/stealth timeout transformation
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.timeout).toBe(60000); // Should be transformed
+      expect(result.waitFor).toBeGreaterThanOrEqual(5000); // Should be at least 5000
+    });
+
+    it("should handle json format timeout transformation", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [
+          {
+            type: "json",
+            schema: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+              },
+            },
+          },
+        ],
+        timeout: 30000,
+        proxy: "basic", // Use basic proxy to avoid auto/stealth timeout transformation
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.timeout).toBe(60000); // Should be transformed
+    });
+
+    it("should handle changeTrackingOptions with null tag", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        formats: [
+          { type: "markdown" },
+          {
+            type: "changeTracking",
+            tag: null,
+          },
+        ],
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      const changeTracking = result.formats.find(
+        f => typeof f === "object" && f.type === "changeTracking",
+      );
+      expect((changeTracking as any).tag).toBeNull();
+    });
+
+    it("should handle minAge and maxAge", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        minAge: 1000,
+        maxAge: 5000,
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.minAge).toBe(1000);
+      expect(result.maxAge).toBe(5000);
+    });
+
+    it("should reject negative minAge", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        minAge: -1,
+      };
+
+      expect(() => scrapeRequestSchema.parse(input)).toThrow();
+    });
+
+    it("should reject negative maxAge", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        maxAge: -1,
+      };
+
+      expect(() => scrapeRequestSchema.parse(input)).toThrow();
+    });
+  });
+});

@@ -142,6 +142,14 @@ else
     echo -e "  ${YELLOW}[WARN] Browser Harness CDP could not initialize.${RESET}"
 fi
 
+# Run preflight check for Firecrawl Self-Hosted Web Engine
+if curl -s -m 2 http://localhost:3002/test >/dev/null 2>&1 || curl -s -m 2 http://localhost:3002/ >/dev/null 2>&1; then
+    echo -e "  ${GREEN}✓${RESET} Firecrawl Web Ingestion & Extraction Engine online (http://localhost:3002)"
+else
+    echo -e "  ${YELLOW}ℹ${RESET} Firecrawl Engine not running at http://localhost:3002 (standby mode)."
+    echo -e "    To spin up local self-hosted Firecrawl: ${BOLD}(cd src/tools/firecrawl && docker compose up -d)${RESET}"
+fi
+
 # Check macOS Accessibility permission (required to inspect WhatsApp UI and capture hotkeys)
 if ! uv run python -c "from ApplicationServices import AXIsProcessTrusted; assert AXIsProcessTrusted() is True" 2>/dev/null; then
     echo -e "  ${RED}✗ [PERMISSION REQUIRED]${RESET} Accessibility permission is missing for this terminal!"

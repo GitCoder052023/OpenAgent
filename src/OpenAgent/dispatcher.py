@@ -25,8 +25,15 @@ try:
 except ImportError:
     BrowserAdapter = None  # type: ignore[assignment,misc]
 
+try:
+    from .firecrawl_adapter import FirecrawlAdapter, FirecrawlError
+except ImportError:
+    FirecrawlAdapter = None  # type: ignore[assignment,misc]
+    FirecrawlError = Exception  # type: ignore[assignment,misc]
+
 _DEFAULT_MAC_ADAPTER: Optional[Any] = None
 _DEFAULT_BROWSER_ADAPTER: Optional[Any] = None
+_DEFAULT_FIRECRAWL_ADAPTER: Optional[Any] = None
 
 
 def get_default_mac_adapter() -> Optional[Any]:
@@ -47,6 +54,16 @@ def get_default_browser_adapter() -> Optional[Any]:
         except Exception as exc:
             logger.warning("Could not initialize default BrowserAdapter: %s", exc)
     return _DEFAULT_BROWSER_ADAPTER
+
+
+def get_default_firecrawl_adapter() -> Optional[Any]:
+    global _DEFAULT_FIRECRAWL_ADAPTER
+    if _DEFAULT_FIRECRAWL_ADAPTER is None and FirecrawlAdapter is not None:
+        try:
+            _DEFAULT_FIRECRAWL_ADAPTER = FirecrawlAdapter()
+        except Exception as exc:
+            logger.warning("Could not initialize default FirecrawlAdapter: %s", exc)
+    return _DEFAULT_FIRECRAWL_ADAPTER
 
 
 logger = logging.getLogger("jarvis.dispatcher")
@@ -337,8 +354,9 @@ def execute_tool_call(
     call: Dict[str, Any],
     mac_adapter: Optional[Any] = None,
     browser_adapter: Optional[Any] = None,
+    firecrawl_adapter: Optional[Any] = None,
 ) -> Dict[str, Any]:
-    """Execute a parsed tool call using the headless harness, native macOS adapter, or browser adapter.
+    """Execute a parsed tool call using the headless harness, native macOS adapter, browser adapter, or Firecrawl.
 
     Returns a standardized dictionary:
     {"status": "ok" | "error", "tool": name, "result": ..., "error": ...}
@@ -356,6 +374,12 @@ def execute_tool_call(
             browser_adapter = mac_adapter.browser
         else:
             browser_adapter = get_default_browser_adapter()
+
+    if firecrawl_adapter is None:
+        if mac_adapter is not None and hasattr(mac_adapter, "firecrawl") and mac_adapter.firecrawl is not None:
+            firecrawl_adapter = mac_adapter.firecrawl
+        else:
+            firecrawl_adapter = get_default_firecrawl_adapter()
 
     try:
         # --- Native macOS Computer-Use Primitives (macos-harness) ---
@@ -772,11 +796,128 @@ def execute_tool_call(
             )
             return {"status": "ok", "tool": tool, "result": res}
 
+        # --- Firecrawl Web Ingestion & Extraction Primitives ---
+        elif tool in ("firecrawl_scrape", "scrape", "scrape_url"):
+            if firecrawl_adapter is None:
+                raise RuntimeError("Firecrawl adapter is not available on this system")
+            url = args.get("url") or args.get("link")
+            if not url:
+                raise ValueError("Missing 'url' argument for firecrawl_scrape")
+            formats = args.get("formats")
+            if isinstance(formats, str):
+                formats = [formats]
+            only_main = bool(args.get("only_main_content", args.get("onlyMainContent", True)))
+            wait_for = args.get("wait_for", args.get("waitFor"))
+            timeout_arg = args.get("timeout")
+            res = firecrawl_adapter.scrape(
+                url=str(url),
+                formats=formats,
+                only_main_content=only_main,
+                wait_for=int(wait_for) if wait_for is not None else None,
+                timeout=int(timeout_arg) if timeout_arg is not None else None,
+                include_tags=args.get("include_tags", args.get("includeTags")),
+                exclude_tags=args.get("exclude_tags", args.get("excludeTags")),
+                headers=args.get("headers"),
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("firecrawl_search", "web_search", "search_web"):
+            if firecrawl_adapter is None:
+                raise RuntimeError("Firecrawl adapter is not available on this system")
+            query = args.get("query") or args.get("q")
+            if not query:
+                raise ValueError("Missing 'query' argument for firecrawl_search")
+            limit = int(args.get("limit", 5))
+            scrape_options = args.get("scrape_options", args.get("scrapeOptions"))
+            res = firecrawl_adapter.search(
+                query=str(query),
+                limit=limit,
+                scrape_options=scrape_options,
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("firecrawl_crawl", "crawl", "crawl_site"):
+            if firecrawl_adapter is None:
+                raise RuntimeError("Firecrawl adapter is not available on this system")
+            url = args.get("url") or args.get("link")
+            if not url:
+                raise ValueError("Missing 'url' argument for firecrawl_crawl")
+            max_depth = int(args.get("max_depth", args.get("maxDepth", 2)))
+            limit = int(args.get("limit", 10))
+            allow_backward = bool(args.get("allow_backward_links", args.get("allowBackwardLinks", False)))
+            allow_external = bool(args.get("allow_external_links", args.get("allowExternalLinks", False)))
+            scrape_options = args.get("scrape_options", args.get("scrapeOptions"))
+            res = firecrawl_adapter.crawl(
+                url=str(url),
+                max_depth=max_depth,
+                limit=limit,
+                allow_backward_links=allow_backward,
+                allow_external_links=allow_external,
+                scrape_options=scrape_options,
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("firecrawl_status", "crawl_status"):
+            if firecrawl_adapter is None:
+                raise RuntimeError("Firecrawl adapter is not available on this system")
+            job_id = args.get("job_id") or args.get("id")
+            if not job_id:
+                raise ValueError("Missing 'job_id' or 'id' for firecrawl_status")
+            res = firecrawl_adapter.crawl_status(job_id=str(job_id))
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("firecrawl_cancel", "cancel_crawl"):
+            if firecrawl_adapter is None:
+                raise RuntimeError("Firecrawl adapter is not available on this system")
+            job_id = args.get("job_id") or args.get("id")
+            if not job_id:
+                raise ValueError("Missing 'job_id' or 'id' for firecrawl_cancel")
+            res = firecrawl_adapter.cancel_crawl(job_id=str(job_id))
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("firecrawl_map", "site_map", "sitemap"):
+            if firecrawl_adapter is None:
+                raise RuntimeError("Firecrawl adapter is not available on this system")
+            url = args.get("url") or args.get("link")
+            if not url:
+                raise ValueError("Missing 'url' argument for firecrawl_map")
+            search_term = args.get("search")
+            limit = int(args.get("limit", 100))
+            ignore_sitemap = bool(args.get("ignore_sitemap", args.get("ignoreSitemap", False)))
+            res = firecrawl_adapter.map(
+                url=str(url),
+                search=search_term,
+                limit=limit,
+                ignore_sitemap=ignore_sitemap,
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("firecrawl_extract", "extract"):
+            if firecrawl_adapter is None:
+                raise RuntimeError("Firecrawl adapter is not available on this system")
+            urls = args.get("urls") or args.get("url")
+            if not urls:
+                raise ValueError("Missing 'urls' argument for firecrawl_extract")
+            prompt = args.get("prompt")
+            schema = args.get("schema")
+            res = firecrawl_adapter.extract(
+                urls=urls,
+                prompt=prompt,
+                schema=schema,
+            )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("firecrawl_doctor", "firecrawl_health"):
+            if firecrawl_adapter is None:
+                raise RuntimeError("Firecrawl adapter is not available on this system")
+            res = firecrawl_adapter.doctor()
+            return {"status": "ok", "tool": tool, "result": res}
+
         else:
             raise ValueError(f"Unknown harness tool: '{tool}'")
 
-    except HarnessError as err:
-        logger.warning("Harness execution error for tool '%s': %s", tool, err)
+    except (HarnessError, FirecrawlError) as err:
+        logger.warning("Execution error for tool '%s': %s", tool, err)
         return {"status": "error", "tool": tool, "error": str(err)}
     except Exception as exc:
         logger.exception("Unexpected execution error for tool '%s': %s", tool, exc)
@@ -972,6 +1113,63 @@ def format_tool_response(response: Dict[str, Any], max_length: int = MAX_WHATSAP
     elif tool in ("browser_skills", "domain_skills"):
         skills = result if isinstance(result, list) else []
         body = f"Domain Skills ({len(skills)}):\n" + "\n".join(f"• {s.get('skill')}: {s.get('file')}" for s in skills)
+
+    elif tool in ("firecrawl_scrape", "scrape", "scrape_url"):
+        data = result.get("data", result) if isinstance(result, dict) else {}
+        meta = data.get("metadata", {}) if isinstance(data, dict) else {}
+        title = meta.get("title") or meta.get("og:title") or "Web Page"
+        source_url = meta.get("sourceURL") or meta.get("url") or result.get("url") or ""
+        md = data.get("markdown", "") if isinstance(data, dict) else ""
+        body = f"Title: {title}\nURL: {source_url}\n\n{md}".strip()
+
+    elif tool in ("firecrawl_search", "web_search", "search_web"):
+        hits = result.get("data", result.get("results", [])) if isinstance(result, dict) else []
+        if isinstance(hits, list):
+            body = f"Search Results ({len(hits)} hits):\n\n"
+            for i, hit in enumerate(hits, 1):
+                if not isinstance(hit, dict):
+                    continue
+                h_meta = hit.get("metadata", {}) if isinstance(hit, dict) else {}
+                h_title = h_meta.get("title") or hit.get("title") or "Result"
+                h_url = h_meta.get("sourceURL") or hit.get("url") or ""
+                h_md = (hit.get("markdown") or hit.get("snippet") or "")[:400].strip()
+                body += f"[{i}] {h_title}\nURL: {h_url}\n{h_md}\n\n"
+        else:
+            body = json.dumps(result, indent=2)
+
+    elif tool in ("firecrawl_crawl", "crawl", "crawl_site"):
+        job_id = result.get("id") or result.get("job_id") or "submitted"
+        url = result.get("url") or "target site"
+        body = f"Crawl Initiated: {url}\nJob ID: {job_id}\nUse firecrawl_status to monitor progress."
+
+    elif tool in ("firecrawl_status", "crawl_status"):
+        st = result.get("status") or "unknown"
+        tot = result.get("total", 0)
+        done = result.get("completed", 0)
+        data = result.get("data", [])
+        body = f"Crawl Status: {st} ({done}/{tot} pages crawled)"
+        if data and isinstance(data, list):
+            body += "\nRecent pages:\n"
+            for item in data[:5]:
+                if isinstance(item, dict):
+                    m = item.get("metadata", {}) if isinstance(item, dict) else {}
+                    body += f"• {m.get('title') or '(Untitled)'} ({m.get('sourceURL') or item.get('url')})\n"
+
+    elif tool in ("firecrawl_cancel", "cancel_crawl"):
+        body = f"Crawl job canceled: {result.get('status', 'ok')}"
+
+    elif tool in ("firecrawl_map", "site_map", "sitemap"):
+        links = result.get("links", []) if isinstance(result, dict) else []
+        body = f"Discovered Links ({len(links)}):\n" + "\n".join(f"• {link}" for link in links[:30])
+        if len(links) > 30:
+            body += f"\n... and {len(links) - 30} more links."
+
+    elif tool in ("firecrawl_extract", "extract"):
+        extracted = result.get("data", result)
+        body = f"Extracted Data:\n{json.dumps(extracted, indent=2) if isinstance(extracted, (dict, list)) else str(extracted)}"
+
+    elif tool in ("firecrawl_doctor", "firecrawl_health"):
+        body = f"Firecrawl Health: {result.get('status', 'unknown')}\nEndpoint: {result.get('api_url', '')}\nReachable: {result.get('reachable', False)}"
 
     elif tool in ("system_info", "instructions", "system_prompt", "mac_ax", "ax", "mac_browser", "browser", "mac_doctor", "doctor"):
         body = json.dumps(result, indent=2)

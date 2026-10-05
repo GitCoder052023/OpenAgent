@@ -40,16 +40,20 @@ class Harness:
         root = harness_root or opencode_root
         if root is None:
             src_dir = Path(__file__).resolve().parent.parent
-            if (src_dir / "cli-harness").exists():
+            if (src_dir / "tools" / "cli-harness").exists():
+                self.root = src_dir / "tools" / "cli-harness"
+            elif (src_dir / "cli-harness").exists():
                 self.root = src_dir / "cli-harness"
             elif (src_dir / "harness").exists():
                 self.root = src_dir / "harness"
+            elif (src_dir.parent / "tools" / "cli-harness").exists():
+                self.root = src_dir.parent / "tools" / "cli-harness"
             elif (src_dir.parent / "cli-harness").exists():
                 self.root = src_dir.parent / "cli-harness"
             elif (src_dir.parent / "harness").exists():
                 self.root = src_dir.parent / "harness"
             else:
-                self.root = src_dir / "cli-harness"
+                self.root = src_dir / "tools" / "cli-harness"
         else:
             self.root = Path(root)
 
@@ -57,8 +61,10 @@ class Harness:
         if not self.script_path.exists():
             raise FileNotFoundError(f"Harness bridge script not found at {self.script_path}")
 
-        if self.root.parent.name == "src":
-            self.project_root = self.root.parent.parent
+        if self.root.parent.name in ("tools", "src"):
+            self.project_root = self.root.parent.parent if self.root.parent.parent.name != "" else self.root.parent
+            if self.root.parent.name == "tools" and self.root.parent.parent.name == "src":
+                self.project_root = self.root.parent.parent.parent
         else:
             self.project_root = self.root.parent
 
@@ -222,6 +228,8 @@ class Harness:
 
     def close(self):
         """Terminate the harness subprocess."""
+        if not hasattr(self, "_lock") or self._lock is None:
+            return
         with self._lock:
             if self._proc and self._proc.poll() is None:
                 self._proc.terminate()

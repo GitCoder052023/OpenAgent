@@ -32,30 +32,30 @@ Remote conversational AI assistants like [Instinct](https://instinct.com/) are i
 Running 100% locally on your Mac, OpenAgent intercepts structured tool calls from your assistant, executes native macOS actions (shell commands, file edits, accessibility inspection, window capture, keyboard/mouse input), and returns the results back into the conversation in real time.
 
 ```text
-┌────────────────────────────────────────────────────────┐
-│                  Instinct (The Mind)                   │
-│         Reasoning • Planning • Dialogue Logic          │
-└───────────────────────────┬────────────────────────────┘
-                            │
-                            │ Secure JARVIS_CALL transport
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                  OpenAgent (The Body)                  │
-│       Voice Pipeline • Safety Guard • Harness IPC      │
-└──────┬───────────────────────┬──────────────────────┬──┘
-       │                       │                      │
-       ▼                       ▼                      ▼
-┌──────────────┐      ┌─────────────────┐    ┌─────────────────┐
-│ Headless Dev │      │ Native Computer │    │ Real Browser    │
-│ (Bun / TS)   │      │ (macOS APIs)    │    │ (CDP Harness)   │
-│ Shell • Code │      │ Clicks • Vision │    │ Tabs • AX • DOM │
-└──────┬───────┘      └────────┬────────┘    └────────┬────────┘
-       └───────────────────────┼──────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                          Instinct (The Mind)                           │
+│                 Reasoning • Planning • Dialogue Logic                  │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    │ Secure JARVIS_CALL transport
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                          OpenAgent (The Body)                          │
+│               Voice Pipeline • Safety Guard • Harness IPC              │
+└──────┬───────────────────────┬──────────────────────┬────────────────┬─┘
+       │                       │                      │                │
+       ▼                       ▼                      ▼                ▼
+┌──────────────┐      ┌─────────────────┐    ┌─────────────────┐┌───────────────┐
+│ Headless Dev │      │ Native Computer │    │ Real Browser    ││ Firecrawl Web │
+│ (Bun / TS)   │      │ (macOS APIs)    │    │ (CDP Harness)   ││ (Self-Hosted) │
+│ Shell • Code │      │ Clicks • Vision │    │ Tabs • AX • DOM ││ Scrape • Crawl│
+└──────┬───────┘      └────────┬────────┘    └────────┬────────┘└───────┬───────┘
+       └───────────────────────┼──────────────────────┴─────────────────┘
                                ▼
-┌────────────────────────────────────────────────────────┐
-│              macOS & Google Chrome (The World)         │
-│          Your Local System, Apps, Web & Logins         │
-└────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                      macOS, Chrome & The Web (The World)               │
+│                  Your Local System, Apps, Web & Logins                 │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 > **Instinct thinks. OpenAgent acts.**
@@ -63,6 +63,7 @@ Running 100% locally on your Mac, OpenAgent intercepts structured tool calls fro
 ## Core Features
 
 * **Real Browser Control (CDP Harness)**: Connects directly to your real, authenticated Chrome browser. Operates background tabs (`new_tab`, `switch_tab`), dispatches compositor clicks, queries internal Accessibility trees (`browser_ax`), fills framework-controlled forms cleanly (`browser_fill`), and uses pre-built domain skills for 80+ platforms (Amazon, GitHub, YouTube, X, etc.) without stealing physical focus.
+* **Self-Hosted Web Ingestion & Extraction (Firecrawl Engine)**: 100% local, self-hosted web scraper and crawler engine running on Docker. Turns any web page into clean, LLM-ready Markdown in one shot (`firecrawl_scrape`), performs web searches with full Markdown results (`firecrawl_search`), runs recursive domain crawlers (`firecrawl_crawl`), maps site architectures (`firecrawl_map`), and extracts structured JSON schemas (`firecrawl_extract`) without cloud API limits.
 * **High-Speed Voice Pipeline**: Hold **`F8`** to talk (Push-to-Talk) or use hands-free wake word (*"Wake up Jarvis"*). Features local RMS silence gating, background audio playback, and instant barge-in interruption.
 * **Headless Developer Harness**: Ultra-fast Bun + TypeScript runner providing sandboxed `bash` execution, granular file pagination (`read`), atomic `write`, exact diff patching (`edit`), and fast `ripgrep` search.
 * **Native macOS Computer-Use**: Inspect application windows (`mac_see`), query semantic UI trees (`mac_ax`), issue PID-targeted clicks and keystrokes across applications (including WhatsApp Desktop), and capture screenshots sent directly to WhatsApp.
@@ -201,6 +202,18 @@ Instinct controls your Mac by wrapping structured JSON calls inside a resilient 
 | `browser_python` | Ultra-fast compound browser burst execution (<200ms) | `code`, `timeout` |
 | `domain_skills` | Retrieve pre-built domain automation skills for 80+ platforms | `host` |
 
+### Self-Hosted Web Ingestion & Extraction Tools (Firecrawl Engine)
+
+| Tool | Description | Key Arguments |
+| --- | --- | --- |
+| `firecrawl_scrape` | Scrape dynamic web pages directly into clean LLM Markdown | `url`, `formats`, `only_main_content`, `wait_for` |
+| `firecrawl_search` | Search the web and return full Markdown from top hits in one shot | `query`, `limit`, `scrape_options` |
+| `firecrawl_crawl` | Asynchronously crawl an entire domain or documentation tree | `url`, `max_depth`, `limit` |
+| `firecrawl_status` | Check the progress and page count of an ongoing crawl | `job_id` |
+| `firecrawl_map` | Fast sitemap and URL discovery across a domain | `url`, `search`, `limit` |
+| `firecrawl_extract` | Extract structured JSON data matching a schema or prompt | `urls`, `prompt`, `schema` |
+| `firecrawl_doctor` | Inspect health of self-hosted local Firecrawl daemon | *(none)* |
+
 > Full schema specifications and example payloads are available in [`docs/JARVIS_INSTRUCTIONS.md`](docs/JARVIS_INSTRUCTIONS.md).
 
 ## Configuration
@@ -220,6 +233,9 @@ OpenAgent is configured via `.env` in the project root:
 | `BH_AGENT_WORKSPACE` | `src/tools/browser-harness/agent-workspace` | Directory for agent-editable helpers and domain skills |
 | `BH_DOMAIN_SKILLS` | `1` | Enable site-specific domain skill recipes |
 | `BH_TAB_MARKER` | `1` | Enable horse emoji (`🐎`) marker on agent-managed tabs |
+| `FIRECRAWL_API_URL` | `http://localhost:3002` | Local self-hosted Firecrawl API daemon endpoint |
+| `FIRECRAWL_API_KEY` | *(empty)* | Optional API key (unauthenticated by default when self-hosting) |
+| `FIRECRAWL_TIMEOUT` | `60.0` | Timeout in seconds for web scraping and crawls |
 | `BRIDGE_LOG_FILE` | `~/Library/Logs/OpenAgent/bridge.jsonl` | Diagnostic JSONL event log path |
 
 ## Security & Safety Model
@@ -275,6 +291,7 @@ OpenAgent is built with gratitude on the shoulders of the open-source agent tool
 - **[OpenCode](https://github.com/anomalyco/opencode)** — Inspiring open-source agentic coding architectures.
 - **[Browser Use](https://github.com/browser-use/browser-use)** — Directly integrating **[Browser Harness](https://github.com/browser-use/browser-harness)** for high-speed Chrome CDP automation and domain skills, alongside **[macOS Harness](https://github.com/browser-use/macos-harness)** for pioneering native macOS computer-use foundations.
 - **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** & **[Vosk](https://alphacephei.com/vosk/)** — Lightweight, local, low-latency audio intelligence.
+- **[Firecrawl](https://github.com/firecrawl/firecrawl)** — Pioneering open-source web scraping, crawling, and clean LLM markdown extraction engine.
 
 ---
 

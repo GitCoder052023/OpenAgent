@@ -1,0 +1,322 @@
+package com.firecrawl.client;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
+import com.firecrawl.errors.AuthenticationException;
+import com.firecrawl.errors.FirecrawlException;
+import com.firecrawl.errors.RateLimitException;
+import okhttp3.*;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Internal HTTP client for making authenticated requests to the Firecrawl API.
+ * Handles retry logic with exponential backoff.
+ */
+class FirecrawlHttpClient {
+
+    private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
+
+    private final OkHttpClient httpClient;
+    private final String apiKey;
+    private final String baseUrl;
+    private final int maxRetries;
+    private final double backoffFactor;
+    final ObjectMapper objectMapper;
+
+    FirecrawlHttpClient(String apiKey, String baseUrl, long timeoutMs, int maxRetries, double backoffFactor) {
+        this(apiKey, baseUrl, timeoutMs, maxRetries, backoffFactor, null);
+    }
+
+    FirecrawlHttpClient(String apiKey, String baseUrl, long timeoutMs, int maxRetries, double backoffFactor,
+                         OkHttpClient httpClient) {
+        this.apiKey = apiKey;
+        this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        this.maxRetries = maxRetries;
+        this.backoffFactor = backoffFactor;
+
+        if (httpClient != null) {
+            this.httpClient = httpClient;
+        } else {
+            this.httpClient = new OkHttpClient.Builder()
+                    .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .writeTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .build();
+        }
+
+        this.objectMapper = new ObjectMapper()
+                .registerModule(new Jdk8Module())
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    }
+
+    /**
+     * Adds the Authorization header only when an API key is configured. Omitting
+     * it entirely (rather than sending an empty Bearer) lets scrape/search/interact
+     * use the keyless free tier.
+     */
+    private void applyAuth(Request.Builder builder) {
+        if (apiKey != null && !apiKey.isBlank()) {
+            builder.header("Authorization", "Bearer " + apiKey);
+        }
+    }
+
+    /**
+     * Sends a POST request with JSON body.
+     */
+    <T> T post(String path, Object body, Class<T> responseType) {
+        return post(path, body, responseType, Collections.emptyMap());
+    }
+
+    /**
+     * Sends a POST request with JSON body and extra headers.
+     */
+    <T> T post(String path, Object body, Class<T> responseType, Map<String, String> extraHeaders) {
+        String url = baseUrl + path;
+        String json;
+        try {
+            json = objectMapper.writeValueAsString(body);
+        } catch (JsonProcessingException e) {
+            throw new FirecrawlException("Failed to serialize request body", e);
+        }
+        RequestBody requestBody = RequestBody.create(json, JSON);
+        Request.Builder builder = new Request.Builder()
+                .url(url)
+                .header("Content-Type", "application/json")
+                .post(requestBody);
+        applyAuth(builder);
+        for (Map.Entry<String, String> entry : extraHeaders.entrySet()) {
+            builder.header(entry.getKey(), entry.getValue());
+        }
+        Request request = builder.build();
+        return executeWithRetry(request, responseType);
+    }
+
+    /**
+     * Sends a PATCH request with JSON body.
+     */
+    <T> T patch(String path, Object body, Class<T> responseType) {
+        String url = baseUrl + path;
+        String json;
+        try {
+            json = objectMapper.writeValueAsString(body);
+        } catch (JsonProcessingException e) {
+            throw new FirecrawlException("Failed to serialize request body", e);
+        }
+        RequestBody requestBody = RequestBody.create(json, JSON);
+        Request.Builder builder = new Request.Builder()
+                .url(url)
+                .header("Content-Type", "application/json")
+                .patch(requestBody);
+        applyAuth(builder);
+        Request request = builder.build();
+        return executeWithRetry(request, responseType);
+    }
+
+    /**
+     * Sends a POST multipart/form-data request.
+     */
+    <T> T postMultipart(
+            String path,
+            Map<String, String> fields,
+            String fileFieldName,
+            byte[] fileContent,
+            String filename,
+            String contentType,
+            Class<T> responseType
+    ) {
+        String url = baseUrl + path;
+        MultipartBody.Builder multipart = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM);
+
+        for (Map.Entry<String, String> entry : fields.entrySet()) {
+            multipart.addFormDataPart(entry.getKey(), entry.getValue());
+        }
+
+        MediaType mediaType;
+        if (contentType != null && !contentType.isBlank()) {
+            try {
+                mediaType = MediaType.get(contentType);
+            } catch (IllegalArgumentException ignored) {
+                mediaType = MediaType.get("application/octet-stream");
+            }
+        } else {
+            mediaType = MediaType.get("application/octet-stream");
+        }
+        RequestBody fileBody = RequestBody.create(fileContent, mediaType);
+        multipart.addFormDataPart(fileFieldName, filename, fileBody);
+
+        Request.Builder builder = new Request.Builder()
+                .url(url)
+                .post(multipart.build());
+        applyAuth(builder);
+        Request request = builder.build();
+
+        return executeWithRetry(request, responseType);
+    }
+
+    /**
+     * Sends a GET request.
+     */
+    <T> T get(String path, Class<T> responseType) {
+        String url = baseUrl + path;
+        Request.Builder builder = new Request.Builder()
+                .url(url)
+                .get();
+        applyAuth(builder);
+        Request request = builder.build();
+        return executeWithRetry(request, responseType);
+    }
+
+    /**
+     * Sends a GET request to a next-page cursor URL, pinned to the API origin.
+     */
+    <T> T getAbsolute(String nextUrl, Class<T> responseType) {
+        Request.Builder builder = new Request.Builder()
+                .url(pinToApiOrigin(baseUrl + "/", nextUrl))
+                .get();
+        applyAuth(builder);
+        Request request = builder.build();
+        return executeWithRetry(request, responseType);
+    }
+
+    /**
+     * Resolves url against apiUrl and rewrites it onto apiUrl's scheme, host and port so
+     * credentials never leave the configured API origin. Path and query are kept; the
+     * fragment is dropped.
+     *
+     * @throws IllegalArgumentException if apiUrl is not an absolute http(s) URL
+     * @throws FirecrawlException if url cannot be resolved against apiUrl
+     */
+    static HttpUrl pinToApiOrigin(String apiUrl, String url) {
+        HttpUrl base = HttpUrl.get(apiUrl);
+        HttpUrl resolved = base.resolve(url);
+        if (resolved == null) {
+            throw new FirecrawlException("Invalid next page URL: " + url);
+        }
+        return resolved.newBuilder()
+                .scheme(base.scheme())
+                .encodedUsername(base.encodedUsername())
+                .encodedPassword(base.encodedPassword())
+                .host(base.host())
+                .port(base.port())
+                .fragment(null)
+                .build();
+    }
+
+    /**
+     * Sends a DELETE request.
+     */
+    <T> T delete(String path, Class<T> responseType) {
+        String url = baseUrl + path;
+        Request.Builder builder = new Request.Builder()
+                .url(url)
+                .delete();
+        applyAuth(builder);
+        Request request = builder.build();
+        return executeWithRetry(request, responseType);
+    }
+
+    /**
+     * Sends a raw GET request and returns the response body as a parsed Map.
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> getRaw(String path) {
+        return get(path, Map.class);
+    }
+
+    private <T> T executeWithRetry(Request request, Class<T> responseType) {
+        int attempt = 0;
+        while (true) {
+            try {
+                try (Response response = httpClient.newCall(request).execute()) {
+                    ResponseBody responseBody = response.body();
+                    String bodyStr = responseBody != null ? responseBody.string() : "";
+
+                    if (response.isSuccessful()) {
+                        if (responseType == Void.class || responseType == void.class) {
+                            return null;
+                        }
+                        return objectMapper.readValue(bodyStr, responseType);
+                    }
+
+                    int code = response.code();
+
+                    // Parse error details from response
+                    String errorMessage = extractErrorMessage(bodyStr, code);
+                    String errorCode = extractErrorCode(bodyStr);
+
+                    // Non-retryable client errors
+                    if (code == 401) {
+                        throw new AuthenticationException(errorMessage, errorCode, null);
+                    }
+                    if (code == 429) {
+                        throw new RateLimitException(errorMessage, errorCode, null);
+                    }
+                    if (code >= 400 && code < 500 && code != 408 && code != 409) {
+                        throw new FirecrawlException(errorMessage, code, errorCode, null);
+                    }
+
+                    // Retryable errors: 408, 409, 502, 5xx
+                    if (attempt < maxRetries) {
+                        attempt++;
+                        sleepWithBackoff(attempt);
+                        continue;
+                    }
+
+                    throw new FirecrawlException(errorMessage, code, errorCode, null);
+                }
+            } catch (FirecrawlException e) {
+                throw e;
+            } catch (IOException e) {
+                if (attempt < maxRetries) {
+                    attempt++;
+                    sleepWithBackoff(attempt);
+                    continue;
+                }
+                throw new FirecrawlException("Request failed: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private String extractErrorMessage(String body, int statusCode) {
+        try {
+            Map<String, Object> parsed = objectMapper.readValue(body, Map.class);
+            if (parsed.containsKey("error")) {
+                return String.valueOf(parsed.get("error"));
+            }
+            if (parsed.containsKey("message")) {
+                return String.valueOf(parsed.get("message"));
+            }
+        } catch (Exception ignored) {
+        }
+        return "HTTP " + statusCode + " error";
+    }
+
+    @SuppressWarnings("unchecked")
+    private String extractErrorCode(String body) {
+        try {
+            Map<String, Object> parsed = objectMapper.readValue(body, Map.class);
+            Object code = parsed.get("code");
+            return code != null ? String.valueOf(code) : null;
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private void sleepWithBackoff(int attempt) {
+        long delayMs = (long) (backoffFactor * 1000 * Math.pow(2, attempt - 1));
+        try {
+            Thread.sleep(delayMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FirecrawlException("Request interrupted during retry backoff", e);
+        }
+    }
+}

@@ -27,6 +27,11 @@ try:
 except ImportError:
     BrowserAdapter = None  # type: ignore[assignment,misc]
 
+try:
+    from .firecrawl_adapter import FirecrawlAdapter
+except ImportError:
+    FirecrawlAdapter = None  # type: ignore[assignment,misc]
+
 logger = logging.getLogger("jarvis.mac_adapter")
 
 # Prohibited target set for GUI input (empty by default; WhatsApp Desktop is permitted).
@@ -47,7 +52,12 @@ def _check_target_allowed(app: Optional[str]) -> None:
 class MacAdapter:
     """High-level adapter wrapping MacOS and BrowserHarness for Jarvis Bridge."""
 
-    def __init__(self, mac: Optional[MacOS] = None, browser: Optional[Any] = None):
+    def __init__(
+        self,
+        mac: Optional[MacOS] = None,
+        browser: Optional[Any] = None,
+        firecrawl: Optional[Any] = None,
+    ):
         self.mac = mac if mac is not None else MacOS()
         if browser is not None:
             self.browser = browser
@@ -56,11 +66,21 @@ class MacAdapter:
         else:
             self.browser = BrowserHarness()
 
+        if firecrawl is not None:
+            self.firecrawl = firecrawl
+        elif FirecrawlAdapter is not None:
+            try:
+                self.firecrawl = FirecrawlAdapter()
+            except Exception:
+                self.firecrawl = None
+        else:
+            self.firecrawl = None
+
     # -----------------------------------------------------------------------
     # 1. Compound Python Burst Execution (Beats WhatsApp Round-Trip Latency)
     # -----------------------------------------------------------------------
     def run_python(self, code: str, timeout: float = 30.0) -> Dict[str, Any]:
-        """Execute a Python script with mac, browser, Path, and subprocess preloaded.
+        """Execute a Python script with mac, browser, firecrawl, Path, and subprocess preloaded.
 
         Allows Jarvis to run multi-step UI bursts (e.g. focus field, type, click, verify)
         in milliseconds locally, avoiding multiple 2-second WhatsApp roundtrips.
@@ -74,6 +94,7 @@ class MacAdapter:
             "__name__": "__jarvis_mac__",
             "mac": self.mac,
             "browser": self.browser,
+            "firecrawl": self.firecrawl,
             "Path": Path,
             "subprocess": subprocess,
             "time": time,

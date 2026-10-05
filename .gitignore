@@ -3,7 +3,7 @@ __pycache__/
 .pytest_cache/
 *.pyc
 *.wav
-models/
+/models/
 .env
 .DS_Store
 *.egg-info/

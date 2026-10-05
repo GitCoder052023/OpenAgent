@@ -143,9 +143,21 @@ def main():
     except Exception as exc:
         print(f"Browser Harness: DISABLED ({exc}).")
 
-    event("watcher_config", list_calibrated=bool(cfg.message_list_path), direction_calibrated=bool(cfg.incoming_marker), harness=bool(harness), mac_adapter=bool(mac_adapter), safe_mode=cfg.safe_mode)
+    firecrawl_adapter = None
+    try:
+        from .firecrawl_adapter import FirecrawlAdapter
+        firecrawl_adapter = FirecrawlAdapter(
+            api_url=cfg.firecrawl_api_url,
+            api_key=cfg.firecrawl_api_key,
+            timeout=cfg.firecrawl_timeout,
+        )
+        print("Firecrawl Engine: ENABLED (self-hosted web scraping, search, crawling, and extraction online).")
+    except Exception as exc:
+        print(f"Firecrawl Engine: DISABLED ({exc}).")
+
+    event("watcher_config", list_calibrated=bool(cfg.message_list_path), direction_calibrated=bool(cfg.incoming_marker), harness=bool(harness), mac_adapter=bool(mac_adapter), firecrawl=bool(firecrawl_adapter), safe_mode=cfg.safe_mode)
     has_voice = bool(cfg.message_list_path and cfg.incoming_marker and cfg.voice_play_marker and cfg.voice_pause_marker)
-    has_tools = bool(cfg.message_list_path and (cfg.incoming_marker or not cfg.safe_mode) and (harness is not None or mac_adapter is not None))
+    has_tools = bool(cfg.message_list_path and (cfg.incoming_marker or not cfg.safe_mode) and (harness is not None or mac_adapter is not None or firecrawl_adapter is not None))
 
     if has_voice or has_tools:
         if has_voice:
@@ -156,7 +168,7 @@ def main():
         def hear():
             while not stop.is_set():
                 try:
-                    watch(cfg, stop=stop, state=watcher_state, pause=sending, desk=desk, harness=harness, playing=playing, user_recording=user_recording, mac_adapter=mac_adapter)
+                    watch(cfg, stop=stop, state=watcher_state, pause=sending, desk=desk, harness=harness, playing=playing, user_recording=user_recording, mac_adapter=mac_adapter, firecrawl_adapter=firecrawl_adapter)
                 except Exception as exc:
                     if stop.is_set(): break
                     print(f"\n[Watcher error] {exc} (restarting)")

@@ -1,0 +1,114 @@
+# Pick your baseUrl here:
+# @baseUrl = http://localhost:3002
+@baseUrl = https://api.firecrawl.dev
+
+### Create Browser Session (defaults)
+POST {{baseUrl}}/v2/browser HTTP/1.1
+Authorization: Bearer {{$dotenv TEST_API_KEY}}
+content-type: application/json
+
+{}
+
+### Create Browser Session (with options)
+POST {{baseUrl}}/v2/browser HTTP/1.1
+Authorization: Bearer {{$dotenv TEST_API_KEY}}
+content-type: application/json
+
+{
+  "ttl": 600,
+  "activityTtl": 120,
+  "streamWebView": false
+}
+
+### Create Browser Session (with webview streaming)
+POST {{baseUrl}}/v2/browser HTTP/1.1
+Authorization: Bearer {{$dotenv TEST_API_KEY}}
+content-type: application/json
+
+{
+  "ttl": 300,
+  "streamWebView": true
+}
+
+### List Browser Sessions (all)
+GET {{baseUrl}}/v2/browser HTTP/1.1
+Authorization: Bearer {{$dotenv TEST_API_KEY}}
+
+### List Browser Sessions (active only)
+GET {{baseUrl}}/v2/browser?status=active HTTP/1.1
+Authorization: Bearer {{$dotenv TEST_API_KEY}}
+
+### Execute Code (Python) — replace sessionId with actual id from create response
+@sessionId = {{}}
+
+POST {{baseUrl}}/v2/browser/{{sessionId}}/execute HTTP/1.1
+Authorization: Bearer {{$dotenv TEST_API_KEY}}
+content-type: application/json
+
+{
+  "code": "await page.goto(\"https://example.com\")\nprint(await page.title())",
+  "language": "python"
+}
+
+
+### Execute Code (JS) — replace sessionId with actual id
+POST {{baseUrl}}/v2/browser/{{sessionId}}/execute HTTP/1.1
+Authorization: Bearer {{$dotenv TEST_API_KEY}}
+content-type: application/json
+
+{
+  "code": "await page.goto('https://example.com');\nconst title = await page.title();\nconsole.log(title);",
+  "language": "node"
+}
+
+### Execute Code — screenshot to base64
+POST {{baseUrl}}/v2/browser/{{sessionId}}/execute HTTP/1.1
+Authorization: Bearer {{$dotenv TEST_API_KEY}}
+content-type: application/json
+
+{
+  "code": "await page.goto(\"https://example.com\")\nscreenshot = await page.screenshot()\nimport base64\nprint(base64.b64encode(screenshot).decode()[:100])",
+  "language": "python"
+}
+
+### Execute Code — extract page content
+POST {{baseUrl}}/v2/browser/{{sessionId}}/execute HTTP/1.1
+Authorization: Bearer {{$dotenv TEST_API_KEY}}
+content-type: application/json
+
+{
+  "code": "await page.goto(\"https://news.ycombinator.com\")\ntitles = await page.query_selector_all(\".titleline > a\")\nfor t in titles[:5]:\n    print(await t.inner_text())",
+  "language": "python"
+}
+
+### Get Session Replay metadata — works after the session is destroyed
+GET {{baseUrl}}/v2/interact/{{sessionId}}/replay HTTP/1.1
+Authorization: Bearer {{$dotenv TEST_API_KEY}}
+
+### Replay keeps pages/pageCount; Hangar's desktop recording is page "0".
+### pageUrl is empty because the stream spans tabs; timestamps describe the video.
+### Get the single HLS playlist (segments load directly from Hangar)
+GET {{baseUrl}}/v2/interact/{{sessionId}}/replay/0 HTTP/1.1
+Authorization: Bearer {{$dotenv TEST_API_KEY}}
+
+### Get Hangar lifecycle status
+GET {{baseUrl}}/v2/browser/{{sessionId}} HTTP/1.1
+Authorization: Bearer {{$dotenv TEST_API_KEY}}
+
+### Create Browser Session with recording (opt-in; disabled by default)
+POST {{baseUrl}}/v2/browser HTTP/1.1
+Authorization: Bearer {{$dotenv TEST_API_KEY}}
+content-type: application/json
+
+{
+  "recordSession": true
+}
+
+### Delete Browser Session — replace sessionId with actual id
+### Waits for final duration and billing; retry if cleanup exceeds the wait deadline.
+DELETE {{baseUrl}}/v2/browser/{{sessionId}} HTTP/1.1
+Authorization: Bearer {{$dotenv TEST_API_KEY}}
+content-type: application/json
+
+
+# Open liveViewUrl or interactiveLiveViewUrl returned by creation in a browser.

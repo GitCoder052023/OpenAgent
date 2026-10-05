@@ -32,6 +32,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
+try:
+    from .firecrawl_adapter import FirecrawlAdapter
+except ImportError:
+    FirecrawlAdapter = None  # type: ignore[assignment,misc]
+
 logger = logging.getLogger("jarvis.browser_adapter")
 
 PROHIBITED_BROWSER_DOMAINS = {
@@ -519,6 +524,7 @@ class BrowserAdapter:
             "re": re,
             "Path": Path,
             "subprocess": subprocess,
+            "firecrawl": FirecrawlAdapter() if FirecrawlAdapter is not None else None,
         }
 
         t_start = time.monotonic()
