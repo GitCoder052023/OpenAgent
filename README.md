@@ -17,10 +17,9 @@ OpenAgent is the local macOS body for [Instinct](https://instinct.com/). It's an
 
 [Quick Start](#quick-start) · [Talking to Jarvis](#talking-to-jarvis) · [Why OpenAgent](#why-openagent) · [How It Works](#how-it-works) · [Features](#core-features) · [Tool Suite](#tool-suite) · [Configuration](#configuration) · [Docs](#documentation) · [Contributing](#contributing)
 
-<video src="./assets/brag.mp4" autoplay loop muted playsinline>
+<video src="https://next.frame.io/project/beb128d7-5d04-44cc-8c42-3d00efb3ae91/view/60ec5832-4c87-436a-ab83-06dd8de24f9a" autoplay loop muted playsinline>
   Your browser does not support the video tag.
 </video>
-
 
 </div>
 

@@ -6,6 +6,7 @@ import { EngineTabs } from "@/components/EngineTabs";
 import { TerminalPreview } from "@/components/TerminalPreview";
 import { ComparisonTable } from "@/components/ComparisonTable";
 import { VoiceTurnSimulator } from "@/components/VoiceTurnSimulator";
+import { VideoShowcase } from "@/components/VideoShowcase";
 import { FaqAccordion } from "@/components/FaqAccordion";
 import { FAQS } from "@/lib/faqsData";
 import { JsonLd } from "@/components/JsonLd";
@@ -101,6 +102,9 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* SECTION 1.5: PRODUCT LAUNCH FILM */}
+      <VideoShowcase />
 
       {/* SECTION 2: OPEN SOURCE ECOSYSTEM BADGES */}
       <section className="w-full bg-[#f5f3f1] border-y border-[#ebe8e4] py-8 px-6">
