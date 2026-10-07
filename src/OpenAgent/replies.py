@@ -14,6 +14,7 @@ from pathlib import Path
 from .diagnostics import event
 from .ax import snapshot, verify_header, press_button
 from .dispatcher import parse_tool_calls, execute_tool_call, format_tool_responses
+from .sound import SoundEvent, play as play_sound
 
 # Invisible characters WhatsApp rendering inserts (LRM/RLM, zero-width, BOM).
 _INVISIBLE_CHARS = ("\u200b", "\u200c", "\u200d", "\u200e", "\u200f", "\u2060", "\ufeff")
@@ -747,10 +748,12 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                             continue
 
                 print(f"\n[Autoplaying voice note (~{dur}s)...]")
+                play_sound(SoundEvent.VOICE_PLAYBACK_START)
                 press(target_path, expected_label=cfg.voice_play_marker)
                 fail_counts.pop(sig, None)
                 _wait_for_completion(cfg, target_path, dur, stop, get_snapshot, user_recording=user_recording, press=press)
                 print("[Voice note playback finished]")
+                play_sound(SoundEvent.VOICE_PLAYBACK_FINISHED)
             except Exception as exc:
                 fail_counts[sig] = fail_counts.get(sig, 0) + 1
                 attempts = fail_counts[sig]
@@ -817,6 +820,7 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                         # Immediately mark as played so it can NEVER be queued again!
                         played_signatures.add(canon_sig)
                         event("voice_note_queued", duration_s=dur)
+                        play_sound(SoundEvent.VOICE_NOTE_DETECTED)
                         is_user_busy = (user_recording is not None and user_recording.is_set()) or (pause is not None and pause.is_set())
                         if is_user_busy:
                             print(f"\n[Incoming voice note detected] Duration: ~{dur}s | Held (waiting for your voice message to send)...")
@@ -843,16 +847,26 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
 
                         tool_calls = parse_tool_calls(msg_text)
                         if not tool_calls:
+                            play_sound(SoundEvent.CHAT_MESSAGE_DETECTED)
+                            clean_preview = _strip_invisible(msg_text).replace("\n", " ").strip()
+                            if clean_preview and not clean_preview.startswith("["):
+                                print(f"\n[Incoming chat message from Jarvis] \"{clean_preview[:120]}\"")
                             continue
                         event("tool_dispatch", calls=len(tool_calls), tools=[c.get("tool") for c in tool_calls])
 
+                        play_sound(SoundEvent.TOOL_INTERCEPT)
                         print(f"\n[Incoming tool call detected from Jarvis ({len(tool_calls)} call{'s' if len(tool_calls) > 1 else ''})]")
                         t_start = time.monotonic()
                         responses = []
                         attachments_to_send = []
                         for call in tool_calls:
                             t_name = call.get("tool", "unknown")
+                            play_sound(SoundEvent.TOOL_START)
                             res = execute_tool_call(harness, call, mac_adapter=mac_adapter, firecrawl_adapter=firecrawl_adapter, loco_adapter=loco_adapter)
+                            if res.get("status") == "error":
+                                play_sound(SoundEvent.TOOL_ERROR)
+                            else:
+                                play_sound(SoundEvent.TOOL_SUCCESS)
                             responses.append(res)
                             inner = res.get("result")
                             if isinstance(inner, dict) and inner.get("_send_attachment"):
@@ -872,6 +886,7 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
 
                         t_send_start = time.monotonic()
                         desk.send_tool_response(reply_text)
+                        play_sound(SoundEvent.RESPONSE_SENT)
                         t_total = time.monotonic() - t_start
                         event("tool_response_sent", calls=len(tool_calls), exec_s=round(t_exec, 3), total_s=round(t_total, 3))
                         print(f"[Tool response sent in {t_total:.2f}s (exec: {t_exec:.2f}s)]")
@@ -880,6 +895,7 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
                         for att_path in attachments_to_send:
                             try:
                                 desk.send_file(att_path)
+                                play_sound(SoundEvent.ATTACHMENT_SENT)
                                 event("tool_attachment_sent", path=str(att_path))
                                 print(f"[Attachment sent to WhatsApp: {Path(att_path).name}]")
                             except Exception as att_err:

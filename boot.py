@@ -720,6 +720,8 @@ def parse_args():
     parser.add_argument("--verbose", action="store_true", help="Show detailed diagnostics and debug logs")
     
     # Boot Specific Flags
+    parser.add_argument("--no-sound", "--mute", dest="no_sound", action="store_true", help="Disable terminal sound effects")
+    parser.add_argument("--sound-volume", type=float, default=None, help="Master sound volume (0.0 to 1.0)")
     parser.add_argument("--doctor", "--check", dest="doctor", action="store_true", help="Run diagnostic health audit and exit without starting agent")
     parser.add_argument("--once", action="store_true", help="Run once without the autonomous watchdog supervisor")
     parser.add_argument("--no-auto-install", action="store_true", help="Do not auto-install missing brew/bun dependencies")
@@ -789,6 +791,10 @@ def main():
         forward_args.extend(["--hotkey", known_args.hotkey])
     if known_args.verbose:
         forward_args.append("--verbose")
+    if known_args.no_sound:
+        forward_args.append("--no-sound")
+    if known_args.sound_volume is not None:
+        forward_args.extend(["--sound-volume", str(known_args.sound_volume)])
     forward_args.extend(extra_args)
 
     if known_args.command == "inspect":
@@ -810,6 +816,7 @@ def main():
     print(f"• Mode: {Style.BOLD}{send_mode}{Style.RESET} | Voice wake: {Style.BOLD}{known_args.voice}{Style.RESET}")
     print("• WhatsApp: Screen clean & backgrounded")
     print("• Social Media: Threads (9227) & Reddit (9224) active")
+    print("• Sound Engine: Immersive tactile audio online")
     print("• Watchdog: Autonomous health supervisor active")
     print("------------------------------------------------------------------------------\n")
 

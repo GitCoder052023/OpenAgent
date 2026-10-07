@@ -19,6 +19,7 @@ from .ax import snapshot, dump
 from .config import Config
 from .desktop import Desktop
 from .replies import watch
+from .sound import SoundEvent, play as play_sound, set_enabled as set_sound_enabled, set_volume as set_sound_volume
 
 
 def is_hotkey(key, name):
@@ -67,6 +68,8 @@ def main():
     p.add_argument("--voice", action="store_true", help="Opt-in continuous mic / wake-phrase mode")
     p.add_argument("--hotkey", default=None, help="Trigger key (e.g. f8, f6, right_shift)")
     p.add_argument("--verbose", action="store_true", help="Show detailed diagnostics in terminal")
+    p.add_argument("--no-sound", "--mute", action="store_true", help="Disable terminal sound effects")
+    p.add_argument("--sound-volume", type=float, default=None, help="Master sound volume (0.0 to 1.0)")
     args = p.parse_args()
     setup_logging(args.verbose)
     cfg = Config.from_env()
@@ -76,6 +79,12 @@ def main():
         cfg = dataclasses.replace(cfg, send_mode=args.send_mode)
     if args.hotkey:
         cfg = dataclasses.replace(cfg, hotkey=args.hotkey)
+    if args.no_sound:
+        cfg = dataclasses.replace(cfg, sound_enabled=False)
+    if args.sound_volume is not None:
+        cfg = dataclasses.replace(cfg, sound_volume=max(0.0, min(1.0, float(args.sound_volume))))
+    set_sound_enabled(cfg.sound_enabled)
+    set_sound_volume(cfg.sound_volume)
 
     try:
         from ApplicationServices import AXIsProcessTrusted, AXIsProcessTrustedWithOptions, kAXTrustedCheckOptionPrompt
@@ -112,6 +121,9 @@ def main():
         trigger_hint = hotkey_name
     print(f"[{status_str}] Destination: {cfg.number} | Mode: {cfg.send_mode} | Hotkey: {hotkey_name}")
     print(f"WhatsApp: BACKGROUND / HIDDEN (screen remains clean and private).")
+    sound_status = f"ENABLED (vol {cfg.sound_volume:.1f})" if cfg.sound_enabled else "MUTED"
+    print(f"Sound feedback: {sound_status} (tactile terminal audio online).")
+    play_sound(SoundEvent.BOOT)
     print("Say Wakeup Jarvis to enter voice mode; Esc quits." if args.voice else f"Hold {trigger_hint} to talk; release to send; press Esc to quit.")
 
     stop = threading.Event()
@@ -214,6 +226,7 @@ def main():
                     print("\n[Playback interrupted: user speaking...]")
 
                 user_recording.set()
+                play_sound(SoundEvent.RECORDING_START)
                 fd, name = tempfile.mkstemp(suffix=".wav", prefix="OpenAgent-")
                 os.close(fd)
                 path = Path(name)
@@ -229,6 +242,7 @@ def main():
         if not is_release_hotkey(key, cfg.hotkey) or recording is None: return
         proc, recording = recording, None
         recorded_path = path
+        play_sound(SoundEvent.RECORDING_STOP)
         print(f"\n[Recording stopped] Processing audio ({cfg.send_mode})...")
         if not busy.acquire(blocking=False):
             proc.terminate()
@@ -273,11 +287,13 @@ def main():
                 if "\n" in text:
                     text = " ".join(text.splitlines())
                 desk.send(text)
+                play_sound(SoundEvent.MESSAGE_SENT)
                 print("Text message sent to WhatsApp.")
             else:
                 attachment = encode_attachment(recorded_path)
                 print(f"Sending audio file to {cfg.number}...")
                 desk.send_audio(attachment)
+                play_sound(SoundEvent.MESSAGE_SENT)
                 print("Audio attachment sent. WhatsApp backgrounded.")
 
             last_send = time.monotonic()

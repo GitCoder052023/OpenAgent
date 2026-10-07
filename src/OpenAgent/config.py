@@ -57,6 +57,8 @@ class Config:
     locoagent_root: str = ""
     locoagent_default_platform: str = "threads"
     locoagent_timeout: float = 120.0
+    sound_enabled: bool = True
+    sound_volume: float = 1.0
 
     @classmethod
     def from_env(cls):
@@ -96,6 +98,13 @@ class Config:
         except (ValueError, TypeError):
             locoagent_timeout = 120.0
 
+        sound_enabled_env = os.getenv("OPENAGENT_SOUNDS_ENABLED", os.getenv("BRIDGE_SOUND_ENABLED", "true")).strip().lower()
+        sound_enabled = sound_enabled_env not in ("false", "0", "no", "off", "disable")
+        try:
+            sound_volume = float(os.getenv("OPENAGENT_SOUNDS_VOLUME", os.getenv("BRIDGE_SOUND_VOLUME", "1.0")))
+        except (ValueError, TypeError):
+            sound_volume = 1.0
+
         return cls(number=os.getenv("BRIDGE_WHATSAPP_NUMBER", cls.number),
                    model=os.getenv("BRIDGE_WHISPER_MODEL", cls.model),
                    whisper_cli=os.getenv("BRIDGE_WHISPER_CLI", cls.whisper_cli),
@@ -122,5 +131,7 @@ class Config:
                    locoagent_enabled=locoagent_enabled,
                    locoagent_root=locoagent_root,
                    locoagent_default_platform=locoagent_default_platform,
-                   locoagent_timeout=locoagent_timeout)
+                   locoagent_timeout=locoagent_timeout,
+                   sound_enabled=sound_enabled,
+                   sound_volume=sound_volume)
 

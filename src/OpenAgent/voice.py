@@ -39,6 +39,7 @@ except ImportError:
 import json
 import queue
 from .diagnostics import event
+from .sound import SoundEvent, play as play_sound
 import re
 import time
 from pathlib import Path
@@ -314,6 +315,7 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None):
             return "empty"
         action = state.accept(text, now)
         if action == "wake":
+            play_sound(SoundEvent.VOICE_WAKE)
             print(f"\n[⚡ Jarvis awake] Listening to your request... ({silence_seconds:g}s of quiet sends audio)")
         elif action == "sleep_prompt":
             flush()
@@ -321,6 +323,7 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None):
                 user_recording.clear()
             print("\n[Sleep requested] Say 'confirm stand by Jarvis' within 8 seconds; anything else cancels it.")
         elif action == "sleep":
+            play_sound(SoundEvent.VOICE_SLEEP)
             flush()
             if user_recording is not None:
                 user_recording.clear()
@@ -328,6 +331,7 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None):
         elif action == "send":
             if user_recording is not None:
                 user_recording.set()
+            play_sound(SoundEvent.RECORDING_START)
             clip.extend(phrase)
             clip_frames += phrase_frames
             recognized.append(text)

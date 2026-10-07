@@ -30,3 +30,8 @@ def event(name, level="info", **fields):
     safe = {key: value for key, value in fields.items() if key not in {"text", "body", "script", "audio", "args"}}
     payload = {"time": datetime.now(timezone.utc).isoformat(), "event": name, **safe}
     getattr(LOGGER, level)(json.dumps(payload, ensure_ascii=False, default=str))
+    try:
+        from .sound import SoundEvent, play as play_sound
+        play_sound(SoundEvent.LOG_EVENT)
+    except Exception:
+        pass
