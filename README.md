@@ -1,75 +1,140 @@
-<img src="https://raw.githubusercontent.com/browser-use/macos-harness/main/static/banner-ink.svg" alt="macOS Harness" width="100%" />
+<img src="https://raw.githubusercontent.com/browser-use/macos-harness/main/static/banner-ink.svg" alt="OpenAgent" width="100%" />
 
-# OpenAgent ⌘
+<div align="center">
 
-**The open-source, local macOS computer-use body for AI agents.**
+# OpenAgent
+
+**The local macOS body for [Instinct](https://instinct.com/).**<br/>
+Voice-driven computer use, browser control, web ingestion and social automation, all running on your own Mac.
 
 [![macOS](https://img.shields.io/badge/platform-macOS%20Darwin-lightgrey.svg?style=flat-square&logo=apple)](https://apple.com)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
 [![uv](https://img.shields.io/badge/package%20manager-uv-blueviolet.svg?style=flat-square)](https://astral.sh/uv)
 [![Bun](https://img.shields.io/badge/runtime-bun-black.svg?style=flat-square&logo=bun)](https://bun.sh)
-[![Tests](https://img.shields.io/badge/tests-193%20passing-brightgreen.svg?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/tests-195%20passing-brightgreen.svg?style=flat-square)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-purple.svg?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20beta-orange.svg?style=flat-square)]()
 
+[Quick Start](#quick-start) · [Why OpenAgent](#why-openagent) · [How It Works](#how-it-works) · [Features](#core-features) · [Tool Suite](#tool-suite) · [Configuration](#configuration) · [Docs](#documentation) · [Contributing](#contributing)
 
-<p align="center">
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#how-it-works">How It Works</a> •
-  <a href="#core-features">Features</a> •
-  <a href="#tool-suite">Tool Suite</a> •
-  <a href="#configuration">Configuration</a> •
-  <a href="#documentation">Docs</a> •
-  <a href="#contributing">Contributing</a>
-</p>
+</div>
 
-## What is OpenAgent?
+---
 
-Remote conversational AI assistants like [Instinct](https://instinct.com/) are intelligent reasoning engines, but they are **trapped inside messaging threads**. They can explain how to fix a codebase or organize a folder, but they cannot see your screen, run a command, click a button, or operate your Mac.
+OpenAgent connects [Instinct](https://instinct.com/), a personal AI assistant that lives in your messaging apps, to your Mac. Instinct does the reasoning, planning and follow-up. OpenAgent runs on your machine and executes Instinct's instructions: shell commands, code edits, native app control, your authenticated Chrome, self-hosted web scraping and your social media accounts. You talk to it with a push-to-talk key or a wake word, and results come back as text, screenshots and spoken replies.
 
-**OpenAgent gives conversational AI a native macOS body.**
-
-Running 100% locally on your Mac, OpenAgent intercepts structured tool calls from your assistant, executes native macOS actions (shell commands, file edits, accessibility inspection, window capture, keyboard/mouse input), and returns the results back into the conversation in real time.
+The two halves together make up a personal assistant that can act in the cloud and on your desktop.
 
 ```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                          Instinct (The Mind)                           │
-│                 Reasoning • Planning • Dialogue Logic                  │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    │ Secure JARVIS_CALL transport
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                          OpenAgent (The Body)                          │
-│               Voice Pipeline • Safety Guard • Harness IPC              │
-└──────┬───────────────────┬───────────────────┬───────────────────┬───────────────────┬─┘
-       │                   │                   │                   │                   │
-       ▼                   ▼                   ▼                   ▼                   ▼
-┌──────────────┐  ┌─────────────────┐ ┌─────────────────┐ ┌───────────────┐ ┌─────────────────┐
-│ Headless Dev │  │ Native Computer │ │ Real Browser    │ │ Firecrawl Web │ │ Social Engine   │
-│ (Bun / TS)   │  │ (macOS APIs)    │ │ (CDP Harness)   │ │ (Self-Hosted) │ │ (LocoAgent CDP) │
-│ Shell • Code │  │ Clicks • Vision │ │ Tabs • AX • DOM │ │ Scrape• Crawl │ │ Threads•Reddit+ │
-└──────┬───────┘  └────────┬────────┘ └────────┬────────┘ └───────┬───────┘ └────────┬────────┘
-       └───────────────────┴───────────────────┼───────────────────┴───────────────────┘
-                                               ▼
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                              macOS, Chrome & The Social Web                            │
-│                        Your Local System, Apps, Web & Social Media                     │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+You (holding F8):  "Run the test suite. If it passes, post a Threads update about today's commits
+                    and send me a screenshot."
+
+  bash               ./test.py                                   195 passed
+  bash               git log --since=midnight --oneline          6 commits
+  social_dedup_check threads / post                              not yet posted
+  social_post        threads.net (authenticated profile)         published
+  social_screenshot  live Chrome session                         delivered to WhatsApp
+
+Instinct (voice):  "All 195 tests passed. The update is live on Threads; screenshot is in the chat."
 ```
+
+## Why OpenAgent
+
+[Instinct](https://instinct.com/) is an invite-only personal AI assistant that works entirely through iMessage and WhatsApp. It has no app and no dashboard: you text it, send a voice note or call it. Instinct works as a chief of staff rather than a chatbot. It books appointments, manages travel, disputes bills, cancels subscriptions and reaches out on its own to follow up on deadlines. It connects to services like GitHub, Google and Notion, and it handles general computer work on virtual desktops in its own cloud.
+
+Because that computer use happens in Instinct's cloud environment, it can reach your **accounts** but not your **machine**. OpenAgent closes that gap:
+
+| Capability | Instinct | Instinct + OpenAgent |
+| :--- | :---: | :---: |
+| Account-level tasks (email, calendar, GitHub, Notion) | ✓ | ✓ |
+| Proactive reminders and follow-ups | ✓ | ✓ |
+| Shell execution and code edits on your local machine | — | ✓ |
+| Seeing your screen and controlling native macOS apps | — | ✓ |
+| Driving your authenticated, everyday Chrome profile | — | ✓ |
+| Operating WhatsApp Desktop | — | ✓ |
+| Posting and engaging on Threads, Reddit, X, LinkedIn and more from your own browser sessions | — | ✓ |
+| Hands-free voice control at your desk | — | ✓ |
+| Private, self-hosted web scraping and crawling | — | ✓ |
 
 > **Instinct thinks. OpenAgent acts.**
 
+## How It Works
+
+OpenAgent uses **WhatsApp Desktop as the transport** between Instinct and your Mac. You don't need an API key, a hosted backend or a custom integration.
+
+1. **Input.** You speak with push-to-talk (`F8`) or the wake phrase. OpenAgent records, applies silence gating and sends either a voice note or a local Whisper transcript to your Instinct chat.
+2. **Tool calls.** Instinct replies with structured calls wrapped in a `JARVIS_CALL:<base64-JSON>:END` envelope. Base64 encoding protects the payload from WhatsApp's markdown formatting, which removes characters like `*`, `_` and `~`.
+3. **Observation.** OpenAgent reads incoming messages through the macOS Accessibility API.
+4. **Verification.** A fail-closed guard confirms the message came from the verified Instinct chat, and a persistent ledger blocks replays.
+5. **Execution.** The dispatcher routes the call to one of five engines and runs it locally.
+6. **Response.** Results, diffs and screenshots go back into the chat. Instinct continues the loop until the task is complete, and its voice replies play back automatically.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant OA as OpenAgent (local)
+    participant WA as WhatsApp Desktop
+    participant IN as Instinct (cloud)
+    User->>OA: Voice input (F8 / wake word)
+    OA->>WA: Voice note or transcript
+    WA->>IN: Deliver message
+    IN-->>WA: JARVIS_CALL envelope
+    WA-->>OA: Read via Accessibility API
+    OA->>OA: Verify chat, dedupe, dispatch, execute
+    OA->>WA: Tool result / screenshot
+    WA->>IN: Next turn
+    IN-->>WA: Final voice reply
+    WA-->>User: Automatic playback
+```
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────────┐
+│                                Instinct (Brain · Cloud)                                  │
+│           Reasoning • Planning • Proactive Follow-ups • Connected Accounts               │
+└────────────────────────────────────────────┬─────────────────────────────────────────────┘
+                                             │  JARVIS_CALL transport via WhatsApp Desktop
+                                             ▼
+┌──────────────────────────────────────────────────────────────────────────────────────────┐
+│                                OpenAgent (Body · Local)                                  │
+│       Voice Pipeline • AX Reply Watcher • Safety Guard • Dedup Ledger • Dispatcher       │
+└──────┬──────────────────┬──────────────────┬──────────────────┬──────────────────┬───────┘
+       ▼                  ▼                  ▼                  ▼                  ▼
+┌──────────────┐  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐
+│ Headless Dev │  │Native Computer│  │ Real Browser  │  │ Firecrawl Web │  │ Social Engine │
+│  (Bun / TS)  │  │ (macOS APIs)  │  │ (CDP Harness) │  │ (Self-Hosted) │  │(LocoAgent CDP)│
+│ Shell • Code │  │Clicks • Vision│  │Tabs • AX • DOM│  │Scrape • Crawl │  │Threads•Reddit+│
+└──────┬───────┘  └───────┬───────┘  └───────┬───────┘  └───────┬───────┘  └───────┬───────┘
+       └──────────────────┴──────────────────┼──────────────────┴──────────────────┘
+                                             ▼
+┌──────────────────────────────────────────────────────────────────────────────────────────┐
+│                            macOS, Chrome & The Social Web                                │
+│                     Your Local System, Apps, Web & Social Media                          │
+└──────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ## Core Features
 
-* **Autonomous Social Media Automation (LocoAgent Engine)**: Operates your real, authenticated social accounts with primary focus on **Threads (`threads.net`) and Reddit (`reddit.com`)**, plus X/Twitter, LinkedIn, Instagram, Facebook, YouTube, TikTok, and GitHub via isolated, persistent Chrome CDP sessions. Features anti-detection cookie isolation, dedicated playbooks, an append-only deduplication ledger (`persona/operation-log.json`), and deterministic workflow daemons (`threads-post-update`, `reddit-tech-digest`, etc.) that publish updates and report verification screenshots straight to WhatsApp.
-* **Real Browser Control (CDP Harness)**: Connects directly to your real, authenticated Chrome browser. Operates background tabs (`new_tab`, `switch_tab`), dispatches compositor clicks, queries internal Accessibility trees (`browser_ax`), fills framework-controlled forms cleanly (`browser_fill`), and uses pre-built domain skills for 80+ platforms (Amazon, GitHub, YouTube, X, etc.) without stealing physical focus.
-* **Self-Hosted Web Ingestion & Extraction (Firecrawl Engine)**: 100% local, self-hosted web scraper and crawler engine running on Docker. Turns any web page into clean, LLM-ready Markdown in one shot (`firecrawl_scrape`), performs web searches with full Markdown results (`firecrawl_search`), runs recursive domain crawlers (`firecrawl_crawl`), maps site architectures (`firecrawl_map`), and extracts structured JSON schemas (`firecrawl_extract`) without cloud API limits.
-* **High-Speed Voice Pipeline**: Hold **`F8`** to talk (Push-to-Talk) or use hands-free wake word (*"Wake up Jarvis"*). Features local RMS silence gating, background audio playback, and instant barge-in interruption.
-* **Headless Developer Harness**: Ultra-fast Bun + TypeScript runner providing sandboxed `bash` execution, granular file pagination (`read`), atomic `write`, exact diff patching (`edit`), and fast `ripgrep` search.
-* **Native macOS Computer-Use**: Inspect application windows (`mac_see`), query semantic UI trees (`mac_ax`), issue PID-targeted clicks and keystrokes across applications (including WhatsApp Desktop), and capture screenshots sent directly to WhatsApp.
-* **Fail-Closed Safety**: Chat-lock verification ensures commands only execute from your authorized Instinct chat, with web target restrictions blocking automated access to WhatsApp Web.
-* **Zero-Cloud Intermediary**: All tool execution, browser control, screen parsing, and audio handling happen locally on your hardware.
+| Engine | What it gives Instinct | Built on |
+| :--- | :--- | :--- |
+| **Developer Harness** | Sandboxed `bash`, paginated `read`, atomic `write`, exact-match `edit`, `ripgrep` search, `glob`, AppleScript | Bun + TypeScript |
+| **Native Computer Use** | Window capture, Accessibility tree queries, PID-targeted clicks, keystrokes, drags and scrolls that don't steal focus | macOS Accessibility & Quartz |
+| **Real Browser Control** | Your authenticated Chrome: background tabs, compositor clicks through iframes and shadow DOM, framework-safe form filling, 97 site-specific domain skills | Browser Harness (CDP) |
+| **Web Ingestion** | Scrape to Markdown, search with full-content results, recursive crawl, site mapping, schema-based JSON extraction | Self-hosted Firecrawl (Docker) |
+| **Social Automation** | Posting, replies, likes, search and scheduled workflows on Threads and Reddit (plus X, LinkedIn, Instagram, Facebook, YouTube, TikTok, GitHub) in isolated, persistent Chrome profiles | LocoAgent (CDP) |
+
+**Voice pipeline.** Push-to-talk on `F8`, or hands-free with the wake phrase *"Wake up Jarvis"* (*"Jarvis stand by"* returns it to idle). Uses offline Vosk wake-word detection, offline Whisper transcription, RMS silence gating, automatic reply playback and barge-in interruption.
+
+**Social safeguards.** Every interaction is recorded in an append-only ledger (`persona/operation-log.json`) and checked before it runs, so posts, replies and likes are never duplicated. Deterministic workflow daemons (`threads-post-update`, `reddit-tech-digest`, `hf-papers-to-x`, and others) publish on schedule and send verification screenshots back to the chat.
+
+**Self-healing runtime.** `boot.py` provisions its own environment, installs missing dependencies, downloads speech models, restarts the agent with exponential backoff and keeps WhatsApp Desktop alive in the background. `./boot.py --doctor` runs a full preflight audit.
+
+**Security model.**
+- **Chat-lock:** tool calls are accepted only from the verified Instinct chat (`BRIDGE_SAFE_MODE`).
+- **Replay protection:** a processed-message ledger guarantees each call runs at most once.
+- **Restricted targets:** automated access to WhatsApp Web is blocked.
+- **Local execution:** all execution, screen parsing, browser control and audio processing stay on your hardware.
+
+See [`SECURITY.md`](SECURITY.md) for the full threat model.
 
 ## Quick Start
 
@@ -152,27 +217,25 @@ Instinct will recognize the `JARVIS_CALL` protocol and begin executing tasks on 
 
 ## How to Operate
 
-### Push-to-Talk (Default)
+**Push-to-talk (default).** Start with `./boot.py` (or `./start.sh`). Hold `F8`, speak, then release to send the request to Instinct. Press `Esc` to cancel or exit.
 
-1. Run `./boot.py` (or `./start.sh`).
-2. **Hold `F8`** and speak your request.
-3. **Release `F8`** to encode and dispatch the request to Instinct.
-4. Press `Esc` anytime to cancel or exit.
-
-### Hands-Free Wake-Word Mode
+**Hands-free.**
 
 ```bash
 ./boot.py --voice --send-mode audio
 ```
 
-Say *"Wakeup Jarvis"*, pause, and state your instruction. OpenAgent listens and submits the command automatically once you stop speaking. Say *"Jarvis stand by"* to return to idle.
+Say *"Wakeup Jarvis"*, pause, then give your instruction. OpenAgent submits it automatically once you stop speaking. Say *"Jarvis stand by"* to return to idle.
 
 ## Tool Suite
 
-Instinct controls your Mac by wrapping structured JSON calls inside a resilient transport envelope:
+Instinct calls tools by wrapping structured JSON in a transport envelope:
 `JARVIS_CALL:<base64-encoded-JSON>:END`.
 
-### Developer Harness Tools
+There are 55+ tools across five engines. Expand a section for the full reference.
+
+<details>
+<summary><b>Developer Harness Tools</b> (8 tools)</summary>
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
@@ -185,7 +248,10 @@ Instinct controls your Mac by wrapping structured JSON calls inside a resilient 
 | `applescript` | Execute multiline native AppleScript via `osascript` | `script` |
 | `system_info` | Inspect local OS version, hardware, and runtime status | *(none)* |
 
-### Native macOS Computer-Use Tools
+</details>
+
+<details>
+<summary><b>Native macOS Computer-Use Tools</b> (10 tools)</summary>
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
@@ -200,7 +266,10 @@ Instinct controls your Mac by wrapping structured JSON calls inside a resilient 
 | `mac_ax` | Query and interact with macOS Accessibility elements | `action`, `app`, `text` |
 | `mac_python` | Run compound, multi-step UI workflows locally in Python | `code` |
 
-### Real Browser Control Tools (Browser Harness CDP)
+</details>
+
+<details>
+<summary><b>Real Browser Control Tools (Browser Harness CDP)</b> (14 tools)</summary>
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
@@ -219,7 +288,10 @@ Instinct controls your Mac by wrapping structured JSON calls inside a resilient 
 | `browser_python` | Ultra-fast compound browser burst execution (<200ms) | `code`, `timeout` |
 | `domain_skills` | Retrieve pre-built domain automation skills for 80+ platforms | `host` |
 
-### Self-Hosted Web Ingestion & Extraction Tools (Firecrawl Engine)
+</details>
+
+<details>
+<summary><b>Self-Hosted Web Ingestion & Extraction Tools (Firecrawl Engine)</b> (7 tools)</summary>
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
@@ -231,7 +303,10 @@ Instinct controls your Mac by wrapping structured JSON calls inside a resilient 
 | `firecrawl_extract` | Extract structured JSON data matching a schema or prompt | `urls`, `prompt`, `schema` |
 | `firecrawl_doctor` | Inspect health of self-hosted local Firecrawl daemon | *(none)* |
 
-### Social Media Automation Tools (LocoAgent Engine)
+</details>
+
+<details>
+<summary><b>Social Media Automation Tools (LocoAgent Engine)</b> (13 tools)</summary>
 
 Operate real social accounts with primary focus on **Threads (`threads.net`) and Reddit (`reddit.com`)** (plus X/Twitter, LinkedIn, Instagram, Facebook, YouTube, TikTok, and GitHub) with persistent anti-detection Chrome profiles:
 
@@ -250,6 +325,8 @@ Operate real social accounts with primary focus on **Threads (`threads.net`) and
 | `social_log` | Record a successful interaction into the operation log | `platform`, `action`, `url`, `status`, `note` |
 | `social_exec` | Execute direct `agent-browser` CDP command on any target | `platform`, `command` |
 | `social_doctor` | Run health checks on Bun, agent-browser CLI, and Chrome CDP | *(none)* |
+
+</details>
 
 > Full schema specifications and example payloads are available in [`docs/JARVIS_INSTRUCTIONS.md`](docs/JARVIS_INSTRUCTIONS.md).
 
@@ -314,7 +391,15 @@ For advanced Accessibility tree inspection and calibration, see [`docs/CALIBRATI
 
 ## Contributing
 
-Contributions, bug reports, and PRs are warmly welcome! Whether you are adding new macOS harness primitives, improving voice latency, or expanding developer tools, check out [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) to get started.
+Contributions are welcome. High-impact areas include:
+
+- New macOS harness primitives and tool adapters
+- Voice pipeline latency and wake-word accuracy
+- Browser domain skills for additional sites
+- LocoAgent workflows and platform playbooks
+- Safety guards, auditing and sandboxing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development workflow and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for community guidelines.
 
 ## Credits & Acknowledgments
 
