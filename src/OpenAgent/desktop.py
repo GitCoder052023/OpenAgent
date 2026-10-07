@@ -47,10 +47,31 @@ class Desktop:
         if len(text) > 4000:
             text = text[:3900] + "\n... [Truncated for WhatsApp]"
         with self._lock:
-            # Single quick verification of chat target before paste (skips redundant menu walking)
-            self.assert_locked(quick=True)
-            subprocess.run(["osascript", str(SCRIPTS / "send.scpt"), self.cfg.number, text], check=True)
-            subprocess.run(["osascript", str(SCRIPTS / "commit.scpt")], check=True)
+            activate_whatsapp()
+            try:
+                locked = self.assert_locked(quick=True)
+            except Exception:
+                locked = False
+            if not locked:
+                ensure_whatsapp_ready(self.cfg.number, hide_after=False)
+                self.assert_locked(quick=False)
+
+            focus_composer()
+
+            max_attempts = 2
+            for attempt in range(max_attempts):
+                try:
+                    subprocess.run(["osascript", str(SCRIPTS / "send.scpt"), self.cfg.number, text], check=True)
+                    subprocess.run(["osascript", str(SCRIPTS / "commit.scpt")], check=True)
+                    break
+                except subprocess.CalledProcessError:
+                    if attempt < max_attempts - 1:
+                        activate_whatsapp()
+                        ensure_whatsapp_ready(self.cfg.number, hide_after=False)
+                        focus_composer()
+                        time.sleep(0.2)
+                    else:
+                        raise
             time.sleep(0.05)
             hide_whatsapp()
 
