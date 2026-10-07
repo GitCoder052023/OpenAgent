@@ -203,9 +203,9 @@ def snapshot(safe_mode=True, auto_open=True):
                         "path": path,
                         "depth": depth,
                         "role": str(role) if isinstance(role, str) else "",
-                        "title": str(title)[:1500] if isinstance(title, str) else "",
-                        "value": str(val)[:1500] if isinstance(val, str) else "",
-                        "description": str(desc)[:1500] if isinstance(desc, str) else "",
+                        "title": str(title) if isinstance(title, str) else "",
+                        "value": str(val) if isinstance(val, str) else "",
+                        "description": str(desc) if isinstance(desc, str) else "",
                     }
                     rows.append(row)
                     if children and hasattr(children, "__iter__"):
@@ -217,7 +217,7 @@ def snapshot(safe_mode=True, auto_open=True):
         row = {"path": path, "depth": depth}
         for attr in ("Role", "Title", "Value", "Description"):
             raw = value(el, "AX" + attr)
-            row[attr.lower()] = str(raw or "")[:1500] if isinstance(raw, str) else ""
+            row[attr.lower()] = str(raw or "") if isinstance(raw, str) else ""
         rows.append(row)
         for i, child in enumerate(list(value(el, "AXChildren") or [])[:300]):
             walk(child, f"{path}/{i}", depth + 1)

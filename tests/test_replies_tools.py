@@ -1037,6 +1037,39 @@ def test_occurrence_based_voice_control_resolution():
     assert resolve_voice_control(rows, cfg, sig2) == "/0/2/1/0"
 
 
+def test_incoming_texts_large_tool_call_without_truncation():
+    """Verify that messages longer than 1500 chars (e.g. 3000+ chars) are not truncated and parse cleanly."""
+    from OpenAgent.replies import incoming_texts
+    from OpenAgent.dispatcher import encode_tool_call, parse_tool_calls
+
+    cfg = Config(
+        number="+16508702892",
+        message_list_path="/0/2",
+        safe_mode=False,
+    )
+    # Create a large payload > 3000 chars
+    large_cmd = "echo " + "a" * 2500
+    envelope = encode_tool_call({"tool": "bash", "args": {"command": large_cmd}})
+    assert len(envelope) > 3000
+
+    desc = f"\u200emessage, {envelope}, 8:33\u202fPM, \u200eReceived from + 1,6 5 0,8 7 0,2 8 9 2"
+    rows = [
+        {"path": "/0/2", "role": "AXList", "title": "", "description": "\u200eMessages in chat", "value": ""},
+        {"path": "/0/2/0", "role": "AXStaticText", "title": "", "description": desc, "value": ""},
+    ]
+
+    texts = incoming_texts(rows, cfg)
+    assert len(texts) == 1
+    _, body, _ = texts[0]
+    assert body == envelope
+
+    calls = parse_tool_calls(body)
+    assert len(calls) == 1
+    assert calls[0]["tool"] == "bash"
+    assert calls[0]["args"]["command"] == large_cmd
+
+
+
 
 
 

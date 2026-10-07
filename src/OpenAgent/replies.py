@@ -77,7 +77,7 @@ def _body_from_description(desc):
     if m:
         body = rest[:m.start()].strip()
     else:
-        # Description was truncated at 1500 chars; take everything after prefix.
+        # Description has no timestamp/status suffix; take everything after prefix.
         # This is safe because we already confirmed it's an incoming text message.
         body = rest.strip()
     return body
