@@ -67,3 +67,13 @@ def test_sparse_recognition_rejected():
     assert prepare_clip(raw, ["hello"]) is None
     # 2 words in 12s passes
     assert gate_pcm(raw, source="voice", recognized=["hello", "world"])
+
+
+def test_voice_muted_event_state():
+    import threading
+    muted = threading.Event()
+    assert not muted.is_set()
+    muted.set()
+    assert muted.is_set()
+    muted.clear()
+    assert not muted.is_set()

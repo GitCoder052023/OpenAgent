@@ -813,7 +813,8 @@ def main():
     print("                    🚀 AUTONOMOUS OPENAGENT RUNNING                           ")
     print(f"=============================================================================={Style.RESET}")
     print(f"• Hotkey: {Style.BOLD}Hold {hotkey_name}{Style.RESET} to talk; release to send (Esc quits)")
-    print(f"• Mode: {Style.BOLD}{send_mode}{Style.RESET} | Voice wake: {Style.BOLD}{known_args.voice}{Style.RESET}")
+    voice_desc = f"True (press F5 to mute/unmute mic)" if known_args.voice else "False"
+    print(f"• Mode: {Style.BOLD}{send_mode}{Style.RESET} | Voice wake: {Style.BOLD}{voice_desc}{Style.RESET}")
     print("• WhatsApp: Screen clean & backgrounded")
     print("• Social Media: Threads (9227) & Reddit (9224) active")
     print("• Sound Engine: Immersive tactile audio online")

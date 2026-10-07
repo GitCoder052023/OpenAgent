@@ -37,6 +37,8 @@ class SoundEvent(str, Enum):
     RECORDING_STOP = "recording_stop"
     VOICE_WAKE = "voice_wake"
     VOICE_SLEEP = "voice_sleep"
+    MIC_MUTE = "mic_mute"
+    MIC_UNMUTE = "mic_unmute"
     LOG_EVENT = "log_event"
     BOOT = "boot"
 
@@ -114,6 +116,14 @@ _SOUND_MAP: Dict[SoundEvent, List[str]] = {
         "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/media_paused.caf",
         "/System/Library/Sounds/Purr.aiff",
     ],
+    SoundEvent.MIC_MUTE: [
+        "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/mic_mute.caf",
+        "/System/Library/Sounds/Pop.aiff",
+    ],
+    SoundEvent.MIC_UNMUTE: [
+        "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/mic_unmute.caf",
+        "/System/Library/Sounds/Tink.aiff",
+    ],
     SoundEvent.LOG_EVENT: [
         "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/ink/InkSoundStroke4.aif",
         "/System/Library/Sounds/Tink.aiff",
@@ -141,6 +151,8 @@ _EVENT_VOLUME_SCALE: Dict[SoundEvent, float] = {
     SoundEvent.RECORDING_STOP: 0.70,
     SoundEvent.VOICE_WAKE: 0.85,
     SoundEvent.VOICE_SLEEP: 0.70,
+    SoundEvent.MIC_MUTE: 0.85,
+    SoundEvent.MIC_UNMUTE: 0.85,
     SoundEvent.LOG_EVENT: 0.25,      # Quiet, subtle tactile feedback for logs
     SoundEvent.BOOT: 0.85,
 }
@@ -156,6 +168,8 @@ _EVENT_DEBOUNCE_SECS: Dict[SoundEvent, float] = {
     SoundEvent.VOICE_NOTE_DETECTED: 0.30,
     SoundEvent.MESSAGE_SENT: 0.20,
     SoundEvent.RESPONSE_SENT: 0.20,
+    SoundEvent.MIC_MUTE: 0.15,
+    SoundEvent.MIC_UNMUTE: 0.15,
 }
 
 

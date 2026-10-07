@@ -59,6 +59,17 @@ def is_release_hotkey(key, name):
     return is_hotkey(key, name)
 
 
+def is_f5(key):
+    """Detect F5 keypress across macOS virtual key codes and pynput representations."""
+    if key == keyboard.Key.f5:
+        return True
+    if getattr(key, "vk", None) in (96,):  # 96=Mac F5
+        return True
+    if getattr(key, "name", None) == "f5":
+        return True
+    return False
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("command", choices=["inspect", "run", "speak"])
@@ -124,7 +135,7 @@ def main():
     sound_status = f"ENABLED (vol {cfg.sound_volume:.1f})" if cfg.sound_enabled else "MUTED"
     print(f"Sound feedback: {sound_status} (tactile terminal audio online).")
     play_sound(SoundEvent.BOOT)
-    print("Say Wakeup Jarvis to enter voice mode; Esc quits." if args.voice else f"Hold {trigger_hint} to talk; release to send; press Esc to quit.")
+    print("Say Wakeup Jarvis to enter voice mode; press F5 to mute/unmute mic; Esc quits." if args.voice else f"Hold {trigger_hint} to talk; release to send; press Esc to quit.")
 
     stop = threading.Event()
     watcher = None
@@ -315,7 +326,10 @@ def main():
     if args.voice:
         if cfg.send_mode != "audio":
             raise RuntimeError("Voice mode sends audio files; select --send-mode audio")
+        muted = threading.Event()
         def on_voice_audio(pcm):
+            if muted.is_set():
+                return
             if playing.is_set():
                 event("capture_drop", reason="playback_at_handoff")
                 return
@@ -346,6 +360,16 @@ def main():
                 if key == keyboard.Key.esc:
                     stop.set()
                     return False
+                if is_f5(key):
+                    if muted.is_set():
+                        muted.clear()
+                        play_sound(SoundEvent.MIC_UNMUTE)
+                        print("\n🟢 [MIC UNMUTED] Microphone live (listening). Press F5 to mute.")
+                    else:
+                        muted.set()
+                        play_sound(SoundEvent.MIC_MUTE)
+                        print("\n🔴 [MIC MUTED] Microphone completely muted (input blocked). Press F5 to unmute.")
+                    return
                 if is_hotkey(key, cfg.hotkey):
                     if playing.is_set():
                         playing.clear()
@@ -356,7 +380,7 @@ def main():
                             pass
                         print("\n[Playback interrupted: user hotkey...]")
             with keyboard.Listener(on_press=on_voice_key):
-                listen(cfg, on_voice_audio, stop, playing=playing, user_recording=user_recording)
+                listen(cfg, on_voice_audio, stop, playing=playing, user_recording=user_recording, muted=muted)
         finally:
             stop.set()
             if harness:

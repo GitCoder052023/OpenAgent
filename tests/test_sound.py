@@ -39,6 +39,8 @@ def test_sound_events_completeness():
         "recording_stop",
         "voice_wake",
         "voice_sleep",
+        "mic_mute",
+        "mic_unmute",
         "log_event",
         "boot",
     }
@@ -156,3 +158,29 @@ def test_config_from_env_sound():
         cfg = Config.from_env()
         assert cfg.sound_enabled is False
         assert cfg.sound_volume == 0.4
+
+
+def test_is_f5_key_detection():
+    """Test F5 key detection across pynput Key.f5 and virtual key codes."""
+    from pynput import keyboard
+    from OpenAgent.main import is_f5
+
+    assert is_f5(keyboard.Key.f5) is True
+
+    # Virtual key code 96 (macOS F5)
+    mock_key_vk = MagicMock()
+    mock_key_vk.vk = 96
+    mock_key_vk.name = "f5"
+    assert is_f5(mock_key_vk) is True
+
+    # Other keys should return False
+    assert is_f5(keyboard.Key.f6) is False
+    assert is_f5(keyboard.Key.esc) is False
+
+
+def test_mic_mute_and_unmute_sounds():
+    """Test mic_mute and mic_unmute event playback dispatch."""
+    engine = SoundEngine(enabled=True)
+    with patch.dict(os.environ, {"OPENAGENT_FORCE_SOUND": "1"}), patch("subprocess.run") as mock_sub:
+        assert engine.play(SoundEvent.MIC_MUTE) is True
+        assert engine.play(SoundEvent.MIC_UNMUTE) is True

@@ -231,7 +231,7 @@ class VoiceState:
         return "send"
 
 
-def listen(cfg, on_audio, stop, playing=None, user_recording=None):
+def listen(cfg, on_audio, stop, playing=None, user_recording=None, muted=None):
     """Listen continuously; group recognized speech until a sustained quiet gap."""
     try:
         import sounddevice as sd
@@ -273,8 +273,8 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None):
     def callback(indata, count, timestamp, status):
         if status:
             print(f"[Mic warning] {status}")
-        # Drop mic audio at source while Jarvis voice note is playing through speakers
-        if playing is not None and playing.is_set():
+        # Drop mic audio at source while Jarvis voice note is playing through speakers or when muted
+        if (playing is not None and playing.is_set()) or (muted is not None and muted.is_set()):
             return
         try:
             q.put_nowait(bytes(indata))
@@ -350,7 +350,7 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None):
         recognizer = KaldiRecognizer(model, RATE)
         return action
 
-    print("[Voice mode] Default microphone open. Idle audio is not saved. Say 'Wakeup Jarvis'. Esc quits.")
+    print("[Voice mode] Default microphone open. Idle audio is not saved. Press F5 to mute/unmute mic. Say 'Wakeup Jarvis'. Esc quits.")
     with sd.RawInputStream(samplerate=RATE, blocksize=4000, dtype="int16", channels=1, callback=callback):
         while not stop.is_set():
             try:
@@ -359,6 +359,22 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None):
                 data = b""  # Still observe playback transitions when the callback drops frames.
 
             now = time.monotonic()
+
+            # Hardware / software mic mute guard:
+            if muted is not None and muted.is_set():
+                phrase.clear()
+                phrase_frames = 0
+                clip.clear()
+                clip_frames = 0
+                recognized.clear()
+                last_voice_at = 0.0
+                while not q.empty():
+                    try:
+                        q.get_nowait()
+                    except queue.Empty:
+                        break
+                recognizer = KaldiRecognizer(model, RATE)
+                continue
 
             # Echo cancellation / feedback suppression:
             # If WhatsApp is currently playing a voice note, or during echo-tail cooldown:
