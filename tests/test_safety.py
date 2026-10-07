@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import MagicMock, patch
 from OpenAgent.ax import verify_header
 from OpenAgent.desktop import Desktop
 from OpenAgent.config import Config
@@ -265,5 +266,169 @@ def test_desktop_send_file_picker_fallback(monkeypatch, tmp_path):
     assert "dispatch" in steps
 
 
+def test_verify_header_rejects_unrelated_chat_unlocked():
+    """Unrelated chat header (e.g. 'Unrelated Contact') must return False in unlocked mode."""
+    rows = [{"path": "/0/1", "role": "AXButton", "title": "", "value": "", "description": "Unrelated Contact"}]
+    # Must NOT verify as valid for the bridge phone number
+    assert verify_header(rows, "+16508702892", "/0/1", safe_mode=False) is False
 
+
+def test_verify_header_rejects_unrelated_chat_safe_mode():
+    """Unrelated chat header must raise RuntimeError in safe mode."""
+    rows = [{"path": "/0/1", "role": "AXButton", "title": "", "value": "", "description": "Unrelated Contact"}]
+    with pytest.raises(RuntimeError, match="Selected chat number/path mismatch"):
+        verify_header(rows, "+16508702892", "/0/1", safe_mode=True)
+
+
+def test_desktop_is_locked_and_assert_locked(monkeypatch):
+    """is_locked() returns True only when active chat matches target; assert_locked() raises otherwise."""
+    cfg = Config(number="+16508702892", header_path="/0/1", safe_mode=False)
+    desk = Desktop(cfg)
+
+    # When header is unrelated chat
+    wrong_rows = [{"path": "/0/1", "role": "AXButton", "title": "Unrelated Contact", "value": "", "description": ""}]
+    monkeypatch.setattr("OpenAgent.desktop.snapshot", lambda safe_mode=False: wrong_rows)
+    assert desk.is_locked() is False
+    with pytest.raises(RuntimeError, match="Selected chat number/path mismatch"):
+        desk.assert_locked(quick=True)
+
+    # When header is Instinct
+    correct_rows = [{"path": "/0/1", "role": "AXButton", "title": "Instinct", "value": "", "description": ""}]
+    monkeypatch.setattr("OpenAgent.desktop.snapshot", lambda safe_mode=False: correct_rows)
+    assert desk.is_locked() is True
+    assert desk.assert_locked(quick=True) is True
+
+
+def test_desktop_send_tool_response_auto_switches_to_bridge_chat(monkeypatch):
+    """If another chat is active, send_tool_response must switch back to bridge chat before sending."""
+    cfg = Config(number="+16508702892", header_path="/0/1", safe_mode=False)
+    desk = Desktop(cfg)
+
+    active_chat = ["Unrelated Contact"]
+
+    def mock_snapshot(safe_mode=False):
+        return [{"path": "/0/1", "role": "AXButton", "title": active_chat[0], "value": "", "description": ""}]
+
+    def mock_ensure_ready(num, hide_after=False):
+        # Simulate switching back to Instinct
+        active_chat[0] = "Instinct"
+        return True
+
+    commands_executed = []
+    def mock_subproc_run(cmd, **kwargs):
+        commands_executed.append(cmd)
+        return True
+
+    monkeypatch.setattr("OpenAgent.desktop.snapshot", mock_snapshot)
+    monkeypatch.setattr("OpenAgent.desktop.activate_whatsapp", lambda: True)
+    monkeypatch.setattr("OpenAgent.desktop.hide_whatsapp", lambda: True)
+    monkeypatch.setattr("OpenAgent.desktop.focus_composer", lambda: True)
+    monkeypatch.setattr("OpenAgent.desktop.ensure_whatsapp_ready", mock_ensure_ready)
+    monkeypatch.setattr("subprocess.run", mock_subproc_run)
+
+    desk.send_tool_response("[Jarvis Tool Response: test output]")
+
+    assert active_chat[0] == "Instinct"
+    assert any("send.scpt" in str(cmd) for cmd in commands_executed)
+    assert any("commit.scpt" in str(cmd) for cmd in commands_executed)
+
+
+def test_desktop_send_tool_response_fails_closed_if_chat_not_restored(monkeypatch):
+    """If switching back to bridge chat fails, send_tool_response must fail closed and refuse to send."""
+    cfg = Config(number="+16508702892", header_path="/0/1", safe_mode=False)
+    desk = Desktop(cfg)
+
+    # WhatsApp stays stuck on unrelated chat
+    wrong_rows = [{"path": "/0/1", "role": "AXButton", "title": "Unrelated Contact", "value": "", "description": ""}]
+    monkeypatch.setattr("OpenAgent.desktop.snapshot", lambda safe_mode=False: wrong_rows)
+    monkeypatch.setattr("OpenAgent.desktop.activate_whatsapp", lambda: True)
+    monkeypatch.setattr("OpenAgent.desktop.hide_whatsapp", lambda: True)
+    monkeypatch.setattr("OpenAgent.desktop.focus_composer", lambda: True)
+    monkeypatch.setattr("OpenAgent.desktop.ensure_whatsapp_ready", lambda num, hide_after=False: False)
+
+    commands_executed = []
+    monkeypatch.setattr("subprocess.run", lambda cmd, **kwargs: commands_executed.append(cmd))
+
+    with pytest.raises(RuntimeError, match="Selected chat number/path mismatch"):
+        desk.send_tool_response("[Jarvis Tool Response: secret data]")
+
+    # Crucial safety assertion: osascript send.scpt / commit.scpt was NEVER called
+    assert len(commands_executed) == 0
+
+
+def test_desktop_send_fails_closed_if_chat_not_restored(monkeypatch):
+    """If switching back to bridge chat fails, desktop.send must fail closed and refuse to send."""
+    cfg = Config(number="+16508702892", header_path="/0/1", safe_mode=False)
+    desk = Desktop(cfg)
+
+    wrong_rows = [{"path": "/0/1", "role": "AXButton", "title": "Unrelated Contact", "value": "", "description": ""}]
+    monkeypatch.setattr("OpenAgent.desktop.snapshot", lambda safe_mode=False: wrong_rows)
+    monkeypatch.setattr("OpenAgent.desktop.activate_whatsapp", lambda: True)
+    monkeypatch.setattr("OpenAgent.desktop.hide_whatsapp", lambda: True)
+    monkeypatch.setattr("OpenAgent.desktop.focus_composer", lambda: True)
+    monkeypatch.setattr("OpenAgent.desktop.ensure_whatsapp_ready", lambda num, hide_after=False: False)
+
+    commands_executed = []
+    monkeypatch.setattr("subprocess.run", lambda cmd, **kwargs: commands_executed.append(cmd))
+
+    with pytest.raises(RuntimeError, match="Selected chat number/path mismatch"):
+        desk.send("Hello world")
+
+    assert len(commands_executed) == 0
+
+
+def test_watch_inbound_isolation_rejects_unrelated_chat():
+    """watch() must raise RuntimeError on unrelated chat even in unlocked mode."""
+    from OpenAgent.replies import watch
+    cfg = Config(number="+16508702892", header_path="/0/1", safe_mode=False)
+    wrong_rows = [{"path": "/0/1", "role": "AXButton", "title": "Unrelated Contact", "value": "", "description": ""}]
+
+    with pytest.raises(RuntimeError, match="Selected chat number/path mismatch"):
+        watch(cfg, timeout=0.1, get_snapshot=lambda safe_mode=False: wrong_rows)
+
+
+
+def test_macos_disambiguation_whatsapp(monkeypatch):
+    """Ensure MacOS._resolve_app('WhatsApp') chooses main app over helper extensions."""
+    from macos_harness.macos import MacOS
+    macos = MacOS()
+
+    # Mock running applications including Unicode character in WhatsApp name and helper extensions
+    mock_app_main = MagicMock()
+    mock_app_helper = MagicMock()
+    mock_app_autofill = MagicMock()
+
+    app_infos = {
+        mock_app_main: {
+            "pid": 47893,
+            "name": "\u200eWhatsApp",
+            "bundle_id": "net.whatsapp.WhatsApp",
+            "path": "/Applications/WhatsApp.app/Contents/MacOS/WhatsApp",
+        },
+        mock_app_helper: {
+            "pid": 96023,
+            "name": "ServiceExtension",
+            "bundle_id": "net.whatsapp.WhatsApp.ServiceExtension",
+            "path": "/Applications/WhatsApp.app/Contents/PlugIns/ServiceExtension.appex/Contents/MacOS/ServiceExtension",
+        },
+        mock_app_autofill: {
+            "pid": 47896,
+            "name": "AutoFill",
+            "bundle_id": "net.whatsapp.WhatsApp.AutoFill",
+            "path": "/Applications/WhatsApp.app/Contents/PlugIns/AutoFill.appex/Contents/MacOS/AutoFill",
+        },
+    }
+
+    mock_ws = MagicMock()
+    mock_ws.sharedWorkspace.return_value.runningApplications.return_value = [
+        mock_app_helper,
+        mock_app_autofill,
+        mock_app_main,
+    ]
+    monkeypatch.setattr("macos_harness.macos.NSWorkspace", mock_ws)
+    monkeypatch.setattr(macos, "_app_info", lambda a: app_infos[a])
+
+    app, info = macos._resolve_app("WhatsApp")
+    assert app == mock_app_main
+    assert info["pid"] == 47893
 

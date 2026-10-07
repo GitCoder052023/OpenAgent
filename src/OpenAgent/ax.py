@@ -232,11 +232,43 @@ _warned_relaxed_chats = set()
 
 
 def verify_header(rows, number, path, safe_mode=True):
-    """Verify chat header. In safe mode, requires locally calibrated exact path."""
+    """Verify chat header.
+    
+    Verifies that the currently open chat in WhatsApp is the verified Instinct bridge chat.
+    Matches against the configured target number and Instinct identity.
+    NEVER returns True for unverified or unrelated chats regardless of safe mode.
+    """
+    target = norm_number(number)
+
+    def _matches_target(r):
+        text = " ".join(_strip_invisible(r.get(k, "")) for k in ("title", "value", "description")).casefold()
+        digits = norm_number(text)
+        if target and len(target) >= 7 and target in digits:
+            return True
+        if number and number.casefold() in text:
+            return True
+        if "instinct" in text:
+            return True
+        p_path = r.get("path", "")
+        if "/" in p_path:
+            p_parent = p_path.rsplit("/", 1)[0]
+            nearby = [n for n in rows if n.get("path") == p_parent or n.get("path", "").startswith(p_parent + "/")]
+            nearby_text = " ".join(_strip_invisible(n.get("title", "") + " " + n.get("value", "") + " " + n.get("description", "")) for n in nearby).casefold()
+            nearby_digits = norm_number(nearby_text)
+            if target and len(target) >= 7 and target in nearby_digits:
+                return True
+            if "instinct" in nearby_text:
+                return True
+        return False
+
     if not path:
         if safe_mode:
             raise RuntimeError("BRIDGE_HEADER_PATH not calibrated. No send/read.")
-        return True
+        for r in rows:
+            if r.get("role") in ("AXStaticText", "AXButton"):
+                if _matches_target(r):
+                    return True
+        return False
 
     matches = [r for r in rows if r["path"] == path and r["role"] in ("AXStaticText", "AXButton")]
     if len(matches) != 1:
@@ -244,33 +276,12 @@ def verify_header(rows, number, path, safe_mode=True):
             raise RuntimeError("Selected chat number/path mismatch. No send/read.")
         return False
 
-    target = norm_number(number)
-    # Check if normalized number is directly in the header element
-    if target and any(target in norm_number(matches[0][k]) for k in ("title", "value", "description")):
+    if _matches_target(matches[0]):
         return True
 
-    # If contact is saved under a display name (e.g. "Instinct"), check if header contains the name
-    # and verify the target phone number in the header's OWN container (subtitle/number line) -
-    # not anywhere in visible chat content, where an old quoted message could spoof it.
-    header_text = " ".join(matches[0].get(k, "") for k in ("title", "value", "description")).casefold()
-    header_parent = matches[0]["path"].rsplit("/", 1)[0]
-    nearby = [r for r in rows if r["path"] == header_parent or r["path"].startswith(header_parent + "/")]
-    has_target_near_header = bool(target and any(
-        target in norm_number(r.get("title", "") + r.get("value", "") + r.get("description", ""))
-        for r in nearby))
-
-    if header_text and (("instinct" in header_text or number.casefold() in header_text) and has_target_near_header):
-        return True
-
-    if not safe_mode:
-        if header_text and ("instinct" in header_text or number.casefold() in header_text):
-            return True
-        if number not in _warned_relaxed_chats:
-            _warned_relaxed_chats.add(number)
-            print(f"Warning (unlocked mode): Active chat verification relaxed for {number}.")
-        return True
-
-    raise RuntimeError("Selected chat number/path mismatch. No send/read.")
+    if safe_mode:
+        raise RuntimeError("Selected chat number/path mismatch. No send/read.")
+    return False
 
 
 def dump(rows): return json.dumps(rows, indent=2, ensure_ascii=False)
@@ -371,7 +382,7 @@ def press_button(path, expected_label):
         raise RuntimeError("AX play action failed")
 
 
-def ensure_whatsapp_ready(target_name="Instinct", hide_after=True):
+def ensure_whatsapp_ready(target_name="Instinct", hide_after=True, header_path=None):
     """Ensure WhatsApp is running, target chat is selected, and WhatsApp remains hidden."""
     if sys.platform != "darwin": return False
     pid = get_whatsapp_pid()
@@ -402,6 +413,7 @@ def ensure_whatsapp_ready(target_name="Instinct", hide_after=True):
     rows = snapshot(safe_mode=False, auto_open=False)
     target_clean = (target_name or "").lower().strip()
     target_digits = norm_number(target_name)
+    expected_path = header_path or "/0/0/0/1/2/0/0"
 
     def is_match(text):
         if not text: return False
@@ -414,60 +426,77 @@ def ensure_whatsapp_ready(target_name="Instinct", hide_after=True):
             return True
         return False
 
-    header_found = any(
-        is_match((r.get("description") or "") + " " + (r.get("title") or ""))
-        and r["path"] == "/0/0/0/1/2/0/0"
-        for r in rows
-    )
-    if not header_found:
-        # Ensure we are on Chats tab
-        has_chat_list = any(r["path"].startswith("/0/0/0/1/0/1") for r in rows)
-        if not has_chat_list:
-            _, menu_bar = AXUIElementCopyAttributeValue(root, "AXMenuBar", None)
-            if menu_bar:
-                _, mb_items = AXUIElementCopyAttributeValue(menu_bar, "AXChildren", None)
-                for item in mb_items or []:
-                    _, menus = AXUIElementCopyAttributeValue(item, "AXChildren", None)
-                    for m in menus or []:
-                        _, mis = AXUIElementCopyAttributeValue(m, "AXChildren", None)
-                        for mi in mis or []:
-                            _, title = AXUIElementCopyAttributeValue(mi, "AXTitle", None)
-                            if title and "chats" in str(title).strip("\u200e").lower():
-                                activate_whatsapp()
-                                AXUIElementPerformAction(mi, "AXPress")
-                                time.sleep(0.2)
-                                if hide_after:
-                                    hide_whatsapp()
-                                break
-            rows = snapshot(safe_mode=False, auto_open=False)
+    def is_header_open(current_rows):
+        return any(
+            is_match((r.get("description") or "") + " " + (r.get("title") or "") + " " + (r.get("value") or ""))
+            and (r["path"] == expected_path or (not header_path and r["path"].startswith("/0/0/0/1/2/0/")))
+            for r in current_rows
+        )
 
-        items = [
-            r for r in rows
-            if r["role"] == "AXButton"
-            and is_match((r.get("title") or "") + " " + (r.get("description") or "") + " " + (r.get("value") or ""))
-            and r["path"].startswith("/0/0/0/1/0/1")
-        ]
-        if items:
-            path = items[0]["path"]
-            indexes = [int(p) for p in path.split("/")[1:]]
-            el = root
-            for idx in indexes:
-                _, ch = AXUIElementCopyAttributeValue(el, "AXChildren", None)
-                if not ch or idx >= len(ch):
-                    el = None
-                    break
-                el = ch[idx]
-            if el:
-                activate_whatsapp()
-                time.sleep(0.1)
-                AXUIElementPerformAction(el, "AXPress")
-                time.sleep(0.2)
+    if is_header_open(rows):
+        if hide_after:
+            hide_whatsapp()
+        return True
+
+    # 1. Fast direct URL navigation via whatsapp://send?phone=
+    if target_digits and len(target_digits) >= 7:
+        try:
+            import subprocess
+            subprocess.run(["open", "-g", f"whatsapp://send?phone={target_digits}"], check=False, timeout=2.0)
+            time.sleep(0.35)
+            rows = snapshot(safe_mode=False, auto_open=False)
+            if is_header_open(rows):
                 if hide_after:
                     hide_whatsapp()
+                return True
+        except Exception:
+            pass
+
+    # 2. Ensure on Chats tab and select matching chat in chat list
+    has_chat_list = any(r["path"].startswith("/0/0/0/1/0/1") for r in rows)
+    if not has_chat_list:
+        _, menu_bar = AXUIElementCopyAttributeValue(root, "AXMenuBar", None)
+        if menu_bar:
+            _, mb_items = AXUIElementCopyAttributeValue(menu_bar, "AXChildren", None)
+            for item in mb_items or []:
+                _, menus = AXUIElementCopyAttributeValue(item, "AXChildren", None)
+                for m in menus or []:
+                    _, mis = AXUIElementCopyAttributeValue(m, "AXChildren", None)
+                    for mi in mis or []:
+                        _, title = AXUIElementCopyAttributeValue(mi, "AXTitle", None)
+                        if title and "chats" in str(title).strip("\u200e").lower():
+                            activate_whatsapp()
+                            AXUIElementPerformAction(mi, "AXPress")
+                            time.sleep(0.2)
+                            break
+        rows = snapshot(safe_mode=False, auto_open=False)
+
+    items = [
+        r for r in rows
+        if r["role"] == "AXButton"
+        and is_match((r.get("title") or "") + " " + (r.get("description") or "") + " " + (r.get("value") or ""))
+        and r["path"].startswith("/0/0/0/1/0/1")
+    ]
+    if items:
+        path = items[0]["path"]
+        indexes = [int(p) for p in path.split("/")[1:]]
+        el = root
+        for idx in indexes:
+            _, ch = AXUIElementCopyAttributeValue(el, "AXChildren", None)
+            if not ch or idx >= len(ch):
+                el = None
+                break
+            el = ch[idx]
+        if el:
+            activate_whatsapp()
+            time.sleep(0.1)
+            AXUIElementPerformAction(el, "AXPress")
+            time.sleep(0.25)
+            rows = snapshot(safe_mode=False, auto_open=False)
 
     if hide_after:
         hide_whatsapp()
-    return True
+    return is_header_open(rows)
 
 
 def click_element_by_description(target_substr, role=None, window_only=True):

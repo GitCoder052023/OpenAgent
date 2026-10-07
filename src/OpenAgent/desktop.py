@@ -16,58 +16,77 @@ class Desktop:
         self.cfg = cfg
         self._lock = threading.Lock()
 
+    def is_locked(self) -> bool:
+        """Check whether the active WhatsApp chat matches the verified Instinct bridge chat."""
+        try:
+            return bool(self.assert_locked(quick=True))
+        except Exception:
+            return False
+
     def assert_locked(self, quick=False, hide_after=True):
+        """Assert that WhatsApp is on the verified bridge chat. Raises RuntimeError if not."""
         if not quick:
             ensure_whatsapp_ready(self.cfg.number, hide_after=hide_after)
+        rows = snapshot(safe_mode=self.cfg.safe_mode)
         try:
-            return verify_header(snapshot(safe_mode=self.cfg.safe_mode), self.cfg.number, self.cfg.header_path, safe_mode=self.cfg.safe_mode)
+            ok = verify_header(rows, self.cfg.number, self.cfg.header_path, safe_mode=self.cfg.safe_mode)
         except Exception as exc:
-            if self.cfg.safe_mode:
-                raise
-            print(f"Warning (unlocked mode): Chat verification check: {exc}")
-            return False
+            raise RuntimeError(f"Chat verification check failed: {exc}") from exc
+        if not ok:
+            raise RuntimeError(
+                f"Selected chat number/path mismatch. Destination '{self.cfg.number}' "
+                f"is not the active chat in WhatsApp Desktop. Refusing to send message."
+            )
+        return True
 
     def send(self, text):
         if not text.strip() or len(text) > 1000 or "\n" in text:
             raise ValueError("Message must be nonempty, under 1000 chars, single line")
         with self._lock:
-            ensure_whatsapp_ready(self.cfg.number)
+            activate_whatsapp()
+            if not self.is_locked():
+                ensure_whatsapp_ready(self.cfg.number, hide_after=False)
             self.assert_locked()
             focus_composer()
+            self.assert_locked(quick=True)
             subprocess.run(["osascript", str(SCRIPTS / "send.scpt"), self.cfg.number, text], check=True)
-            self.assert_locked()
+            self.assert_locked(quick=True)
             subprocess.run(["osascript", str(SCRIPTS / "commit.scpt")], check=True)
             time.sleep(0.3)
             hide_whatsapp()
 
     def send_tool_response(self, text: str):
-        """Send a multiline tool execution response back to Jarvis on WhatsApp with minimal latency."""
+        """Send a multiline tool execution response back to Jarvis on WhatsApp with minimal latency.
+        
+        Guarantees that responses are delivered ONLY to the verified Instinct bridge chat,
+        regardless of which chat was opened by tools or user actions.
+        """
         if not text or not text.strip():
             raise ValueError("Tool response text must be nonempty")
         if len(text) > 4000:
             text = text[:3900] + "\n... [Truncated for WhatsApp]"
         with self._lock:
             activate_whatsapp()
-            try:
-                locked = self.assert_locked(quick=True)
-            except Exception:
-                locked = False
-            if not locked:
+            # If WhatsApp is on a different chat (e.g. opened by mac_* tool), switch back now
+            if not self.is_locked():
                 ensure_whatsapp_ready(self.cfg.number, hide_after=False)
-                self.assert_locked(quick=False)
+            self.assert_locked()
 
             focus_composer()
 
             max_attempts = 2
             for attempt in range(max_attempts):
                 try:
+                    self.assert_locked(quick=True)
                     subprocess.run(["osascript", str(SCRIPTS / "send.scpt"), self.cfg.number, text], check=True)
+                    self.assert_locked(quick=True)
                     subprocess.run(["osascript", str(SCRIPTS / "commit.scpt")], check=True)
                     break
-                except subprocess.CalledProcessError:
+                except (subprocess.CalledProcessError, RuntimeError):
                     if attempt < max_attempts - 1:
                         activate_whatsapp()
                         ensure_whatsapp_ready(self.cfg.number, hide_after=False)
+                        self.assert_locked()
                         focus_composer()
                         time.sleep(0.2)
                     else:
@@ -127,7 +146,8 @@ class Desktop:
             if click_element_by_description("Cancel"):
                 time.sleep(0.05)
             activate_whatsapp()
-            ensure_whatsapp_ready(self.cfg.number, hide_after=False)
+            if not self.is_locked():
+                ensure_whatsapp_ready(self.cfg.number, hide_after=False)
             self.assert_locked()
 
             try:

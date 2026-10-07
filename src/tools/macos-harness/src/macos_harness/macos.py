@@ -378,12 +378,13 @@ class MacOS:
         if not query:
             raise MacOSError("Specify an app name, bundle ID, path, or PID")
 
-        needle = str(query).casefold()
+        needle = re.sub(r"[\u200e\u200f\u202a-\u202e\ufeff]", "", str(query)).casefold()
         candidates: list[tuple[Any, dict[str, Any]]] = []
         exact: list[tuple[Any, dict[str, Any]]] = []
         for app in NSWorkspace.sharedWorkspace().runningApplications():
             info = self._app_info(app)
-            values = [str(info["pid"]), info["name"], info["bundle_id"], info["path"]]
+            clean_name = re.sub(r"[\u200e\u200f\u202a-\u202e\ufeff]", "", str(info.get("name") or ""))
+            values = [str(info["pid"]), info["name"], clean_name, info["bundle_id"], info["path"]]
             lowered = [str(value).casefold() for value in values if value]
             if needle in lowered:
                 exact.append((app, info))
@@ -394,6 +395,14 @@ class MacOS:
         if not matches:
             raise MacOSError(f"No running application matches {query!r}")
         if len(matches) > 1:
+            # Prefer main application process over helper/plugin appex extensions
+            non_plugin = [
+                m for m in matches
+                if not any(x in str(m[1].get("path", "")).lower() or x in str(m[1].get("bundle_id", "")).lower()
+                           for x in (".appex", "serviceextension", "shareextension", "autofill", "helper"))
+            ]
+            if len(non_plugin) == 1:
+                return non_plugin[0]
             names = ", ".join(
                 f"{item[1]['name']} ({item[1]['pid']})" for item in matches[:8]
             )

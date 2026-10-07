@@ -2,7 +2,7 @@
 
 <div align="center">
 
-# OpenAgent
+# OpenAgent ⌘
 
 **Say "Wake up, Jarvis." Then just talk.**<br/>
 OpenAgent is the local macOS body for [Instinct](https://instinct.com/). It's an always-listening, hands-free assistant that operates your Mac, your browser, the web and your social accounts while you get on with your day.

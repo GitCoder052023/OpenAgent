@@ -629,7 +629,9 @@ def watch(cfg, timeout=None, stop=None, get_snapshot=snapshot, press=press_butto
             rows = get_snapshot(safe_mode=cfg.safe_mode)
         except TypeError:
             rows = get_snapshot()
-        verify_header(rows, cfg.number, cfg.header_path, safe_mode=cfg.safe_mode)
+        ok = verify_header(rows, cfg.number, cfg.header_path, safe_mode=cfg.safe_mode)
+        if not ok:
+            raise RuntimeError(f"Selected chat number/path mismatch ({cfg.number}). No send/read.")
         return rows
 
     initial_rows = None
