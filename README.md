@@ -4,8 +4,8 @@
 
 # OpenAgent
 
-**The local macOS body for [Instinct](https://instinct.com/).**<br/>
-Voice-driven computer use, browser control, web ingestion and social automation, all running on your own Mac.
+**Say "Wake up, Jarvis." Then just talk.**<br/>
+OpenAgent is the local macOS body for [Instinct](https://instinct.com/). It's an always-listening, hands-free assistant that operates your Mac, your browser, the web and your social accounts while you get on with your day.
 
 [![macOS](https://img.shields.io/badge/platform-macOS%20Darwin-lightgrey.svg?style=flat-square&logo=apple)](https://apple.com)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
@@ -15,28 +15,47 @@ Voice-driven computer use, browser control, web ingestion and social automation,
 [![License: MIT](https://img.shields.io/badge/license-MIT-purple.svg?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20beta-orange.svg?style=flat-square)]()
 
-[Quick Start](#quick-start) · [Why OpenAgent](#why-openagent) · [How It Works](#how-it-works) · [Features](#core-features) · [Tool Suite](#tool-suite) · [Configuration](#configuration) · [Docs](#documentation) · [Contributing](#contributing)
+[Quick Start](#quick-start) · [Talking to Jarvis](#talking-to-jarvis) · [Why OpenAgent](#why-openagent) · [How It Works](#how-it-works) · [Features](#core-features) · [Tool Suite](#tool-suite) · [Configuration](#configuration) · [Docs](#documentation) · [Contributing](#contributing)
 
 </div>
 
 ---
 
-OpenAgent connects [Instinct](https://instinct.com/), a personal AI assistant that lives in your messaging apps, to your Mac. Instinct does the reasoning, planning and follow-up. OpenAgent runs on your machine and executes Instinct's instructions: shell commands, code edits, native app control, your authenticated Chrome, self-hosted web scraping and your social media accounts. You talk to it with a push-to-talk key or a wake word, and results come back as text, screenshots and spoken replies.
+OpenAgent connects [Instinct](https://instinct.com/), a personal AI assistant that lives in your messaging apps, to your Mac and gives it a voice interface modeled on Jarvis. Start it once and say **"Wake up, Jarvis."** From then on. You speak naturally from anywhere in the room, and Instinct reasons over each request while OpenAgent carries it out locally: shell commands, code edits, native app control, your authenticated Chrome, self-hosted web scraping and your social media accounts. Replies come back out loud, and screenshots & results land in your chat.
 
 The two halves together make up a personal assistant that can act in the cloud and on your desktop.
 
 ```text
-You (holding F8):  "Run the test suite. If it passes, post a Threads update about today's commits
-                    and send me a screenshot."
+[ Jarvis sleeping ]
 
-  bash               ./test.py                                   195 passed
-  bash               git log --since=midnight --oneline          6 commits
-  social_dedup_check threads / post                              not yet posted
-  social_post        threads.net (authenticated profile)         published
-  social_screenshot  live Chrome session                         delivered to WhatsApp
+You (making coffee):  "Wake up, Jarvis."
+[ Jarvis awake ]
 
-Instinct (voice):  "All 195 tests passed. The update is live on Threads; screenshot is in the chat."
+You:       "Run the test suite on OpenAgent. If it's green, post a Threads update
+            about what I shipped today."
+             bash               ./test.py                              195 passed
+             bash               git log --since=midnight --oneline     6 commits
+             social_dedup_check threads / post                         not yet posted
+             social_post        threads.net (authenticated profile)    published
+Jarvis:    "All 195 tests passed. The update is live on Threads."
+
+You (from the couch):  "Show me what it looks like."
+             social_screenshot  live Chrome session                    delivered to WhatsApp
+Jarvis:    "Screenshot's in your chat."
+
+You:       "Jarvis, stand by."  →  "Confirm stand by, Jarvis."
+[ Jarvis sleeping ]
 ```
+
+## Talking to Jarvis
+
+OpenAgent is built around **continuous, hands-free conversation**: the way Tony Stark talks to Jarvis while he's working, making coffee or watching TV.
+
+- **Wake once, keep talking.** Say *"Wake up, Jarvis"* (or *"Hey Jarvis"*) and the session stays awake. Speak naturally, pause, and the request is sent after a stretch of silence.
+- **Natural turn-taking.** Instinct's voice replies play automatically through your speakers. 
+- **Freeform follow-ups.** The conversation lives in your Instinct chat, so context carries across turns. *"Now do the same for Reddit"* or *"Make it shorter"* works the way you'd expect.
+- **Private by default.** Wake-word detection (Vosk) runs fully offline, and idle audio is never saved or sent. Nothing leaves your Mac until Jarvis is awake and you've spoken a request.
+- **Push-to-talk fallback.** For quiet environments or shared spaces, hold `F8` to talk instead.
 
 ## Why OpenAgent
 
@@ -46,6 +65,7 @@ Because that computer use happens in Instinct's cloud environment, it can reach 
 
 | Capability | Instinct | Instinct + OpenAgent |
 | :--- | :---: | :---: |
+| Always-listening, hands-free voice sessions at your desk | — | ✓ |
 | Account-level tasks (email, calendar, GitHub, Notion) | ✓ | ✓ |
 | Proactive reminders and follow-ups | ✓ | ✓ |
 | Shell execution and code edits on your local machine | — | ✓ |
@@ -53,19 +73,20 @@ Because that computer use happens in Instinct's cloud environment, it can reach 
 | Driving your authenticated, everyday Chrome profile | — | ✓ |
 | Operating WhatsApp Desktop | — | ✓ |
 | Posting and engaging on Threads, Reddit, X, LinkedIn and more from your own browser sessions | — | ✓ |
-| Hands-free voice control at your desk | — | ✓ |
 | Private, self-hosted web scraping and crawling | — | ✓ |
 
-> **Instinct thinks. OpenAgent acts.**
+<div align="center">
+  <strong>Instinct thinks. OpenAgent acts.</strong><br/>
+</div>
 
 ## How It Works
 
 OpenAgent uses **WhatsApp Desktop as the transport** between Instinct and your Mac. You don't need an API key, a hosted backend or a custom integration.
 
-1. **Input.** You speak with push-to-talk (`F8`) or the wake phrase. OpenAgent records, applies silence gating and sends either a voice note or a local Whisper transcript to your Instinct chat.
+1. **Input.** Once woken with *"Wake up, Jarvis"*, OpenAgent listens continuously to your speech until a natural pause, and then sends either a voice note or a local Whisper transcript to your Instinct chat.
 2. **Tool calls.** Instinct replies with structured calls wrapped in a `JARVIS_CALL:<base64-JSON>:END` envelope. Base64 encoding protects the payload from WhatsApp's markdown formatting, which removes characters like `*`, `_` and `~`.
 3. **Observation.** OpenAgent reads incoming messages through the macOS Accessibility API.
-4. **Verification.** A fail-closed guard confirms the message came from the verified Instinct chat, and a persistent ledger blocks replays.
+4. **Verification.** A fail-closed guard confirms the message came from the verified Instinct chat.
 5. **Execution.** The dispatcher routes the call to one of five engines and runs it locally.
 6. **Response.** Results, diffs and screenshots go back into the chat. Instinct continues the loop until the task is complete, and its voice replies play back automatically.
 
@@ -75,7 +96,7 @@ sequenceDiagram
     participant OA as OpenAgent (local)
     participant WA as WhatsApp Desktop
     participant IN as Instinct (cloud)
-    User->>OA: Voice input (F8 / wake word)
+    User->>OA: Wake word, then freeform speech
     OA->>WA: Voice note or transcript
     WA->>IN: Deliver message
     IN-->>WA: JARVIS_CALL envelope
@@ -87,54 +108,18 @@ sequenceDiagram
     WA-->>User: Automatic playback
 ```
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│                                Instinct (Brain · Cloud)                                  │
-│           Reasoning • Planning • Proactive Follow-ups • Connected Accounts               │
-└────────────────────────────────────────────┬─────────────────────────────────────────────┘
-                                             │  JARVIS_CALL transport via WhatsApp Desktop
-                                             ▼
-┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│                                OpenAgent (Body · Local)                                  │
-│       Voice Pipeline • AX Reply Watcher • Safety Guard • Dedup Ledger • Dispatcher       │
-└──────┬──────────────────┬──────────────────┬──────────────────┬──────────────────┬───────┘
-       ▼                  ▼                  ▼                  ▼                  ▼
-┌──────────────┐  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐
-│ Headless Dev │  │Native Computer│  │ Real Browser  │  │ Firecrawl Web │  │ Social Engine │
-│  (Bun / TS)  │  │ (macOS APIs)  │  │ (CDP Harness) │  │ (Self-Hosted) │  │(LocoAgent CDP)│
-│ Shell • Code │  │Clicks • Vision│  │Tabs • AX • DOM│  │Scrape • Crawl │  │Threads•Reddit+│
-└──────┬───────┘  └───────┬───────┘  └───────┬───────┘  └───────┬───────┘  └───────┬───────┘
-       └──────────────────┴──────────────────┼──────────────────┴──────────────────┘
-                                             ▼
-┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│                            macOS, Chrome & The Social Web                                │
-│                     Your Local System, Apps, Web & Social Media                          │
-└──────────────────────────────────────────────────────────────────────────────────────────┘
-```
-
 ## Core Features
 
 | Engine | What it gives Instinct | Built on |
 | :--- | :--- | :--- |
 | **Developer Harness** | Sandboxed `bash`, paginated `read`, atomic `write`, exact-match `edit`, `ripgrep` search, `glob`, AppleScript | Bun + TypeScript |
+| **Voice Interface** | Offline wake word, continuous hands-free sessions, silence-based turn-taking, echo guard, automatic reply playback | Vosk, whisper.cpp, SoX |
 | **Native Computer Use** | Window capture, Accessibility tree queries, PID-targeted clicks, keystrokes, drags and scrolls that don't steal focus | macOS Accessibility & Quartz |
 | **Real Browser Control** | Your authenticated Chrome: background tabs, compositor clicks through iframes and shadow DOM, framework-safe form filling, 97 site-specific domain skills | Browser Harness (CDP) |
 | **Web Ingestion** | Scrape to Markdown, search with full-content results, recursive crawl, site mapping, schema-based JSON extraction | Self-hosted Firecrawl (Docker) |
 | **Social Automation** | Posting, replies, likes, search and scheduled workflows on Threads and Reddit (plus X, LinkedIn, Instagram, Facebook, YouTube, TikTok, GitHub) in isolated, persistent Chrome profiles | LocoAgent (CDP) |
 
-**Voice pipeline.** Push-to-talk on `F8`, or hands-free with the wake phrase *"Wake up Jarvis"* (*"Jarvis stand by"* returns it to idle). Uses offline Vosk wake-word detection, offline Whisper transcription, RMS silence gating, automatic reply playback and barge-in interruption.
-
-**Social safeguards.** Every interaction is recorded in an append-only ledger (`persona/operation-log.json`) and checked before it runs, so posts, replies and likes are never duplicated. Deterministic workflow daemons (`threads-post-update`, `reddit-tech-digest`, `hf-papers-to-x`, and others) publish on schedule and send verification screenshots back to the chat.
-
-**Self-healing runtime.** `boot.py` provisions its own environment, installs missing dependencies, downloads speech models, restarts the agent with exponential backoff and keeps WhatsApp Desktop alive in the background. `./boot.py --doctor` runs a full preflight audit.
-
-**Security model.**
-- **Chat-lock:** tool calls are accepted only from the verified Instinct chat (`BRIDGE_SAFE_MODE`).
-- **Replay protection:** a processed-message ledger guarantees each call runs at most once.
-- **Restricted targets:** automated access to WhatsApp Web is blocked.
-- **Local execution:** all execution, screen parsing, browser control and audio processing stay on your hardware.
-
-See [`SECURITY.md`](SECURITY.md) for the full threat model.
+**Self-healing runtime.** `boot.py` provisions its own environment, installs missing dependencies, downloads speech models, restarts the agent (and its listening session) with exponential backoff and keeps WhatsApp Desktop alive in the background. `./boot.py --doctor` runs a full preflight audit.
 
 ## Quick Start
 
@@ -170,8 +155,8 @@ cd OpenAgent
 # 3. Verify entire system with test suite
 ./test.py
 
-# 4. Launch autonomous bridge with auto-healing supervisor
-./boot.py
+# 4. Launch Jarvis with hands-free wake word enabled
+./boot.py --voice --send-mode audio
 ```
 
 `boot.py` is an autonomous, self-bootstrapping orchestrator and supervisor:
@@ -182,15 +167,16 @@ cd OpenAgent
 * **Interactive Diagnostics**: Run `./boot.py --doctor` to conduct a zero-touch preflight audit of all hardware, harnesses, and permissions.
 
 ```bash
-# Useful command flags:
-./boot.py --doctor              # Run preflight health check without starting agent
-./boot.py --voice               # Hands-free wake word ("Wake up Jarvis")
-./boot.py --send-mode text      # Local Whisper STT transcription mode
-./boot.py --start-firecrawl     # Auto-spinup Firecrawl Docker scraper engine
-./boot.py --start-chrome        # Auto-launch Chrome with remote debugging on port 9222
-./calibrate.py --dump           # Dump sanitized AX UI tree for deep debugging
-./test.py --unit                # Run only unit test suite
-./test.py --harness             # Test live Bun IPC harness
+# Common launch commands:
+./boot.py --voice --send-mode audio  # Recommended: hands-free wake word ("Wake up Jarvis")
+./boot.py                           # Push-to-talk mode (hold F8 to speak)
+./boot.py --doctor                  # Run preflight health check without starting agent
+./boot.py --voice --send-mode text  # Wake-word mode with local Whisper STT transcription
+./boot.py --start-firecrawl         # Auto-spinup Firecrawl Docker scraper engine
+./boot.py --start-chrome            # Auto-launch Chrome with remote debugging on port 9222
+./calibrate.py --dump               # Dump sanitized AX UI tree for deep debugging
+./test.py --unit                    # Run only unit test suite
+./test.py --harness                 # Test live Bun IPC harness
 ```
 
 
@@ -217,15 +203,13 @@ Instinct will recognize the `JARVIS_CALL` protocol and begin executing tasks on 
 
 ## How to Operate
 
-**Push-to-talk (default).** Start with `./boot.py` (or `./start.sh`). Hold `F8`, speak, then release to send the request to Instinct. Press `Esc` to cancel or exit.
-
-**Hands-free.**
+**Jarvis mode (recommended).** Start OpenAgent with continuous listening enabled:
 
 ```bash
 ./boot.py --voice --send-mode audio
 ```
 
-Say *"Wakeup Jarvis"*, pause, then give your instruction. OpenAgent submits it automatically once you stop speaking. Say *"Jarvis stand by"* to return to idle.
+**Push-to-talk.** Start with `./boot.py` (or `./start.sh`). Hold `F8`, speak, then release to send. Holding `F8` during a reply cuts the reply short. Press `Esc` to cancel or exit.
 
 ## Tool Suite
 
