@@ -279,17 +279,6 @@ OpenAgent is configured via `.env` in the project root:
 | `LOCOAGENT_TIMEOUT` | `120.0` | Timeout in seconds for social automation commands |
 | `BRIDGE_LOG_FILE` | `~/Library/Logs/OpenAgent/bridge.jsonl` | Diagnostic JSONL event log path |
 
-## Security & Safety Model
-
-Giving an AI assistant access to your Mac requires rigorous guardrails:
-
-* **Fail-Closed Execution**: If chat header verification fails or the target window is ambiguous, OpenAgent halts immediately.
-* **Target Isolation**: OpenAgent supports operating desktop applications (including WhatsApp Desktop) with configurable target restrictions (`PROHIBITED_TARGETS`) to isolate specific processes when needed.
-* **Persistent Idempotency**: Processed tool signatures are written to an append-only JSONL ledger (`processed.jsonl`) to prevent accidental replays across restarts.
-* **Non-Disruptive Interaction**: Window operations and inputs target specific Process IDs (`CGEventPostToPid`) whenever possible, minimizing physical mouse hijacking.
-
-For security reports and guidelines, read [`SECURITY.md`](SECURITY.md).
-
 ## Testing & Diagnostics
 
 Run the comprehensive pytest suite:
