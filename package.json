@@ -1,0 +1,14 @@
+{
+  "name": "openagent",
+  "private": true,
+  "description": "Git commit validation tooling for OpenAgent",
+  "scripts": {
+    "prepare": "husky",
+    "lint:js": "cd src/tools/locoagent && bun run lint"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "husky": "^9.1.7"
+  }
+}

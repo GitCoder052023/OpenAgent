@@ -13,6 +13,7 @@ OpenAgent interacts directly with macOS system APIs, audio subsystems, and Whats
 * **uv**: Astral Python package and project manager ([astral.sh/uv](https://astral.sh/uv)).
 * **Bun**: Modern JavaScript/TypeScript runtime ([bun.sh](https://bun.sh)).
 * **Homebrew Utilities**: `sox`, `ffmpeg`, `ripgrep`, and `whisper-cpp`.
+* **Node.js & npm**: Used solely for repository-level Git hooks (Husky + Commitlint). Do not install Husky or Commitlint globally.
 * **macOS Permissions**: Accessibility, Input Monitoring, Microphone, and Automation granted to your terminal application.
 
 ## Development Setup
@@ -45,7 +46,13 @@ If you prefer configuring individual components manually:
    cd src/tools/cli-harness && bun install && cd ../..
    ```
 
-3. **Verify local test suite**:
+3. **Install repository Git commit hooks (Husky + Commitlint)**:
+   ```bash
+   npm install
+   ```
+   *Note: OpenAgent remains a Python/uv project. `npm install` is used exclusively for repository-level Git hooks (`husky` and `@commitlint`). Do not install Husky or Commitlint globally.*
+
+4. **Verify local test suite**:
    ```bash
    ./test.py --unit   # Or: uv run pytest
    ```
@@ -92,7 +99,15 @@ When adding features or modifying existing code, you **must preserve the followi
   ```
 * **Linting & Code Quality**:
   * Python: Format and check code using standard tools (`ruff` or `flake8`).
-  * TypeScript: Check TypeScript types in `src/tools/cli-harness/`:
+  * JavaScript/TypeScript Linting (Oxlint):
+    Fast static analysis and correctness linting is provided via **Oxlint** installed in `src/tools/locoagent/`:
+    ```bash
+    cd src/tools/locoagent && bun run lint
+    # Or from repository root:
+    bun run lint:js
+    ```
+    *Note: Oxlint complements TypeScript type checking (`tsc --noEmit`). No legacy ESLint was present. Vendored upstream services (`src/tools/firecrawl/`), Python workspace harnesses, build outputs, and `node_modules` are excluded from linting.*
+  * TypeScript Type Checking:
     ```bash
     cd src/tools/cli-harness && bun run tsc --noEmit && cd ../..
     ```
@@ -102,7 +117,7 @@ When adding features or modifying existing code, you **must preserve the followi
 1. **Create a branch**: `git checkout -b feature/your-feature-name`
 2. **Make your changes** following the architectural invariants above.
 3. **Verify tests pass**: Run `uv run pytest`.
-4. **Commit with clear messages**: Write descriptive commit messages explaining *why* the change was made.
+4. **Commit using Conventional Commits**: Write descriptive commit messages adhering to the Conventional Commits specification (e.g., `feat(voice): ...`, `fix(dispatcher): ...`, `docs(readme): ...`). Commit messages are automatically validated by the repository's Husky + Commitlint `commit-msg` hook (max header length: 150 characters, max body line length: 250 characters).
 5. **Open a Pull Request**: Provide a clear explanation of your changes, how they were tested, and any relevant configuration requirements.
 
 ## Community & Conduct

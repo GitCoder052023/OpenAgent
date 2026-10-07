@@ -8,7 +8,9 @@ __pycache__/
 .DS_Store
 *.egg-info/
 ax-tree.json
+node_modules/
 app/node_modules/
 app/dist/
 app/release/
 *.dmg
+

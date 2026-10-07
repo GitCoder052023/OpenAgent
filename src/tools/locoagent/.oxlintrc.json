@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "typescript",
+    "unicorn",
+    "oxc"
+  ],
+  "categories": {
+    "correctness": "warn"
+  },
+  "rules": {
+    "no-debugger": "error",
+    "no-dupe-keys": "error",
+    "no-duplicate-case": "error",
+    "no-unreachable": "error"
+  },
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/.cache/**",
+    "**/.tmp/**",
+    "workflows/.tmp/**",
+    "workflows/.locks/**",
+    "**/*.tsbuildinfo"
+  ]
+}
