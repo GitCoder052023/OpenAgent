@@ -28,6 +28,8 @@ OpenAgent connects [Instinct](https://instinct.com/), a personal AI assistant th
 
 The two halves together make up a personal assistant that can act in the cloud and on your desktop.
 
+Don't have Instinct access, or want to use your own model? [OpenHarness](https://github.com/GitCoder052023/OpenHarness) is the execution engine behind OpenAgent, available on its own. Connect Claude, Gemini, Codex, or a local Ollama model to the same Mac tools without the voice and WhatsApp setup.
+
 ```text
 [ Jarvis sleeping ]
 
