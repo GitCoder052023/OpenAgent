@@ -72,7 +72,8 @@ def is_f5(key):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("command", choices=["inspect", "run", "speak"])
+    p.add_argument("command", nargs="?", default="run", choices=["inspect", "run", "speak", "openinstinct"])
+    p.add_argument("--brain", choices=["instinct", "openinstinct"], default=None, help="Brain mode: 'openinstinct' (local terminal brain via Ollama) or 'instinct' (WhatsApp Desktop)")
     p.add_argument("--text", default="")
     p.add_argument("--unlocked", action="store_true", help="Unlock system from strict safe mode")
     p.add_argument("--send-mode", choices=["text", "audio"], default=None, help="Send mode: text (Whisper STT) or audio (M4A file)")
@@ -84,6 +85,13 @@ def main():
     args = p.parse_args()
     setup_logging(args.verbose)
     cfg = Config.from_env()
+
+    brain = (args.brain or os.getenv("OPENAGENT_BRAIN", "instinct")).strip().lower()
+    if (brain == "openinstinct" or args.command == "openinstinct") and args.command not in ("inspect", "speak"):
+        from .openinstinct_brain import run_openinstinct_brain
+        run_openinstinct_brain(cfg)
+        return
+
     if args.unlocked:
         cfg = dataclasses.replace(cfg, safe_mode=False)
     if args.send_mode:

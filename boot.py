@@ -709,7 +709,8 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     # OpenAgent Subcommand
-    parser.add_argument("command", nargs="?", default="run", choices=["run", "inspect", "speak"], help="Action: 'run' (default bridge), 'inspect' (AX tree), or 'speak' (TTS)")
+    parser.add_argument("command", nargs="?", default="run", choices=["run", "inspect", "speak", "openinstinct"], help="Action: 'run' (default bridge), 'openinstinct' (terminal brain), 'inspect' (AX tree), or 'speak' (TTS)")
+    parser.add_argument("--brain", choices=["instinct", "openinstinct"], default=None, help="Brain engine to use: 'openinstinct' (local terminal brain via Ollama) or 'instinct' (WhatsApp Desktop commercial Instinct)")
     parser.add_argument("--text", default="", help="Text to speak (for 'speak' command)")
 
     # OpenAgent Pass-Through Flags
@@ -740,10 +741,32 @@ def main():
     # Step 1: Self-Bootstrapping Runtime (re-execs if outside .venv)
     bootstrap_environment(verbose=known_args.verbose)
 
+    # Determine Brain Engine selection
+    brain = (known_args.brain or os.environ.get("OPENAGENT_BRAIN", "")).strip().lower()
+    if known_args.command == "openinstinct":
+        brain = "openinstinct"
+
+    if not brain:
+        if sys.stdin.isatty() and known_args.command not in ("inspect", "speak") and not known_args.doctor:
+            print(f"\n{Style.BOLD}{Style.CYAN}==============================================================================")
+            print("                      🧠 CHOOSE YOUR BRAIN ENGINE                             ")
+            print(f"=============================================================================={Style.RESET}")
+            print(f"  {Style.BOLD}[1] OpenInstinct{Style.RESET}   → Local sovereign brain (Ollama, interactive terminal REPL, 100% private) [Default]")
+            print(f"  {Style.BOLD}[2] Instinct{Style.RESET}       → Commercial cloud Instinct (WhatsApp Desktop bridge & voice)")
+            try:
+                choice = input(f"\n{Style.BOLD}Select brain engine [1/2] (default: 1): {Style.RESET}").strip()
+                brain = "instinct" if choice == "2" else "openinstinct"
+            except (KeyboardInterrupt, EOFError):
+                print("\nExiting...")
+                sys.exit(0)
+        else:
+            brain = "openinstinct"
+
     # Display banner once inside the bootstrapped environment
     log_banner()
     log_step(1, 5, "Environment & Runtime Bootstrap")
     log_ok(f"Runtime active on macOS Darwin ({platform.machine()})")
+    log_info(f"Active brain architecture: {Style.BOLD}{brain.upper()}{Style.RESET}")
 
     # Step 2: System Dependencies & Bun Harness
     log_step(2, 5, "Dependencies & Execution Harness")
@@ -752,16 +775,34 @@ def main():
     setup_bun_harness()
     setup_locoagent_harness()
 
-    # Step 3: Config & Models
-    log_step(3, 5, "Configuration & Speech Models")
-    ensure_config()
-    send_mode = known_args.send_mode or os.environ.get("BRIDGE_SEND_MODE", "audio")
-    ensure_models(send_mode=send_mode, voice_mode=known_args.voice)
+    # Step 3: Config & Intelligence / Models
+    if brain == "openinstinct":
+        log_step(3, 5, "Configuration & Local Ollama Intelligence")
+        ensure_config()
+        try:
+            req = urllib.request.Request("http://localhost:11434/api/tags")
+            with urllib.request.urlopen(req, timeout=2.0) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                models = [m.get("name", "") for m in data.get("models", [])]
+                target_model = os.getenv("OPENINSTINCT_MODEL", "qwen2.5-coder:7b")
+                matched = any(target_model in m for m in models)
+                m_str = f"found target: {target_model}" if matched else f"available: {', '.join(models[:3])}"
+                log_ok(f"Local Ollama online ({m_str})")
+        except Exception:
+            log_warn("Ollama not responding on http://localhost:11434 (start with 'ollama serve' or open Ollama app)")
+    else:
+        log_step(3, 5, "Configuration & Speech Models")
+        ensure_config()
+        send_mode = known_args.send_mode or os.environ.get("BRIDGE_SEND_MODE", "audio")
+        ensure_models(send_mode=send_mode, voice_mode=known_args.voice)
 
-    # Step 4: System Permissions & WhatsApp Lifecycle
+    # Step 4: System Permissions & Subsystems Lifecycle
     log_step(4, 5, "Permissions & Subsystems Lifecycle")
-    check_macos_permissions(timeout_seconds=15)
-    manage_whatsapp(launch=True, hide=True)
+    if brain == "openinstinct":
+        log_info("OpenInstinct brain active: WhatsApp Desktop lifecycle bypassed (screen clean & private).")
+    else:
+        check_macos_permissions(timeout_seconds=15)
+        manage_whatsapp(launch=True, hide=True)
     auto_chrome = known_args.start_chrome or not known_args.no_chrome
     manage_chrome_cdp(auto_start=auto_chrome)
     auto_social = not known_args.no_social
@@ -807,7 +848,16 @@ def main():
         res = subprocess.run(cmd)
         sys.exit(res.returncode)
 
-    # Default 'run' command
+    # Direct launch for OpenInstinct brain
+    if brain == "openinstinct":
+        print(f"\n{Style.BOLD}{Style.CYAN}==============================================================================")
+        print("               🧠 LAUNCHING OPENINSTINCT LOCAL TERMINAL BRAIN                 ")
+        print(f"=============================================================================={Style.RESET}\n")
+        from OpenAgent.openinstinct_brain import run_openinstinct_brain
+        run_openinstinct_brain()
+        sys.exit(0)
+
+    # Default 'run' command for commercial Instinct (WhatsApp)
     hotkey_name = (known_args.hotkey or os.environ.get("BRIDGE_HOTKEY", "f8")).upper()
     print(f"\n{Style.BOLD}{Style.GREEN}==============================================================================")
     print("                    🚀 AUTONOMOUS OPENAGENT RUNNING                           ")

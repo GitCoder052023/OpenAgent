@@ -24,11 +24,18 @@ https://github.com/user-attachments/assets/627ceeab-4194-4f79-a7d5-c98e72197949
 
 ---
 
-OpenAgent connects [Instinct](https://instinct.com/), a personal AI assistant that lives in your messaging apps, to your Mac and gives it a voice interface modeled on Jarvis. Start it once and say **"Wake up, Jarvis."** From then on. You speak naturally from anywhere in the room, and Instinct reasons over each request while OpenAgent carries it out locally: shell commands, code edits, native app control, your authenticated Chrome, self-hosted web scraping and your social media accounts. Replies come back out loud, and screenshots & results land in your chat.
+OpenAgent connects autonomous AI intelligence to your Mac, operating your local shell, your files, native apps, your authenticated Chrome, self-hosted web scraping, and your social media accounts.
 
-The two halves together make up a personal assistant that can act in the cloud and on your desktop.
+OpenAgent supports **two distinct brain architectures**:
 
-Don't have Instinct access, or want to use your own model? [OpenHarness](https://github.com/GitCoder052023/OpenHarness) is the execution engine behind OpenAgent, available on its own. Connect Claude, Gemini, Codex, or a local Ollama model to the same Mac tools without the voice and WhatsApp setup.
+1. **🧠 OpenInstinct (Local Sovereign Brain — Recommended):**
+   A 100% private, self-hosted, local terminal assistant modeled after OpenCode and Claude Code. Powered by your local Ollama engine (`qwen2.5-coder:7b` on Apple Silicon), OpenInstinct gives you an ultra-fast terminal REPL with cross-conversation workstream memory and direct sub-50ms execution across all 5 Mac harness engines—completely free, offline, and without WhatsApp or closed-source cloud dependencies.
+2. **☁️ Commercial Instinct (WhatsApp Voice Assistant):**
+   Connects [Instinct](https://instinct.com/) (invite-only cloud personal assistant) to your Mac over WhatsApp Desktop, giving it an always-listening, hands-free voice interface modeled on Tony Stark's Jarvis ("Wake up, Jarvis").
+
+The complete technical design and feasibility report for the sovereign brain is documented in [`OPENINSTINCT_BRAIN_SPEC.md`](OPENINSTINCT_BRAIN_SPEC.md).
+
+Don't have Instinct access, or want to use your own model? OpenAgent's OpenInstinct brain runs out-of-the-box on your Mac. You can also connect Claude, Gemini, or Ollama standalone via [OpenHarness](https://github.com/GitCoder052023/OpenHarness).
 
 ```text
 [ Jarvis sleeping ]
@@ -173,15 +180,16 @@ cd OpenAgent
 
 ```bash
 # Common launch commands:
-./boot.py --voice --send-mode audio  # Recommended: hands-free wake word ("Wake up Jarvis")
-./boot.py                           # Push-to-talk mode (hold F8 to speak)
-./boot.py --doctor                  # Run preflight health check without starting agent
-./boot.py --voice --send-mode text  # Wake-word mode with local Whisper STT transcription
-./boot.py --start-firecrawl         # Auto-spinup Firecrawl Docker scraper engine
-./boot.py --start-chrome            # Auto-launch Chrome with remote debugging on port 9222
-./calibrate.py --dump               # Dump sanitized AX UI tree for deep debugging
-./test.py --unit                    # Run only unit test suite
-./test.py --harness                 # Test live Bun IPC harness
+./boot.py                               # Interactive boot: choose OpenInstinct (local) or Instinct (WhatsApp)
+./boot.py --brain openinstinct          # Local sovereign brain (Ollama + terminal REPL, 100% private)
+./boot.py --brain instinct --voice      # Commercial Instinct voice mode ("Wake up Jarvis")
+./boot.py --brain instinct              # Push-to-talk mode over WhatsApp (hold F8 to speak)
+./boot.py --doctor                      # Run preflight health check without starting agent
+./boot.py --start-firecrawl             # Auto-spinup Firecrawl Docker scraper engine
+./boot.py --start-chrome                # Auto-launch Chrome with remote debugging on port 9222
+./calibrate.py --dump                   # Dump sanitized AX UI tree for deep debugging
+./test.py --unit                        # Run only unit test suite
+./test.py --harness                     # Test live Bun IPC harness
 ```
 
 
@@ -215,6 +223,41 @@ Instinct will recognize the `JARVIS_CALL` protocol and begin executing tasks on 
 ```
 
 **Push-to-talk.** Start with `./boot.py` (or `./start.sh`). Hold `F8`, speak, then release to send. Holding `F8` during a reply cuts the reply short. Press `Esc` to cancel or exit.
+
+## Dual Brain Architecture: OpenInstinct vs. Commercial Instinct
+
+OpenAgent gives you complete freedom of intelligence:
+
+| Feature | OpenInstinct (Local Sovereign Brain) | Commercial Instinct (WhatsApp Cloud) |
+| :--- | :--- | :--- |
+| **Model** | Local Ollama (`qwen2.5-coder:7b`) | Closed-source cloud model |
+| **Interface** | Interactive Terminal REPL (like OpenCode / Claude Code) | Hands-free voice / WhatsApp notes |
+| **Transport** | Direct local IPC (<50ms latency) | WhatsApp Desktop Accessibility scraping |
+| **Privacy** | 100% offline, zero cloud telemetry, zero API costs | Cloud-hosted by Spear Street Technology |
+| **Hardware Overhead** | ~4.7 GB VRAM on Apple Silicon (fits safely on 16GB Macs) | Offloaded to cloud |
+| **Setup** | Zero configuration (requires `ollama`) | Requires WhatsApp Desktop & UI calibration |
+
+### Using OpenInstinct in the Terminal
+
+Start the OpenInstinct brain:
+```bash
+./boot.py --brain openinstinct
+```
+
+You are greeted with a high-speed, interactive terminal REPL:
+* **Natural Chief-of-Staff Dialogue:** Replicates commercial Instinct's signature tone: sharp, decisive, casual lowercase, never sycophantic or padded.
+* **Direct Mac Execution:** Autonomously executes shell commands, code edits, clicks, and browser tasks with real-time receipts.
+* **3-Tier Persistent Memory:** Automatically tracks your profile and active workstreams in `~/.openagent/openinstinct_memory.json` across sessions.
+* **Built-in Slash Commands:**
+  * `/help` — View available commands
+  * `/workstreams` — Inspect active project goals and pending steps
+  * `/profile` — View persistent facts about you and your preferences
+  * `/tools` — List all 20+ registered local execution tools
+  * `/doctor` — Audit local subsystem connectivity (Ollama, Bun, Mac, Chrome)
+  * `/clear` — Reset conversation context while preserving persistent memory
+  * `/exit` — Save state and quit
+
+For the deep architectural feasibility analysis and integration roadmap, see [`OPENINSTINCT_BRAIN_SPEC.md`](OPENINSTINCT_BRAIN_SPEC.md).
 
 ## Tool Suite
 
