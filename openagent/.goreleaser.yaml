@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - npm ci --prefix tool/pptx-worker
+    - npm run build --prefix tool/pptx-worker
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    flags:
+      - -tags=embed
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/the-open-agent/openagent/internal/cli.Version={{.Version}} -X github.com/the-open-agent/openagent/internal/cli.Commit={{.Commit}} -X github.com/the-open-agent/openagent/internal/cli.BuildDate={{.Date}}
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+# Release raw executables — no zip/tar.gz wrapper.
+# conf/, web/build/, skills/, and deploy/ocr-service/ are baked into the binary via go:embed.
+archives:
+  - format: binary
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+# UPX compression — applied after linking.
+# darwin is excluded: macOS Ventura+ is not supported by UPX.
+# windows/arm64 is excluded: UPX support is untested/unreliable there.
+upx:
+  - goos: [linux]
+    goarch: [amd64, arm64]
+    enabled: true
+    compress: "9"
+    lzma: true
+  - goos: [windows]
+    goarch: [amd64]
+    enabled: true
+    compress: "9"
+    lzma: true
+
+release:
+  draft: true
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"

@@ -1,0 +1,275 @@
+{
+  "account": {
+    "The default store is not found": "The default store is not found",
+    "The store: %s is not found": "The store: %s is not found"
+  },
+  "application": {
+    "Missing required parameters": "Missing required parameters"
+  },
+  "audio": {
+    "complete slice upload failed: %s": "complete slice upload failed: %s",
+    "get progress failed: %s": "get progress failed: %s",
+    "get result failed: %s": "get result failed: %s",
+    "init slice upload failed: %s": "init slice upload failed: %s",
+    "perform slice upload failed: %s": "perform slice upload failed: %s",
+    "worker upload failed: %s": "worker upload failed: %s"
+  },
+  "auth": {
+    "Invalid username or password": "Invalid username or password",
+    "Please sign in first": "Please sign in first",
+    "Sign in is unavailable": "Sign in is unavailable",
+    "Too many uploads, please try again later": "Too many uploads, please try again later",
+    "Unauthorized operation": "Unauthorized operation",
+    "this operation requires admin privilege": "this operation requires admin privilege"
+  },
+  "blockchain": {
+    "The default blockchain provider is not found": "The default blockchain provider is not found",
+    "The default blockchain providers' Provider URL cannot be empty. The default value is: 'http://localhost:13900'": "The default blockchain providers' Provider URL cannot be empty. The default value is: 'http://localhost:13900'"
+  },
+  "bpmn": {
+    "Error parsing BPMN file: %v": "Error parsing BPMN file: %v"
+  },
+  "chain": {
+    "ChainTencentChainmakerClient.Client.Invoke() error: %v": "ChainTencentChainmakerClient.Client.Invoke() error: %v",
+    "ChainTencentChainmakerDemoClient.Client.InvokeChainMakerDemoContract() error: %v": "ChainTencentChainmakerDemoClient.Client.InvokeChainMakerDemoContract() error: %v",
+    "TencentCloudSDKError, code = %d, message = %s": "TencentCloudSDKError, code = %d, message = %s",
+    "TencentCloudSDKError: %v": "TencentCloudSDKError: %v",
+    "chainmakerEndpoint is not configured": "chainmakerEndpoint is not configured",
+    "event log value is not string: %v": "event log value is not string: %v",
+    "failed to connect to Ethereum RPC: %v": "failed to connect to Ethereum RPC: %v",
+    "failed to create string type: %v": "failed to create string type: %v",
+    "failed to create tuple type: %v": "failed to create tuple type: %v",
+    "failed to estimate gas: %v": "failed to estimate gas: %v",
+    "failed to get chain ID: %v": "failed to get chain ID: %v",
+    "failed to get pending nonce: %v": "failed to get pending nonce: %v",
+    "failed to get transaction receipt: %v": "failed to get transaction receipt: %v",
+    "failed to pack arguments: %v": "failed to pack arguments: %v",
+    "failed to pack function data: %v": "failed to pack function data: %v",
+    "failed to parse private key: %v": "failed to parse private key: %v",
+    "failed to send transaction: %v": "failed to send transaction: %v",
+    "failed to sign transaction: %v": "failed to sign transaction: %v",
+    "failed to suggest gas price: %v": "failed to suggest gas price: %v",
+    "failed to unmarshal JSON: %v": "failed to unmarshal JSON: %v",
+    "failed to unpack event log: %v": "failed to unpack event log: %v",
+    "marshal normalized data error: %v": "marshal normalized data error: %v",
+    "newChainTencentChainmakerClient() error: %v": "newChainTencentChainmakerClient() error: %v",
+    "not enough string events found in transaction logs, expected at least 3, got %d": "not enough string events found in transaction logs, expected at least 3, got %d",
+    "parse json data error: %v": "parse json data error: %v",
+    "transaction failed to be mined: %v": "transaction failed to be mined: %v",
+    "transaction failed with status: %d, reason: %s": "transaction failed with status: %d, reason: %s"
+  },
+  "chat": {
+    "Generating answer with %s": "Generating answer with %s",
+    "Preparing": "Preparing",
+    "Searching experience library": "Searching experience library",
+    "Searching knowledge base": "Searching knowledge base"
+  },
+  "comment": {
+    "Comment content cannot be longer than %d characters": "Comment content cannot be longer than %d characters"
+  },
+  "controllers": {
+    "API chat logs are read-only": "API chat logs are read-only",
+    "No permission": "No permission",
+    "No records to add": "No records to add",
+    "No sessions to delete": "No sessions to delete",
+    "Only the global admin can configure local file system storage": "Only the global admin can configure local file system storage",
+    "Only the global admin can configure tools or MCP servers that run commands on the host": "Only the global admin can configure tools or MCP servers that run commands on the host",
+    "Please re-enter the secret when changing where it is sent": "Please re-enter the secret when changing where it is sent",
+    "The tool type: %s is disabled on this server": "The tool type: %s is disabled on this server",
+    "You can only access data from your assigned store": "You can only access data from your assigned store",
+    "You can only view your own chats": "You can only view your own chats",
+    "You can only view your own messages": "You can only view your own messages"
+  },
+  "embedding": {
+    "calculatePrice() error: unknown model type: %s": "calculatePrice() error: unknown model type: %s",
+    "error unmarshaling response JSON: %v": "error unmarshaling response JSON: %v",
+    "failed to calculate price: %v": "failed to calculate price: %v",
+    "failed to create client: %v": "failed to create client: %v",
+    "failed to create request: %v": "failed to create request: %v",
+    "failed to get valid response, status code: %d": "failed to get valid response, status code: %d",
+    "failed to load word2vec model: %v": "failed to load word2vec model: %v",
+    "failed to marshal payload: %v": "failed to marshal payload: %v",
+    "failed to open model file: %v": "failed to open model file: %v",
+    "failed to read header: %v": "failed to read header: %v",
+    "failed to read response body: %v": "failed to read response body: %v",
+    "failed to read vector: %v": "failed to read vector: %v",
+    "failed to read word: %v": "failed to read word: %v",
+    "failed to unmarshal response: %v": "failed to unmarshal response: %v",
+    "input text is empty": "input text is empty",
+    "no embedding provider specified": "no embedding provider specified",
+    "no embedding vector found in response": "no embedding vector found in response",
+    "no embeddings found in the response": "no embeddings found in the response",
+    "none of the tokens were found in the vocabulary": "none of the tokens were found in the vocabulary",
+    "request failed with status code %d: %s": "request failed with status code %d: %s",
+    "text can not be empty.": "text can not be empty.",
+    "text cannot be empty": "text cannot be empty"
+  },
+  "experience": {
+    "Failed to save the experience": "Failed to save the experience",
+    "Only an AI answer can be corrected": "Only an AI answer can be corrected",
+    "The corrected answer should not be empty": "The corrected answer should not be empty",
+    "The experience is not found": "The experience is not found",
+    "The message is not found": "The message is not found",
+    "The question should not be empty": "The question should not be empty"
+  },
+  "general": {
+    "Failed to update": "Failed to update",
+    "Target user not found": "Target user not found",
+    "The task does not exist": "The task does not exist"
+  },
+  "issue": {
+    "Issue content cannot be longer than %d characters": "Issue content cannot be longer than %d characters",
+    "Issue title cannot be longer than %d characters": "Issue title cannot be longer than %d characters"
+  },
+  "message_answer": {
+    "No embedding model configured, answering without knowledge base": "No embedding model configured, answering without knowledge base",
+    "object.GetNearestKnowledge() error, %s": "object.GetNearestKnowledge() error, %s"
+  },
+  "migration": {
+    "Please upload a config file or fill in a directory to scan": "Please upload a config file or fill in a directory to scan",
+    "The migration run: %s is not found": "The migration run: %s is not found"
+  },
+  "model": {
+    "QueryText() error: unknown model type: %s": "QueryText() error: unknown model type: %s",
+    "The token count: [%d] exceeds the model: [%s]'s maximum token count: [%d]": "The token count: [%d] exceeds the model: [%s]'s maximum token count: [%d]",
+    "calculatePrice() error: video generation pricing requires duration information": "calculatePrice() error: video generation pricing requires duration information",
+    "cannot calculate tokens": "cannot calculate tokens",
+    "error getting chat completion: %v": "error getting chat completion: %v",
+    "exceed max tokens": "exceed max tokens",
+    "failed to marshal content: %v": "failed to marshal content: %v",
+    "failed to marshal error content: %v": "failed to marshal error content: %v",
+    "failed to marshal tool response: %v": "failed to marshal tool response: %v",
+    "failed to parse tool arguments: %v": "failed to parse tool arguments: %v",
+    "failed to write response: %v": "failed to write response: %v",
+    "the token count: [%d] exceeds the model: [%s]'s maximum token count: [%d]": "the token count: [%d] exceeds the model: [%s]'s maximum token count: [%d]",
+    "writer does not implement http.Flusher": "writer does not implement http.Flusher"
+  },
+  "object": {
+    "Auth application: [%s] doesn't exist": "Auth application: [%s] doesn't exist",
+    "Auth organization: [%s] doesn't exist": "Auth organization: [%s] doesn't exist",
+    "Auth user: [%s] doesn't exist": "Auth user: [%s] doesn't exist",
+    "Casdoor application: [%s] doesn't exist": "Casdoor application: [%s] doesn't exist",
+    "Casdoor organization: [%s] doesn't exist": "Casdoor organization: [%s] doesn't exist",
+    "MCP test JSON must include non-empty \"tool\"": "MCP test JSON must include a non-empty \"tool\" field",
+    "No store found for user: %s, please create a store first": "No store found for user: %s, please create a store first",
+    "Please add a model provider first": "Please add a model provider first",
+    "Please add an embedding provider first": "To use this feature, please configure an embedding model in the settings first",
+    "Question message: [%s] doesn't exist": "Question message: [%s] doesn't exist",
+    "SendErrorEmail() error, the receiver user: \"admin\" doesn't exist": "SendErrorEmail() error, the receiver user: \"admin\" doesn't exist",
+    "Server URL is empty": "Server URL is empty",
+    "The MCP server: %s is not found": "The MCP server: %s is not found",
+    "The chat: %s is not found": "The chat: %s is not found",
+    "The embedding provider for store: %s is not found": "The embedding provider for store: %s is not found",
+    "The embedding provider: %s is expected to be \"Embedding\" category, got: \"%s\"": "The embedding provider: %s is expected to be \"Embedding\" category, got: \"%s\"",
+    "The embedding provider: %s is not found": "The embedding provider: %s is not found",
+    "The embedding provider: %s's client secret should not be empty": "The embedding provider: %s's client secret should not be empty",
+    "The file URL for: %s is empty": "The file URL for: %s is empty",
+    "The file: %s is not found": "The file: %s is not found",
+    "The image provider for store: %s should not be empty": "The image provider for store: %s should not be empty",
+    "The message: %s is not found": "The message: %s is not found",
+    "The model provider for store: %s is not found": "The model provider for store: %s is not found",
+    "The model provider: %s is expected to be \"Model\" category, got: \"%s\"": "The model provider: %s is expected to be \"Model\" category, got: \"%s\"",
+    "The model provider: %s is not found": "The model provider: %s is not found",
+    "The model provider: %s's client secret should not be empty": "The model provider: %s's client secret should not be empty",
+    "The provider is not found": "The provider is not found",
+    "The provider: %s does not exist": "The provider: %s does not exist",
+    "The provider: %s is not found": "The provider: %s is not found",
+    "The store's embedding provider: [%s] should equal to vector's embedding provider: [%s], vector = %v": "The store's embedding provider: [%s] should equal to vector's embedding provider: [%s], vector = %v",
+    "The text-to-speech provider for store: %s is not found": "The text-to-speech provider for store: %s is not found",
+    "empty caption returned by vision model for image: %s": "empty caption returned by vision model for image: %s",
+    "empty provider key": "empty provider key",
+    "failed to get record with id '%s': %w": "failed to get record with id '%s': %w",
+    "failed to parse record identifier '%s': neither a valid owner/[id|name] format": "failed to parse record identifier '%s': neither a valid owner/[id|name] format",
+    "failed to parse record: name %s, field %s, error: %v": "failed to parse record: name %s, field %s, error: %v",
+    "failed to update error text for record %s: %s": "failed to update error text for record %s: %s",
+    "getExtFromMimeType() error: unknown MimeType: %s": "getExtFromMimeType() error: unknown MimeType: %s",
+    "image caption requires a model provider; configure a vision-capable ModelProvider on the store": "image caption requires a model provider; configure a vision-capable ModelProvider on the store",
+    "invalid MCP test JSON: %v": "invalid MCP test JSON: %v",
+    "invalid range type: %s": "invalid range type: %s",
+    "invalid tool test JSON in testContent: %v": "invalid tool test JSON in testContent: %v",
+    "no qVector found": "no qVector found",
+    "parseBase64Image() error: invalid image format": "parseBase64Image() error: invalid image format",
+    "queryVectorSafe() error, provider: %s, %s": "queryVectorSafe() error, provider: %s, %s",
+    "the STT provider type: %s is not supported": "the STT provider type: %s is not supported",
+    "the TTS provider type: %s is not supported": "the TTS provider type: %s is not supported",
+    "the blockchain provider: %s is not found": "the blockchain provider: %s is not found",
+    "the embedding provider type: %s is not supported": "the embedding provider type: %s is not supported",
+    "the form: %s is not found": "the form: %s is not found",
+    "the model provider type: %s is not supported": "the model provider type: %s is not supported",
+    "the pipe type: %s is not supported": "the pipe type: %s is not supported",
+    "the record: %s does not exist": "the record: %s does not exist",
+    "the record: %s has already been committed, blockId = %s": "the record: %s has already been committed, blockId = %s",
+    "the record: %s's block ID should not be empty": "the record: %s's block ID should not be empty",
+    "the storage provider type: %s is not supported": "the storage provider type: %s is not supported",
+    "the tool type: %s is disabled on this server": "the tool type: %s is disabled on this server",
+    "the video provider type: %s is not supported": "the video provider type: %s is not supported",
+    "there is no active blockchain provider": "there is no active blockchain provider",
+    "tool test JSON must include non-empty \"tool\"": "tool test JSON must include non-empty \"tool\"",
+    "unsupported image type for: %s": "unsupported image type for: %s"
+  },
+  "openai": {
+    "Invalid API key format. Expected 'Bearer API_KEY'": "Invalid API key format. Expected 'Bearer API_KEY'"
+  },
+  "resource": {
+    "Invalid file data format": "Invalid file data format",
+    "Only docx and pdf files are allowed": "Only docx and pdf files are allowed",
+    "Only image files (PNG, JPEG, GIF, WebP, BMP, ICO) can be uploaded": "Only image files (PNG, JPEG, GIF, WebP, BMP, ICO) can be uploaded",
+    "The file is too large, the maximum size is %d MB": "The file is too large, the maximum size is %d MB",
+    "The resource: %s is not found": "The resource: %s is not found",
+    "Unsupported legacy file format %s, please convert to a modern format (e.g. .docx, .pptx, .xlsx) before uploading": "Unsupported legacy file format %s, please convert to a modern format (e.g. .docx, .pptx, .xlsx) before uploading",
+    "Unsupported resource category: %s": "Unsupported resource category: %s",
+    "Your uploaded files exceed the quota of %d MB, please delete some files first": "Your uploaded files exceed the quota of %d MB, please delete some files first"
+  },
+  "storage": {
+    "Casdoor is not configured or not reachable": "Casdoor is not configured or not reachable",
+    "The bucket for the storage provider: %s should not be empty": "The bucket for the storage provider: %s should not be empty",
+    "The bucket: %s for the storage provider: %s is invalid, it should be 3 to 63 characters long and can only contain lowercase letters, digits and hyphens": "The bucket: %s for the storage provider: %s is invalid, it should be 3 to 63 characters long and can only contain lowercase letters, digits and hyphens",
+    "The endpoint and the region for the storage provider: %s should not be both empty": "The endpoint and the region for the storage provider: %s should not be both empty",
+    "storage provider name: [%s] doesn't exist": "storage provider name: [%s] doesn't exist"
+  },
+  "store": {
+    "Cannot delete the default store": "Cannot delete the default store",
+    "Only the super admin can publish an agent directly. Please set the publish state to Pending Review instead": "Only the super admin can publish an agent directly. Please set the publish state to Pending Review instead",
+    "Please set a custom display name for this agent (the default \"New Store\" name is not allowed)": "Please set a custom display name for this agent (the default \"New Store\" name is not allowed)",
+    "Please upload a custom avatar for this agent (the default avatar is not allowed)": "Please upload a custom avatar for this agent (the default avatar is not allowed)",
+    "The agent does not exist": "The agent does not exist",
+    "The store name cannot be empty": "The store name cannot be empty",
+    "This agent needs at least 100 vectors before it can be submitted for review": "This agent needs at least 100 vectors before it can be submitted for review",
+    "This agent needs at least 200 messages before it can be submitted for review": "This agent needs at least 200 messages before it can be submitted for review",
+    "You can only set the publish state to Private or Pending Review": "You can only set the publish state to Private or Pending Review",
+    "You cannot fork your own agent": "You cannot fork your own agent",
+    "You have already forked this agent": "You have already forked this agent",
+    "given that there must be one default store in OpenAgent, you cannot set this store to non-default. You can directly set another store as default": "given that there must be one default store in OpenAgent, you cannot set this store to non-default. You can directly set another store as default"
+  },
+  "stt": {
+    "API error: %s": "API error: %s",
+    "Missing required parameter: storeId": "Missing required parameter: storeId",
+    "speech recognition API error: %v": "speech recognition API error: %v",
+    "speech recognition timed out after %v seconds": "speech recognition timed out after %v seconds"
+  },
+  "tool": {
+    "unsupported tool type: %s": "unsupported tool type: %s"
+  },
+  "tts": {
+    "The audio data is nil": "The audio data is nil",
+    "error creating synthesizer: %v": "error creating synthesizer: %v",
+    "error finishing task: %v": "error finishing task: %v",
+    "error running task: %v": "error running task: %v",
+    "error sending text: %v": "error sending text: %v",
+    "output error: %v": "output error: %v"
+  },
+  "txt": {
+    ".docx file is empty": ".docx file is empty",
+    "GetTextFromMarkitdown() error, failed to open file: %v": "GetTextFromMarkitdown() error, failed to open file: %v",
+    "GetTextFromMarkitdown() error, markitdown does not exist": "GetTextFromMarkitdown() error, markitdown does not exist",
+    "GetTextFromMarkitdown() error, markitdown failed to run: %v: %s": "GetTextFromMarkitdown() error, markitdown failed to run: %v: %s",
+    "unsupported file type: %s": "unsupported file type: %s"
+  },
+  "video": {
+    "Submitting video generation task...": "Submitting video generation task...",
+    "The prompt should not be empty": "The prompt should not be empty",
+    "Video generation succeeded.\n\n[Download generated video](%s)": "Video generation succeeded.\n\n[Download generated video](%s)",
+    "Video generation task %s is still running...": "Video generation task %s is still running...",
+    "Video generation task submitted: %s": "Video generation task submitted: %s"
+  }
+}

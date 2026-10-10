@@ -1,0 +1,80 @@
+// Copyright 2023 The OpenAgent Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import * as Setting from "../Setting";
+
+export function getAccount() {
+  const fromPath = encodeURIComponent(window.location.pathname);
+  return fetch(`${Setting.ServerUrl}/api/get-account?fromPath=${fromPath}`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => Setting.handleFetchResponse(res));
+}
+
+export function getSigninOptions() {
+  return fetch(`${Setting.ServerUrl}/api/get-signin-options`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => Setting.handleFetchResponse(res));
+}
+
+export function updateAccount(account) {
+  return fetch(`${Setting.ServerUrl}/api/update-account`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(account),
+  }).then(res => Setting.handleFetchResponse(res));
+}
+
+export function signin(code, state) {
+  return fetch(`${Setting.ServerUrl}/api/signin?code=${code}&state=${state}`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => Setting.handleFetchResponse(res));
+}
+
+export function signinWithPassword(username, password) {
+  return fetch(`${Setting.ServerUrl}/api/signin`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({username, password}),
+  }).then(res => Setting.handleFetchResponse(res));
+}
+
+export function signout() {
+  return fetch(`${Setting.ServerUrl}/api/signout`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => Setting.handleFetchResponse(res));
+}

@@ -1,0 +1,128 @@
+// Copyright 2025 The OpenAgent Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package audit
+
+import (
+	"bufio"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestRecordAppendsJSONLPerSession(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("OPENAGENT_AUDIT_DIR", dir)
+
+	Record(Event{Type: "tool_call", Tool: "read_file", SessionID: "sess1", ArgumentsLength: 12, Outcome: "success", DurationMs: 7})
+	Record(Event{Type: "tool_call", Tool: "search", Server: "web", SessionID: "sess1", Outcome: "failure"})
+	Record(Event{Type: ""}) // no type: must be dropped
+	flush()
+
+	events := readEvents(t, filepath.Join(dir, "sess1.jsonl"))
+	if len(events) != 2 {
+		t.Fatalf("got %d events, want 2 (empty-type event must be dropped)", len(events))
+	}
+	if events[0].Tool != "read_file" || events[0].Outcome != "success" || events[0].ArgumentsLength != 12 || events[0].DurationMs != 7 {
+		t.Errorf("first event fields wrong: %+v", events[0])
+	}
+	if events[0].Timestamp == "" {
+		t.Errorf("timestamp should be stamped by Record")
+	}
+	if events[1].Server != "web" || events[1].Outcome != "failure" {
+		t.Errorf("second event fields wrong: %+v", events[1])
+	}
+}
+
+func TestRecordFallsBackToDefaultSessionFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("OPENAGENT_AUDIT_DIR", dir)
+
+	Record(Event{Type: "tool_call", Tool: "time"})
+	flush()
+
+	if _, err := os.Stat(filepath.Join(dir, "openagent.jsonl")); err != nil {
+		t.Fatalf("event with no session id should land in openagent.jsonl: %v", err)
+	}
+}
+
+// TestAuditDirForResolvesSymlinks is a regression test: OpenAgent is commonly
+// invoked through a symlink (e.g. a package manager's ~/.local/bin/openagent
+// pointing at the real binary elsewhere). os.Executable() returns the symlink
+// path used to invoke the process, not the real one, so without resolving it
+// events used to land next to the symlink - a directory aiguard's
+// agentmonitor.ResolveOpenAgentAuditDir, which does resolve it, never looks
+// in, leaving the Sessions/Records page permanently showing "waiting for
+// activity" despite real events being recorded.
+func TestAuditDirForResolvesSymlinks(t *testing.T) {
+	realDir := t.TempDir()
+	realBinary := filepath.Join(realDir, "openagent")
+	if err := os.WriteFile(realBinary, []byte("stub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// t.TempDir() can itself sit behind a symlink (e.g. macOS's /tmp ->
+	// /private/tmp), so resolve realDir the same way auditDirFor resolves the
+	// binary path, or the comparison below would fail on that alone.
+	resolvedRealDir, err := filepath.EvalSymlinks(realDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	linkDir := t.TempDir()
+	symlinkBinary := filepath.Join(linkDir, "openagent")
+	if err := os.Symlink(realBinary, symlinkBinary); err != nil {
+		t.Fatal(err)
+	}
+
+	got := auditDirFor(symlinkBinary)
+	want := filepath.Join(resolvedRealDir, "audit")
+	if got != want {
+		t.Errorf("auditDirFor(%q) = %q, want %q (the real binary's directory, not the symlink's)", symlinkBinary, got, want)
+	}
+}
+
+func TestSanitizeSession(t *testing.T) {
+	tests := map[string]string{
+		"":             "openagent",
+		"sess_ABC-1.2": "sess_ABC-1.2",
+		"a/b\\c":       "a-b-c",
+		"../../etc":    "etc",
+		"..":           "openagent",
+	}
+	for in, want := range tests {
+		if got := sanitizeSession(in); got != want {
+			t.Errorf("sanitizeSession(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func readEvents(t *testing.T, path string) []Event {
+	t.Helper()
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	var events []Event
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		var event Event
+		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
+			t.Fatalf("bad JSONL line %q: %v", scanner.Text(), err)
+		}
+		events = append(events, event)
+	}
+	return events
+}

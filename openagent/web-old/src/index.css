@@ -1,0 +1,660 @@
+/* stylelint-disable */
+/* Craco build: eslint and stylelint checks handled separately */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
+
+/* AI-themed loading dots animation used by common/Loading.js */
+@keyframes casdoor-ai-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0) scale(0.85);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-10px) scale(1.1);
+    opacity: 1;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "Roboto", "Oxygen",
+    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+    sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
+    monospace;
+}
+
+.logo {
+  height: 30px;
+  margin: 17px 0 16px 15px;
+  float: left;
+}
+
+.ant-table.ant-table-medium .ant-table-title {
+  padding: 5px 8px !important;
+}
+
+.ant-table.ant-table-medium .ant-table-footer,
+.ant-table.ant-table-medium .ant-table-cell {
+  padding: 1px 8px !important;
+}
+
+.ant-table.ant-table-medium .ant-table-thead .ant-table-cell {
+  padding: 10px 8px !important;
+}
+
+.ant-list-sm .ant-list-item {
+  padding: 2px !important;
+}
+
+.highlight-row {
+  background: rgb(249,198,205);
+}
+
+.alert-row {
+  background: rgba(143, 121, 223, 0.6);
+}
+
+/* http://react-china.org/t/topic/33846/3 */
+.ant-table-header {
+  scrollbar-color: transparent transparent;
+}
+
+.ant-table-header::-webkit-scrollbar {
+  background-color: transparent;
+}
+
+.import-output {
+  height: 500px;
+}
+
+.CodeMirror {
+  height: 100% !important;
+}
+
+.App {
+  padding: 20px;
+}
+
+.red-row {
+  background: #ffccc7;
+}
+
+.yellow-row {
+  background: #ffffb8;
+}
+
+.green-row {
+  background: #d9f7be;
+}
+
+.ant-list-item:hover {
+  box-shadow: 0 0 4px #888;
+}
+
+/* https://stackoverflow.com/questions/64961752/how-do-i-change-the-color-of-selected-menu-item-in-ant-design */
+
+/* .conferenceMenu > .ant-menu-item-selected {
+ background-color: rgb(230,247,255) !important;
+} */
+
+.conferenceMenu {
+  background-color: rgb(242,242,242) !important;
+}
+
+.react-codemirror2 {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.anticon-file {
+  visibility: hidden;
+}
+
+.markdownContainer {
+  width: 100%;
+  overflow: hidden;
+  background-color: rgb(251,240,217);
+  padding: 10px;
+}
+
+.markdownContainer img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Make the Office Online (msdoc) docx / xlsx preview fill the preview box.
+   react-doc-viewer's #msdoc-iframe is height:100%, but its parent chain
+   (#proxy-renderer / #msdoc-renderer) had no height, so the iframe collapsed to
+   its default ~150px and only a top slice of the document was visible.
+   Scoped to .filetree-doc-viewer (className passed to <DocViewer> in FileTree.js)
+   so it only affects this preview, not any other react-doc-viewer instance.
+   NOTE: #proxy-renderer / #msdoc-renderer are react-doc-viewer internal DOM ids;
+   revisit this rule when upgrading @cyntler/react-doc-viewer in case they change. */
+.filetree-doc-viewer #proxy-renderer,
+.filetree-doc-viewer #msdoc-renderer {
+  height: 100% !important;
+}
+
+/* PDF (react-pdf) preview: fit the page to the box width, scroll the page inside
+   the fixed box, and theme the toolbar. Scoped to .filetree-doc-viewer like the
+   block above (react-doc-viewer / react-pdf internal DOM ids — revisit when
+   upgrading @cyntler/react-doc-viewer). */
+.filetree-doc-viewer #pdf-renderer,
+.filetree-doc-viewer #image-renderer,
+.filetree-doc-viewer #proxy-renderer {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Scroll the (possibly tall) page inside the box so the mouse wheel works and
+   the page never overflows the frame. #proxy-renderer above is height:100%, so
+   giving #pdf-renderer height:100% gives the scroll area a fixed height. */
+.filetree-doc-viewer #pdf-renderer {
+  height: 100% !important;
+  overflow-y: auto !important;
+}
+
+/* Visible scrollbar (react-doc-viewer's themed one turned white against the
+   light toolbar and disappeared on scroll). */
+.filetree-doc-viewer #pdf-renderer::-webkit-scrollbar {
+  width: 10px;
+}
+
+.filetree-doc-viewer #pdf-renderer::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.filetree-doc-viewer #pdf-renderer::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 5px;
+}
+
+.filetree-doc-viewer #pdf-renderer::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.filetree-doc-viewer #pdf-renderer .react-pdf__Document,
+.filetree-doc-viewer #pdf-renderer .react-pdf__Page {
+  max-width: 100% !important;
+}
+
+.filetree-doc-viewer #pdf-renderer canvas,
+.filetree-doc-viewer #pdf-renderer .react-pdf__Page__svg {
+  height: auto !important;
+  max-width: 100% !important;
+  margin: 0 auto;
+}
+
+/* react-doc-viewer doesn't ship react-pdf's TextLayer.css, so the text layer
+   renders as visible extracted text under the page instead of a transparent
+   selection overlay. The canvas already shows the page — hide these layers. */
+.filetree-doc-viewer #pdf-renderer .react-pdf__Page__textContent,
+.filetree-doc-viewer #pdf-renderer .react-pdf__Page__annotations,
+.filetree-doc-viewer #pdf-renderer .react-pdf__Page__structTree,
+.filetree-doc-viewer #pdf-renderer .react-pdf__message {
+  display: none !important;
+}
+
+.filetree-doc-viewer #image-renderer img,
+.filetree-doc-viewer #proxy-renderer img {
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+/* PDF toolbar: a light bar matching the app theme (accent color comes from the
+   DocViewer theme prop), pinned in place while the page scrolls under it. */
+.filetree-doc-viewer #pdf-controls {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: none !important;
+  border-radius: 6px 6px 0 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  min-height: 42px !important;
+  padding: 4px 12px !important;
+  gap: 6px;
+}
+
+/* Uniform, borderless icon buttons; the icons are hardcoded black in the lib,
+   so recolor them to the theme color and size them consistently. */
+.filetree-doc-viewer #pdf-controls button,
+.filetree-doc-viewer #pdf-controls a#pdf-download {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 8px !important;
+  transition: background 0.15s ease;
+}
+
+.filetree-doc-viewer #pdf-controls button svg,
+.filetree-doc-viewer #pdf-controls a#pdf-download svg {
+  color: var(--theme-color, #404040) !important;
+  width: 18px !important;
+  height: 18px !important;
+}
+
+.filetree-doc-viewer #pdf-controls button:hover,
+.filetree-doc-viewer #pdf-controls a#pdf-download:hover {
+  background: rgba(0, 0, 0, 0.06) !important;
+}
+
+.filetree-doc-viewer #pdf-controls button:active,
+.filetree-doc-viewer #pdf-controls a#pdf-download:active {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+.filetree-doc-viewer #pdf-controls button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.filetree-doc-viewer #pdf-controls button:disabled:hover {
+  background: transparent !important;
+}
+
+.filetree-doc-viewer #pdf-pagination-info,
+.filetree-doc-viewer #pdf-page-info {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--theme-color, #404040);
+  padding: 0 6px;
+}
+
+/*.ant-modal-content {*/
+/*  padding: 0 !important;*/
+/*  background-color: transparent !important;*/
+/*  box-shadow: none !important;*/
+/*}*/
+
+.builtin-tools-cascader .ant-cascader-menu {
+  min-width: 300px !important;
+  height: 400px !important;
+}
+
+.builtin-tools-cascader .ant-cascader-menu-item-content {
+  padding: 8px 12px !important;
+}
+
+.chat-message-collapse-panel .ant-collapse-content-box {
+  padding: 0 !important;
+}
+
+.chat-message-collapse-panel .ant-collapse-header {
+  padding: 0 0 5px 0 !important;
+}
+
+/* StoreInfoTitle pill-shaped dropdowns */
+.store-pill-select .ant-select-selector {
+  border-radius: 20px !important;
+  padding-left: 14px !important;
+}
+
+.store-pill-select .ant-select-selection-item {
+  padding-right: 8px !important;
+}
+
+/* Chat message list gap */
+.chat-message-list .ant-list-item {
+  padding: 0 !important;
+  margin-bottom: 20px !important;
+}
+
+/* User message bubble: links must be light-colored against the dark themed background */
+.user-message-content a {
+  color: rgba(255, 255, 255, 0.9) !important;
+  text-decoration: underline;
+}
+
+.user-message-content a:hover {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Chat input area styling */
+.chat-input-sender .ant-sender {
+  border-radius: 16px !important;
+}
+
+.chat-input-sender .ant-sender-content {
+  border-radius: 16px !important;
+}
+
+/* Sider menu item refinements */
+.sider-menu-container .ant-menu-item {
+  border-radius: 8px !important;
+  margin: 1px 8px !important;
+  width: calc(100% - 16px) !important;
+}
+
+.sider-menu-container .ant-menu-submenu-title {
+  border-radius: 8px !important;
+  margin: 1px 8px !important;
+  width: calc(100% - 16px) !important;
+}
+
+.sider-menu-container .ant-menu-sub .ant-menu-item {
+  border-radius: 6px !important;
+  margin: 1px 8px 1px 4px !important;
+  width: calc(100% - 12px) !important;
+}
+
+/* Collapsed sider icon items */
+.ant-layout-sider-collapsed .sider-menu-container .ant-menu-item {
+  margin: 2px 4px !important;
+  width: calc(100% - 8px) !important;
+  border-radius: 8px !important;
+}
+
+/* Header right-side action buttons in select-box */
+.select-box svg {
+  font-size: 16px;
+}
+
+.custom-link {
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.custom-link:hover {
+  opacity: 0.65 !important;
+  color: rgb(80 80 80) !important;
+}
+
+.custom-link:active {
+  opacity: 0.4 !important;
+  color: rgb(40 40 40) !important;
+  transition: opacity 0.08s ease, color 0.08s ease;
+}
+
+/* Ant Design Typography links */
+.ant-typography a,
+a.ant-typography-link {
+  transition: opacity 0.2s ease;
+}
+
+.ant-typography a:hover,
+a.ant-typography-link:hover {
+  opacity: 0.7 !important;
+}
+
+.ant-typography a:active,
+a.ant-typography-link:active {
+  opacity: 0.45 !important;
+  transition: opacity 0.08s ease;
+}
+
+/* Raw <a> tags without Ant Design classes (table cell links, mailto, plain hrefs, etc.) */
+a:not([class]):not(.login-link),
+a[class=""],
+a[href^="mailto:"] {
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+a:not([class]):not(.login-link):hover,
+a[class=""]:hover,
+a[href^="mailto:"]:hover {
+  opacity: 0.65;
+}
+
+a:not([class]):not(.login-link):active,
+a[class=""]:active,
+a[href^="mailto:"]:active {
+  opacity: 0.4;
+  transition: opacity 0.08s ease;
+}
+
+/* Dark mode: override all link colors to light neutral gray (shadcn monochrome aesthetic) */
+[data-theme="dark"] a:not(.login-link),
+[data-theme="dark"] .ant-typography a,
+[data-theme="dark"] a.ant-typography-link {
+  color: #d4d4d4 !important;
+}
+
+[data-theme="dark"] a:not(.login-link):hover,
+[data-theme="dark"] .ant-typography a:hover,
+[data-theme="dark"] a.ant-typography-link:hover {
+  color: #f5f5f5 !important;
+  opacity: 1 !important;
+}
+
+[data-theme="dark"] a:not(.login-link):active,
+[data-theme="dark"] .ant-typography a:active,
+[data-theme="dark"] a.ant-typography-link:active {
+  color: #a3a3a3 !important;
+  opacity: 1 !important;
+}
+
+/* Exception: user message bubble links stay white (dark bg from theme color) */
+[data-theme="dark"] .user-message-content a {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+[data-theme="dark"] .user-message-content a:hover {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Bold overrides for key UI elements */
+
+/* Sidebar menu: item labels */
+.ant-menu .ant-menu-item,
+.ant-menu .ant-menu-item a,
+.ant-menu .ant-menu-submenu-title {
+  font-weight: 600 !important;
+}
+
+/* Sidebar menu: group titles */
+.ant-menu .ant-menu-item-group-title {
+  font-weight: 700 !important;
+  letter-spacing: 0.04em;
+}
+
+/* Table: column headers (thead) */
+.ant-table .ant-table-thead > tr > th,
+.ant-table .ant-table-thead > tr > td {
+  font-weight: 600 !important;
+}
+
+/* Table: footer */
+.ant-table .ant-table-footer {
+  font-weight: 600 !important;
+}
+
+/* Table: title bar */
+.ant-table .ant-table-title {
+  font-weight: 700 !important;
+}
+
+/* Card: header title */
+.ant-card .ant-card-head-title {
+  font-weight: 600 !important;
+}
+
+/* Descriptions: item labels */
+.ant-descriptions .ant-descriptions-item-label {
+  font-weight: 600 !important;
+}
+
+/* Tabs: tab button labels */
+.ant-tabs .ant-tabs-tab .ant-tabs-tab-btn {
+  font-weight: 600 !important;
+}
+
+/* Layout sider: menu item and submenu labels */
+.ant-layout-sider .ant-menu-item,
+.ant-layout-sider .ant-menu-submenu-title {
+  font-weight: 600 !important;
+}
+
+/* Table loading spinner - give the overlay enough height so spinner appears centered (antd v6) */
+.ant-table-wrapper .ant-spin.ant-spin-spinning {
+  min-height: 420px;
+}
+
+/* Sidebar menu: selected item - darker background */
+.ant-layout-sider .ant-menu-light .ant-menu-item-selected,
+.ant-layout-sider .ant-menu-light>.ant-menu .ant-menu-item-selected {
+  background-color: rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Sidebar menu container: hide scrollbar but keep scroll behavior */
+.sider-menu-container {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.sider-menu-container::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/WebKit */
+}
+
+/* Message popups: static API renders outside ConfigProvider, override font explicitly */
+.ant-message,
+.ant-message .ant-message-notice-content,
+.ant-message .ant-message-custom-content,
+.ant-message .ant-message-custom-content span {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif !important;
+}
+
+/* Chat sidebar menu: transparent background, rounded items */
+.chat-sidebar-menu.ant-menu-inline {
+  background: transparent !important;
+  border-inline-end: none !important;
+}
+
+.chat-sidebar-menu .ant-menu-submenu-title {
+  border-radius: 6px !important;
+  margin: 2px 4px !important;
+  width: calc(100% - 8px) !important;
+  color: #555 !important;
+  font-size: 12px !important;
+  letter-spacing: 0.03em !important;
+  text-transform: uppercase !important;
+}
+
+.chat-sidebar-menu .ant-menu-item {
+  border-radius: 6px !important;
+  margin: 2px 4px !important;
+  width: calc(100% - 8px) !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  transition: background 0.15s ease !important;
+}
+
+.chat-sidebar-menu .ant-menu-item:hover {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.chat-sidebar-menu .ant-menu-item-selected {
+  background: rgba(0, 0, 0, 0.08) !important;
+  color: inherit !important;
+  font-weight: 600 !important;
+}
+
+/* Smooth transition on collapse/expand */
+.ant-layout-sider {
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+
+/* ============================================
+   Chat input wrapper: outer highlight on focus
+   ============================================ */
+
+.chat-input-wrapper .ant-input:focus,
+.chat-input-wrapper .ant-input-focused,
+.chat-input-wrapper .ant-input-affix-wrapper:focus,
+.chat-input-wrapper .ant-input-affix-wrapper-focused {
+  box-shadow: none !important;
+  border-color: #d9d9d9 !important;
+}
+
+.chat-input-wrapper:focus-within {
+  border-color: #1677ff !important;
+  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.15), 0 8px 32px rgba(0, 0, 0, 0.12) !important;
+}
+
+.chat-input-wrapper:focus-within .ant-input,
+.chat-input-wrapper:focus-within textarea {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.chat-input-wrapper .ant-sender .ant-input {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.chat-input-wrapper .ant-sender .ant-input:focus,
+.chat-input-wrapper .ant-sender textarea:focus {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+[data-theme="dark"] .chat-input-wrapper .ant-input:focus,
+[data-theme="dark"] .chat-input-wrapper .ant-input-affix-wrapper:focus {
+  box-shadow: none !important;
+  border-color: #434343 !important;
+}
+
+[data-theme="dark"] .chat-input-wrapper:focus-within {
+  border-color: #3d8bff !important;
+  box-shadow: 0 0 0 3px rgba(61, 139, 255, 0.25), 0 8px 32px rgba(0, 0, 0, 0.6) !important;
+}
+
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight:focus-within {
+  border-color: var(--chat-input-shell-border-color) !important;
+  box-shadow: var(--chat-input-shell-box-shadow) !important;
+}
+
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-sender,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-sender:focus-within,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input:focus,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-focused,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-affix-wrapper,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-affix-wrapper:focus,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-affix-wrapper-focused,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-textarea,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-textarea:focus-within,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-textarea textarea,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-textarea textarea:focus,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-sender textarea,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-sender textarea:focus {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input:focus,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-focused,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-affix-wrapper,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-affix-wrapper:focus,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-affix-wrapper-focused,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-textarea,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-textarea:focus-within,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-textarea textarea,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-input-textarea textarea:focus,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-sender textarea,
+.chat-input-wrapper.chat-input-wrapper--no-focus-highlight .ant-sender textarea:focus {
+  border-color: transparent !important;
+}
+
+
+@keyframes statusStripDot {
+  0%, 100% { opacity: 0; }
+  40%, 60% { opacity: 1; }
+}

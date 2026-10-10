@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="https://cdn.casibase.com/static/favicon.png" />
+    <link rel="apple-touch-icon" href="/img/openagent.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="OpenAgent - An open-source AI agent platform" />
+    <title>OpenAgent</title>
+    <style>
+      body {
+        margin: 0;
+      }
+      #app-boot-fallback {
+        display: -webkit-box;
+        display: -webkit-flex;
+        display: flex;
+        -webkit-box-orient: vertical;
+        -webkit-flex-direction: column;
+        flex-direction: column;
+        -webkit-box-align: center;
+        -webkit-align-items: center;
+        align-items: center;
+        -webkit-box-pack: center;
+        -webkit-justify-content: center;
+        justify-content: center;
+        min-height: 100vh;
+        box-sizing: border-box;
+        padding: 64px 16px;
+        background: #fff;
+        color: #171717;
+        font-family: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        text-align: center;
+        -webkit-font-smoothing: antialiased;
+      }
+      html.dark #app-boot-fallback {
+        background: #121212;
+        color: #f5f5f5;
+      }
+      html.dark #app-boot-spinner,
+      html.dark #app-boot-hint {
+        color: #a3a3a3;
+      }
+      html.dark #app-boot-detail {
+        border-color: #303030;
+        background: #262626;
+        color: #a3a3a3;
+      }
+      #app-boot-spinner {
+        width: 24px;
+        height: 24px;
+        color: #707070;
+        -webkit-animation: app-boot-spin 1s linear infinite;
+        animation: app-boot-spin 1s linear infinite;
+      }
+      #app-boot-fallback.failed #app-boot-spinner {
+        display: none;
+      }
+      #app-boot-message {
+        display: none;
+        width: 100%;
+        max-width: 28rem;
+      }
+      #app-boot-fallback.failed #app-boot-message {
+        display: block;
+      }
+      #app-boot-title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      #app-boot-hint {
+        margin: 8px 0 0 0;
+        color: #707070;
+      }
+      #app-boot-detail {
+        display: none;
+        margin-top: 16px;
+        padding: 8px 12px;
+        border: 1px solid #e5e5e5;
+        border-radius: 6px;
+        background: #f5f5f5;
+        color: #707070;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        text-align: left;
+        word-break: break-all;
+      }
+      @-webkit-keyframes app-boot-spin {
+        to { -webkit-transform: rotate(360deg); }
+      }
+      @keyframes app-boot-spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+    <script>
+      (function() {
+        var dark = false;
+        try {
+          var raw = localStorage.getItem("themeAlgorithm") || "system";
+          if (raw.charAt(0) === "[") {
+            dark = raw.indexOf("\"dark\"") !== -1;
+          } else if (raw === "dark") {
+            dark = true;
+          } else if (raw !== "light") {
+            dark = !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          }
+        } catch (e) {}
+        if (dark) {
+          document.documentElement.className += " dark";
+        }
+      })();
+    </script>
+    <script>
+      // Show a readable message instead of a blank white page when the app bundle
+      // cannot be loaded or executed, for example in an outdated browser or in the
+      // embedded webview that some clients open for SSO login. Keep this script
+      // ES5-only, it has to run in those environments too.
+      (function() {
+        var shown = false;
+
+        function show(title, detail) {
+          var box = document.getElementById("app-boot-fallback");
+          if (!box || shown) {
+            return;
+          }
+          shown = true;
+
+          var titleEl = document.getElementById("app-boot-title");
+          var detailEl = document.getElementById("app-boot-detail");
+
+          titleEl.innerHTML = title;
+          box.className += " failed";
+          if (detail) {
+            detailEl.innerHTML = detail;
+            detailEl.style.display = "block";
+          }
+        }
+
+        window.addEventListener("error", function(event) {
+          if (event && event.target && event.target !== window && event.target.tagName === "SCRIPT") {
+            show("OpenAgent failed to load", "Could not load: " + (event.target.src || ""));
+            return;
+          }
+          show("OpenAgent failed to load", event && event.message ? String(event.message) : "");
+        }, true);
+
+        window.addEventListener("load", function() {
+          window.setTimeout(function() {
+            show("OpenAgent is taking too long to load", "");
+          }, 20000);
+        });
+      })();
+    </script>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <!-- React replaces this on its first render; it is only ever seen when the
+         bundle does not get that far. Inline styles on purpose: the stylesheet is
+         part of the bundle that just failed. -->
+    <div id="root">
+      <div id="app-boot-fallback" role="status" aria-label="Loading">
+        <svg id="app-boot-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+        </svg>
+        <script>
+          (function() {
+            var spinner = document.getElementById("app-boot-spinner");
+            if (spinner.getAnimations) {
+              var animations = spinner.getAnimations();
+              for (var i = 0; i < animations.length; i++) {
+                animations[i].startTime = 0;
+              }
+            }
+          })();
+        </script>
+        <div id="app-boot-message">
+          <h1 id="app-boot-title"></h1>
+          <p id="app-boot-hint">
+            Your browser may be too old to run OpenAgent. Please open this page in a recent version of Chrome, Edge, Firefox or Safari.
+            If this page was opened inside an app's built-in login window, sign in with your system browser instead.
+          </p>
+          <div id="app-boot-detail"></div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

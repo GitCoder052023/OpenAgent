@@ -1,0 +1,8 @@
+services:
+  openagent-ocr:
+    restart: unless-stopped
+    build:
+      context: ./deploy/ocr-service
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"

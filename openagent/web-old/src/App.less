@@ -1,0 +1,212 @@
+/* stylelint-disable at-rule-name-case */
+/* stylelint-disable selector-class-pattern */
+
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+.App-header {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+img {
+  border-style: none;
+  vertical-align: middle;
+}
+
+#parent-area {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100vh;
+}
+
+.content-warp-card {
+  box-shadow: 0 2px 8px 0 rgb(0 0 0 / 8%);
+  flex: 1;
+  align-items: stretch;
+  margin: 0 3px 3px !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+
+.content-warp-card-filetreeright {
+  flex: 1;
+  align-items: stretch;
+}
+
+.content-warp-card-filetreeleft {
+  box-shadow: 0 1px 3px 0 rgb(51 51 51 / 14%);
+  flex: 1;
+  align-items: stretch;
+}
+
+.ant-table-body {
+  overflow-y: hidden !important;
+}
+
+.language-box {
+  background: url("https://cdn.openagentai.org/img/muti_language.svg");
+  background-size: 25px, 25px;
+  background-position: center;
+  background-repeat: no-repeat;
+  width: 45px;
+  height: 65px;
+  float: right;
+  cursor: pointer;
+}
+
+.select-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  margin: 0 2px;
+  float: right;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background-color: rgb(0 0 0 / 5%) !important;
+  }
+}
+
+[data-theme="dark"] .select-box:hover {
+  background-color: rgb(255 255 255 / 8%) !important;
+}
+
+.store-select {
+  display: flex;
+  align-items: center;
+  margin: 0 8px !important;
+  min-width: 200px;
+  max-width: 360px;
+}
+
+.rightDropDown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  float: right;
+  cursor: pointer;
+  padding: 0 10px;
+  height: 36px;
+  margin: 0 4px;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background-color: rgb(0 0 0 / 5%) !important;
+  }
+}
+
+[data-theme="dark"] .rightDropDown:hover {
+  background-color: rgb(255 255 255 / 8%) !important;
+}
+
+.cs-conversation-header__content .cs-conversation-header__user-name {
+  background-color: var(--theme-background) !important;
+}
+
+.cs-message--incoming .cs-message__content {
+  background-color: var(--theme-background) !important;
+}
+
+.cs-message-input__content-editor-wrapper {
+  background-color: var(--theme-background-secondary) !important;
+}
+
+.cs-message-input__content-editor {
+  background-color: var(--theme-background-secondary) !important;
+}
+
+.cs-button--send,
+.cs-button--attachment {
+  color: var(--theme-button) !important;
+}
+
+.cs-message--outgoing .cs-message__content {
+  background-color: var(--theme-background-secondary) !important;
+}
+
+.ps__thumb-y {
+  background-color: var(--theme-background) !important;
+}
+
+.menu-item-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.menu-item-icon {
+  visibility: visible;
+  color: inherit;
+  transition: color 0.3s;
+  justify-content: flex-end;
+}
+
+.chat-menu-item {
+  position: relative;
+  padding-inline-start: 40px !important;
+}
+
+.chat-menu-item .chat-status-indicator {
+  position: absolute;
+  inset-inline-start: 1.25em;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  pointer-events: none;
+}
+
+.suggestions-item:hover {
+  background: var(--theme-color) !important;
+  color: white !important;
+}
+
+.remote-desktop {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f8f3ff;
+  height: 100%;
+  width: 100%;
+}
+
+[data-theme="dark"] .remote-desktop,
+.dark .remote-desktop {
+  background-color: #1a1225;
+}
+
+.djs-container.djs-parent svg {
+  height: 100% !important;
+}
+
+.ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+}
+
+.ant-menu-inline {
+  flex: 1;
+}

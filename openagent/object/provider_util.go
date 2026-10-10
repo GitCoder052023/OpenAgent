@@ -1,0 +1,170 @@
+// Copyright 2024 The OpenAgent Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package object
+
+import (
+	"fmt"
+
+	"github.com/the-open-agent/openagent/embedding"
+	"github.com/the-open-agent/openagent/i18n"
+	"github.com/the-open-agent/openagent/model"
+	"github.com/the-open-agent/openagent/util"
+)
+
+func GetProviderFromName(owner string, providerName string, lang string) (*Provider, error) {
+	var provider *Provider
+	var err error
+	if providerName != "" {
+		provider, err = GetProviderByOwnerAndName(owner, providerName)
+	} else {
+		provider, err = GetDefaultModelProvider()
+	}
+	if err != nil {
+		return nil, err
+	}
+	if provider == nil {
+		provider, err = GetDefaultModelProvider()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if provider == nil {
+		return nil, fmt.Errorf(i18n.Translate(lang, "object:Please add a model provider first"))
+	}
+	return provider, nil
+}
+
+func ValidateModelProvider(provider *Provider, lang string) error {
+	if provider.Category != "Model" {
+		return fmt.Errorf(i18n.Translate(lang, "object:The model provider: %s is expected to be \"Model\" category, got: \"%s\""), provider.GetId(), provider.Category)
+	}
+	if provider.ClientSecret == "" && provider.Type != "Ollama" && provider.Type != "OpenCode" {
+		return fmt.Errorf(i18n.Translate(lang, "object:The model provider: %s's client secret should not be empty"), provider.GetId())
+	}
+	return nil
+}
+
+func GetModelCategoryProviderFromName(owner string, providerName string, lang string) (*Provider, error) {
+	provider, err := GetProviderFromName(owner, providerName, lang)
+	if err != nil {
+		return nil, err
+	}
+	if err := ValidateModelProvider(provider, lang); err != nil {
+		return nil, err
+	}
+	return provider, nil
+}
+
+func getModelProviderFromName(owner string, providerName string, lang string) (*Provider, model.ModelProvider, error) {
+	provider, err := GetModelCategoryProviderFromName(owner, providerName, lang)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	providerObj, err := provider.GetModelProvider(lang)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return provider, providerObj, err
+}
+
+func getEmbeddingProviderFromName(owner string, providerName string, lang string) (*Provider, embedding.EmbeddingProvider, error) {
+	var provider *Provider
+	var err error
+	if providerName != "" {
+		provider, err = GetProviderByOwnerAndName(owner, providerName)
+	} else {
+		provider, err = GetDefaultEmbeddingProvider()
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	if provider == nil {
+		if providerName != "" {
+			return nil, nil, fmt.Errorf(i18n.Translate(lang, "object:The embedding provider: %s is not found"), providerName)
+		} else {
+			return nil, nil, fmt.Errorf(i18n.Translate(lang, "object:Please add an embedding provider first"))
+		}
+	}
+
+	if provider.Category != "Embedding" {
+		return nil, nil, fmt.Errorf(i18n.Translate(lang, "object:The embedding provider: %s is expected to be \"Embedding\" category, got: \"%s\""), provider.GetId(), provider.Category)
+	}
+	if provider.ClientSecret == "" {
+		return nil, nil, fmt.Errorf(i18n.Translate(lang, "object:The embedding provider: %s's client secret should not be empty"), provider.GetId())
+	}
+
+	providerObj, err := provider.GetEmbeddingProvider(lang)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return provider, providerObj, err
+}
+
+func GetActiveBlockchainProvider(owner string) (*Provider, error) {
+	providers, err := GetProviders(owner)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, provider := range providers {
+		if provider.Category == "Blockchain" && provider.IsDefault && provider.State == "Active" {
+			return provider, nil
+		}
+	}
+
+	for _, provider := range providers {
+		if ((provider.ClientId != "" && provider.ClientSecret != "") || (provider.ClientSecret != "" && provider.Type == "Ethereum") || provider.Type == "ChainMaker") && provider.Category == "Blockchain" && provider.State == "Active" {
+			return provider, nil
+		}
+	}
+	return nil, nil
+}
+
+func GetTwoActiveBlockchainProvider(owner string) (*Provider, *Provider, error) {
+	providers, err := GetProviders(owner)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var providerFirst, providerSecond *Provider
+	// Try to find the first default active blockchain provider
+	for _, provider := range providers {
+		if provider.Category == "Blockchain" && provider.IsDefault && provider.State == "Active" {
+			providerFirst = provider
+			break
+		}
+	}
+
+	// If the first provider is not found, try to find the first active blockchain provider,
+	// then find the second active blockchain provider
+	for _, provider := range providers {
+		if ((provider.ClientId != "" && provider.ClientSecret != "") || (provider.ClientSecret != "" && provider.Type == "Ethereum") || provider.Type == "ChainMaker") && provider.Category == "Blockchain" && provider.State == "Active" {
+			if providerFirst == nil {
+				providerFirst = provider
+			} else if provider.GetId() != providerFirst.GetId() {
+				providerSecond = provider
+				break
+			}
+		}
+	}
+	return providerFirst, providerSecond, nil
+}
+
+func generateProviderKey() string {
+	return fmt.Sprintf("sk-%s", util.GetSecureRandomString(24))
+}

@@ -1,0 +1,70 @@
+// Copyright 2023 The OpenAgent Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package util
+
+import "encoding/json"
+
+func StructToJson(v interface{}) string {
+	data, err := json.MarshalIndent(v, "", "  ")
+	// data, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+
+	return string(data)
+}
+
+func StructToJsonNoIndent(v interface{}) string {
+	data, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+
+	return string(data)
+}
+
+func JsonToStruct(data string, v interface{}) error {
+	return json.Unmarshal([]byte(data), v)
+}
+
+func GetFieldFromJsonString(jsonStr string, fieldName string) (string, error) {
+	if jsonStr == "" {
+		return "", nil
+	}
+
+	var data map[string]interface{}
+	err := json.Unmarshal([]byte(jsonStr), &data)
+	if err != nil {
+		return "", err
+	}
+
+	value, exists := data[fieldName]
+	if !exists {
+		return "", nil
+	}
+
+	// Convert value to string
+	switch v := value.(type) {
+	case string:
+		return v, nil
+	default:
+		// For other types, marshal to JSON string
+		bytes, err := json.Marshal(v)
+		if err != nil {
+			return "", err
+		}
+		return string(bytes), nil
+	}
+}

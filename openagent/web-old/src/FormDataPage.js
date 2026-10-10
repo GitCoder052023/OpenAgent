@@ -1,0 +1,70 @@
+// Copyright 2025 The OpenAgent Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import React, {Component} from "react";
+import {Spin} from "antd";
+import * as Setting from "./Setting";
+import * as FormBackend from "./backend/FormBackend";
+import i18next from "i18next";
+import FormDataTablePage from "./FormDataTablePage";
+
+class FormDataPage extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      classes: props,
+      formName: props.match.params.formName,
+      form: null,
+    };
+  }
+
+  UNSAFE_componentWillMount() {
+    this.getForm();
+  }
+
+  getForm() {
+    FormBackend.getForm(this.props.account.owner, this.state.formName)
+      .then((res) => {
+        if (res.status === "ok") {
+          this.setState({
+            form: res.data,
+          });
+        } else {
+          Setting.showMessage("error", `${i18next.t("general:Failed to get")}: ${res.msg}`);
+        }
+      });
+  }
+
+  render(record) {
+    if (!this.state.form) {
+      return (
+        <div style={{display: "flex", justifyContent: "center", alignItems: "center", height: "calc(100vh - 120px)"}}>
+          <Spin size="large" tip={i18next.t("general:Loading...")} />
+        </div>
+      );
+    }
+
+    if (this.state.form.category === "Table" || this.state.form.category === "") {
+      return <FormDataTablePage {...this.props} />;
+    } else if (this.state.form.category === "iFrame") {
+      return (
+        <iframe id="formData" title="formData" src={this.state.form.url} style={{width: "100%", height: "calc(100vh - 134px)"}} frameBorder="no" />
+      );
+    } else {
+      return `Unsupported form category: ${this.state.form.category}`;
+    }
+  }
+}
+
+export default FormDataPage;

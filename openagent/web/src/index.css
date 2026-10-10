@@ -1,0 +1,379 @@
+/* Self-hosted so the console keeps its typography offline and behind a firewall,
+   which a Google Fonts <link> would not. The variable file covers 100..900. */
+@import "@fontsource-variable/inter/index.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 9%;
+
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 9%;
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 44%;
+
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 9%;
+
+    --destructive: 0 72% 46%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 142 71% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 32 95% 44%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 0 0% 90%;
+    /* a shade darker than --border so a field reads as a field next to a divider */
+    --input: 0 0% 87%;
+    --ring: 0 0% 9%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 26%;
+    --sidebar-primary: 0 0% 9%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 0 0% 93%;
+    --sidebar-accent-foreground: 0 0% 9%;
+    --sidebar-border: 0 0% 91%;
+    --sidebar-ring: 0 0% 9%;
+
+    /* The chrome is deliberately neutral, so charts are where colour lives. Eight
+       categorical hues, assigned in this order and never cycled: each neighbour
+       pair stays apart under colour-vision deficiency, on this surface and, with
+       their own steps, on the dark one. Slots 3-5 are under 3:1 on white, so a
+       chart using them also offers labels or a table. */
+    --chart-1: 213 68% 50%;
+    --chart-2: 17 82% 56%;
+    --chart-3: 159 73% 40%;
+    --chart-4: 41 100% 46%;
+    --chart-5: 337 70% 70%;
+    --chart-6: 120 100% 26%;
+    --chart-7: 249 48% 44%;
+    --chart-8: 0 73% 59%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* the page sits *below* the cards rather than level with them, so panels read
+       as panels without needing a border to prove it */
+    --background: 0 0% 7%;
+    --foreground: 0 0% 96%;
+
+    --card: 0 0% 10.5%;
+    --card-foreground: 0 0% 96%;
+
+    /* a menu or a dialog floats above a card, so it has to out-step the card the
+       way the card out-steps the page — at 12% it was four levels off --card and
+       read as translucent */
+    --popover: 0 0% 16.5%;
+    --popover-foreground: 0 0% 96%;
+
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+
+    --secondary: 0 0% 16%;
+    --secondary-foreground: 0 0% 96%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 64%;
+
+    --accent: 0 0% 19%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 142 60% 42%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 32 88% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 0 0% 19%;
+    --input: 0 0% 24%;
+    --ring: 0 0% 70%;
+
+    --sidebar-background: 0 0% 9%;
+    --sidebar-foreground: 0 0% 78%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 0 0% 9%;
+    --sidebar-accent: 0 0% 17%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 17%;
+    --sidebar-ring: 0 0% 70%;
+
+    --chart-1: 213 77% 56%;
+    --chart-2: 17 70% 50%;
+    --chart-3: 159 73% 36%;
+    --chart-4: 40 100% 39%;
+    --chart-5: 338 61% 58%;
+    --chart-6: 120 100% 26%;
+    --chart-7: 247 69% 72%;
+    --chart-8: 0 72% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    /* "cv11" is Inter's single-storey a/g, "ss01" its disambiguated I/l — both
+       matter in a console full of IDs and secrets */
+    font-feature-settings: "rlig" 1, "calt" 1, "cv11" 1, "ss01" 1;
+  }
+  /* IDs, secrets, counts and timestamps line up column-to-column */
+  code,
+  kbd,
+  samp,
+  pre {
+    @apply font-mono;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* CodeMirror sizing inside cards */
+.cm-editor {
+  @apply rounded-md border border-input text-sm;
+}
+.cm-editor.cm-focused {
+  outline: none;
+  @apply ring-1 ring-ring;
+}
+
+/* Comment bodies and the comment editor share one look for paragraphs and images */
+.comment-content,
+.comment-editor .tiptap {
+  overflow-wrap: anywhere;
+}
+.comment-content p,
+.comment-editor .tiptap p {
+  margin: 0 0 6px;
+}
+.comment-content p:last-child,
+.comment-editor .tiptap p:last-child {
+  margin-bottom: 0;
+}
+.comment-content ul,
+.comment-editor .tiptap ul {
+  @apply list-disc pl-5;
+}
+.comment-content ol,
+.comment-editor .tiptap ol {
+  @apply list-decimal pl-5;
+}
+.comment-content a {
+  @apply text-primary underline underline-offset-2;
+}
+.comment-content img,
+.comment-editor .tiptap img {
+  display: block;
+  max-width: min(240px, 100%);
+  max-height: 240px;
+  margin-top: 6px;
+  border-radius: 6px;
+  object-fit: contain;
+}
+.comment-editor .tiptap {
+  min-height: 78px;
+  max-height: 260px;
+  overflow: auto;
+  outline: none;
+  @apply text-sm;
+}
+.comment-editor .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  @apply text-muted-foreground;
+}
+
+/* A chat message's markdown. Tight paragraphs, the way the antd chat spaced them */
+.message-text {
+  @apply flex flex-col text-sm leading-relaxed;
+  overflow-wrap: anywhere;
+}
+.message-text p {
+  margin: 0 0 0.5em;
+}
+.message-text p:last-child {
+  margin-bottom: 0;
+}
+.message-text h1,
+.message-text h2 {
+  @apply my-4 text-lg font-semibold;
+}
+.message-text h3,
+.message-text h4,
+.message-text h5,
+.message-text h6 {
+  @apply my-3 text-base font-semibold;
+}
+.message-text ul {
+  @apply my-2 list-disc space-y-1.5 pl-6;
+}
+.message-text ol {
+  @apply my-3 list-decimal space-y-0.5 pl-6;
+}
+.message-text a {
+  @apply text-primary underline underline-offset-2;
+}
+.message-text blockquote {
+  @apply my-2 border-l-4 pl-3 text-muted-foreground;
+}
+.message-text code:not(pre code) {
+  @apply rounded bg-muted px-1 py-0.5 font-mono text-[0.85em];
+}
+.message-text pre {
+  @apply my-2 overflow-x-auto rounded-md text-xs;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.message-text pre code.hljs {
+  @apply rounded-md p-3;
+}
+.message-text table {
+  @apply my-2 block overflow-x-auto border-collapse text-xs;
+}
+.message-text th,
+.message-text td {
+  @apply border px-2 py-1 text-left;
+}
+.message-text img {
+  @apply my-1 max-w-full rounded;
+}
+.message-text .katex-display {
+  @apply my-2 overflow-x-auto;
+}
+
+/* antd's compactAlgorithm equivalent. The class goes on <html>, and because the
+   Tailwind spacing scale is in rem, shrinking the root size tightens padding,
+   gaps and type together the way the antd compact tokens did. */
+html.compact {
+  font-size: 14px;
+}
+
+/* ---------------------------------------------------------------------------
+   The auth surface: sign-in, sign-up and password reset.
+
+   An application ships its own form CSS, written against the desktop panel, so
+   everything here stays one step less specific than the selectors it uses, and
+   its <style> is injected after this sheet anyway.
+   --------------------------------------------------------------------------- */
+
+.login-background {
+  /* dvh, so the footer is not left under the phone browser's own toolbar */
+  min-height: 100dvh;
+}
+
+/* An application may paint its own panel through `formCss`, and a panel painted
+   light inside a dark page would otherwise render white text on white. The
+   layout reads that colour out of the application's stylesheet and puts this
+   class on the panel: the light tokens come back for that subtree only, and the
+   brand colour comes back un-darkened from the `--primary-base` that
+   useApplicationTheme keeps around for this. */
+.theme-scope-light {
+  color-scheme: light;
+
+  --background: 0 0% 100%;
+  --foreground: 0 0% 9%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 9%;
+  --primary: var(--primary-base, 0 0% 9%);
+  --primary-foreground: var(--primary-base-foreground, 0 0% 98%);
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 0 0% 9%;
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 44%;
+  --accent: 0 0% 96%;
+  --accent-foreground: 0 0% 9%;
+  --destructive: 0 72% 46%;
+  --destructive-foreground: 0 0% 98%;
+  --success: 142 71% 40%;
+  --success-foreground: 0 0% 100%;
+  --warning: 32 95% 44%;
+  --warning-foreground: 0 0% 100%;
+  --border: 0 0% 90%;
+  --input: 0 0% 87%;
+  --ring: var(--primary-base, 0 0% 9%);
+
+  color: hsl(var(--foreground));
+}
+
+/* The fields are the whole point of these pages, so they run a step taller than
+   the console's, and grow again to a comfortable tap target on a phone. */
+.login-form input:not([type="checkbox"]):not([type="radio"]),
+.login-form [role="combobox"],
+.login-form button.w-full {
+  min-height: 2.5rem;
+}
+
+@media (max-width: 639.98px) {
+  /* here the panel is the viewport, so a padding meant for a wide desktop card —
+     an application's or our own — comes back to a phone-sized one */
+  .login-content .login-panel {
+    max-width: 100%;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+  /* and the card an application drew — the stock formCss draws one — has nothing
+     left to lift itself off, so it goes with the padding */
+  .login-content .login-panel.login-panel-bleed {
+    padding-top: 1rem;
+    padding-bottom: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .login-content .login-form > *,
+  .login-content .login-form form > * {
+    max-width: 100%;
+  }
+  .login-form input:not([type="checkbox"]):not([type="radio"]),
+  .login-form [role="combobox"],
+  .login-form button.w-full {
+    min-height: 2.75rem;
+  }
+  /* 16px keeps iOS Safari from zooming the page when a field takes focus */
+  .login-form input:not([type="checkbox"]):not([type="radio"]) {
+    font-size: 16px;
+  }
+}

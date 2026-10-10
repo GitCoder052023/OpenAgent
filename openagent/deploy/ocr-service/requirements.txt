@@ -1,0 +1,7 @@
+fastapi==0.136.1
+uvicorn[standard]==0.47.0
+python-multipart==0.0.29
+rapidocr==3.8.1
+onnxruntime==1.26.0
+pypdfium2==5.8.0
+opencv-python-headless==4.13.0.92

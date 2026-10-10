@@ -1,0 +1,104 @@
+.comment-rich-editor-shell {
+  border: 1px solid var(--ant-color-border);
+  border-radius: 6px;
+  background: var(--ant-color-bg-container);
+  overflow: hidden;
+}
+
+.comment-rich-editor-shell:focus-within {
+  border-color: var(--ant-color-primary);
+  box-shadow: 0 0 0 2px var(--ant-control-outline);
+}
+
+.comment-rich-editor-content {
+  padding: 8px 10px;
+}
+
+.comment-content {
+  margin: 6px 0 8px;
+  word-break: break-word;
+}
+
+.comment-content p {
+  margin: 0 0 6px;
+}
+
+.comment-content p:last-child {
+  margin-bottom: 0;
+}
+
+.comment-content img {
+  display: block;
+  max-width: min(240px, 100%);
+  max-height: 240px;
+  border-radius: 6px;
+  margin-top: 6px;
+  object-fit: contain;
+}
+
+.comment-content a {
+  overflow-wrap: anywhere;
+}
+
+.comment-content-compact {
+  margin: 4px 0;
+}
+
+.comment-rich-editor-content [contenteditable="true"] {
+  min-height: 78px;
+  max-height: 260px;
+  overflow: auto;
+  outline: none;
+  word-break: break-word;
+}
+
+.comment-rich-editor-content [contenteditable="true"] p {
+  margin: 0 0 6px;
+}
+
+.comment-rich-editor-content [contenteditable="true"] p:last-child {
+  margin-bottom: 0;
+}
+
+.comment-rich-editor-content [contenteditable="true"] p.is-editor-empty:first-child::before {
+  color: var(--ant-color-text-placeholder);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.comment-rich-editor-content [contenteditable="true"] img {
+  display: block;
+  max-width: min(240px, 100%);
+  max-height: 240px;
+  border-radius: 6px;
+  margin-top: 6px;
+  object-fit: contain;
+}
+
+.comment-rich-editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--ant-color-border-secondary);
+  background: var(--ant-color-fill-quaternary);
+  flex-wrap: wrap;
+}
+
+.comment-rich-editor-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.comment-rich-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}

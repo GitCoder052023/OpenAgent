@@ -1,0 +1,138 @@
+{
+  "name": "web",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@ant-design/cssinjs": "^2.1.2",
+    "@ant-design/icons": "^6.1.1",
+    "@ant-design/x": "^2.5.0",
+    "@bpmn-io/cm-theme": "0.1.0-alpha.2",
+    "@bpmn-io/properties-panel": "^3.26.4",
+    "@craco/craco": "6.4.5",
+    "@cyntler/react-doc-viewer": "^1.5.2",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@tiptap/extension-file-handler": "^3.27.1",
+    "@tiptap/extension-image": "^3.27.1",
+    "@tiptap/extension-placeholder": "^3.27.1",
+    "@tiptap/react": "^3.27.1",
+    "@tiptap/starter-kit": "^3.27.1",
+    "@uiw/codemirror-extensions-langs": "^4.23.8",
+    "@uiw/codemirror-theme-material": "^4.23.8",
+    "@uiw/react-codemirror": "^4.23.8",
+    "aliplayer-react": "^0.7.0",
+    "antd": "6.3.5",
+    "antd-token-previewer": "^3.0.0",
+    "bpmn-font": "^0.12.1",
+    "bpmn-js": "^18.4.0",
+    "bpmn-js-color-picker": "^0.7.2",
+    "bpmn-js-create-append-anything": "^1.0.1",
+    "bpmn-js-element-templates": "^2.11.0",
+    "bpmn-js-properties-panel": "^5.35.0",
+    "camunda-bpmn-moddle": "^7.0.1",
+    "casdoor-js-sdk": "^0.16.0",
+    "codemirror": "^6.0.1",
+    "copy-to-clipboard": "^3.3.1",
+    "craco-less": "2.0.0",
+    "d3-force": "^3.0.0",
+    "dayjs": "^1.11.19",
+    "docx": "^9.6.1",
+    "dompurify": "^3.0.9",
+    "echarts": "^5.4.2",
+    "echarts-for-react": "^3.0.2",
+    "echarts-wordcloud": "^2.1.0",
+    "emoji-picker-react": "^4.19.1",
+    "eslint-plugin-unused-imports": "^2.0.0",
+    "file-saver": "^2.0.2",
+    "guacamole-common-js": "^1.5.0",
+    "highlight.js": "^11.9.0",
+    "i18next": "^19.8.9",
+    "identicon.js": "^2.3.3",
+    "js-base64": "^3.7.7",
+    "katex": "^0.16.9",
+    "marked": "^12.0.1",
+    "md5": "^2.3.0",
+    "moment": "^2.29.1",
+    "papaparse": "^5.4.1",
+    "rc-bullets": "^1.5.16",
+    "react": "^18.2.0",
+    "react-bpmn": "^0.2.0",
+    "react-device-detect": "1.17.0",
+    "react-dom": "^18.2.0",
+    "react-draggable": "^4.4.6",
+    "react-file-viewer": "^1.2.1",
+    "react-force-graph": "^1.48.1",
+    "react-force-graph-2d": "^1.29.0",
+    "react-helmet": "^6.1.0",
+    "react-highlight-words": "^0.18.0",
+    "react-i18next": "^11.8.7",
+    "react-markdown": "^8.0.7",
+    "react-router-dom": "^5.3.3",
+    "react-scripts": "5.0.1",
+    "rehype-katex": "^7.0.1",
+    "remark-frontmatter": "^4.0.1",
+    "remark-gfm": "^3.0.1",
+    "remark-math": "^6.0.0",
+    "xlsx": "^0.16.9"
+  },
+  "scripts": {
+    "start": "cross-env PORT=13001 craco start",
+    "build": "craco build",
+    "postbuild": "node mv.js",
+    "test": "craco test",
+    "eject": "craco eject",
+    "analyze": "source-map-explorer 'build/static/js/*.js'",
+    "preinstall": "node -e \"if (process.env.npm_execpath.indexOf('yarn') === -1) throw new Error('Use yarn for installing: https://yarnpkg.com/en/docs/install')\"",
+    "fix": "eslint --fix src/ --ext .js",
+    "lint:js": "eslint --fix src/ --ext .js",
+    "lint:css": "stylelint src/**/*.{css,less} --fix",
+    "lint": "yarn lint:js && yarn lint:css"
+  },
+  "eslintConfig": {
+    "extends": "react-app"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all",
+      "ie 9, ie 10, ie 11"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version",
+      "ie 9, ie 10, ie 11"
+    ]
+  },
+  "devDependencies": {
+    "@babel/core": "^7.18.13",
+    "@babel/eslint-parser": "^7.18.9",
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "@babel/preset-react": "^7.18.6",
+    "cross-env": "^7.0.3",
+    "eslint": "8.22.0",
+    "eslint-plugin-react": "^7.31.1",
+    "husky": "^4.3.8",
+    "lint-staged": "^13.0.3",
+    "stylelint": "^14.11.0",
+    "stylelint-config-recommended-less": "^1.0.4",
+    "stylelint-config-standard": "^28.0.0"
+  },
+  "resolutions": {
+    "@ant-design/cssinjs": "^2.1.2"
+  },
+  "lint-staged": {
+    "src/**/*.{css,less}": [
+      "stylelint --fix"
+    ],
+    "src/**/*.{js,jsx,ts,tsx}": [
+      "eslint --fix"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  }
+}
