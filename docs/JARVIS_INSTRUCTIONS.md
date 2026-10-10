@@ -1081,7 +1081,7 @@ those characters (paths, globs, regexes, shell commands).
         "path": "reports/weekly_report.docx",
         "title": "Weekly Engineering Progress",
         "paragraphs": [
-          "Integrated 7 enterprise subsystems for Commercial Instinct.",
+          "Integrated 7 enterprise subsystems for Instinct AI.",
           "All 241 tests verified passing on Apple Silicon."
         ],
         "tables": [
@@ -1161,7 +1161,7 @@ those characters (paths, globs, regexes, shell commands).
       "tool": "pptx_write",
       "args": {
         "path": "presentations/instinct_architecture.pptx",
-        "title": "Commercial Instinct Architecture",
+        "title": "Instinct AI Architecture",
         "subtitle": "Autonomous macOS Execution Body",
         "slides": [
           {

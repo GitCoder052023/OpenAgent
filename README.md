@@ -1,11 +1,11 @@
-https://github.com/user-attachments/assets/627ceeab-4194-4f79-a7d5-c98e72197949
+<img src="https://raw.githubusercontent.com/browser-use/macos-harness/main/static/banner-ink.svg" alt="OpenAgent" width="100%" />
 
 <div align="center">
 
 # OpenAgent ⌘
 
 **Say "Wake up, Jarvis." Then just talk.**<br/>
-OpenAgent is the local macOS body for [Instinct](https://instinct.com/). It's an always-listening, hands-free assistant that operates your Mac, your browser, the web and your social accounts while you get on with your day.
+OpenAgent is the local macOS body for [Instinct AI](https://instinct.com/). It's an always-listening, hands-free assistant that operates your Mac, your browser, the web and your social accounts while you get on with your day.
 
 [![macOS](https://img.shields.io/badge/platform-macOS%20Darwin-lightgrey.svg?style=flat-square&logo=apple)](https://apple.com)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
@@ -15,22 +15,19 @@ OpenAgent is the local macOS body for [Instinct](https://instinct.com/). It's an
 [![License: MIT](https://img.shields.io/badge/license-MIT-purple.svg?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20beta-orange.svg?style=flat-square)]()
 
-[Quick Start](#quick-start) · [Talking to Jarvis](#talking-to-jarvis) · [Commercial Instinct Integration](COMMERCIAL_INSTINCT_INTEGRATION.md) · [Why OpenAgent](#why-openagent) · [How It Works](#how-it-works) · [Tool Suite](#tool-suite) · [Configuration](#configuration) · [Docs](#documentation)
+[Quick Start](#quick-start) · [Talking to Jarvis](#talking-to-jarvis) · [Why OpenAgent](#why-openagent) · [How It Works](#how-it-works) · [Features](#core-features) · [Tool Suite](#tool-suite) · [Configuration](#configuration) · [Docs](#documentation) · [Contributing](#contributing)
+
+https://github.com/user-attachments/assets/627ceeab-4194-4f79-a7d5-c98e72197949
 
 </div>
 
 ---
 
-OpenAgent connects autonomous AI intelligence to your Mac, operating your local shell, your files, native apps, your authenticated Chrome, self-hosted web scraping, and your social media accounts.
+OpenAgent connects [Instinct AI](https://instinct.com/), a personal AI assistant that lives in your messaging apps, to your Mac and gives it a voice interface modeled on Jarvis. Start it once and say **"Wake up, Jarvis."** From then on, you speak naturally from anywhere in the room, and Instinct AI reasons over each request while OpenAgent carries it out locally: shell commands, code edits, native app control, your authenticated Chrome, self-hosted web scraping, and your social media accounts. Replies come back out loud, and screenshots & results land in your chat.
 
-OpenAgent supports **two distinct brain architectures**:
+The two halves together make up a personal assistant that can act in the cloud and on your desktop.
 
-1. **☁️ Commercial Instinct (WhatsApp Voice Assistant — Primary):**
-   Connects [Instinct](https://instinct.com/) (invite-only cloud personal chief-of-staff) to your Mac over WhatsApp Desktop, giving it an always-listening, hands-free voice interface modeled on Tony Stark's Jarvis ("Wake up, Jarvis"). Fully upgraded with the enterprise Guard Engine, Experience Memory ("错题本"), 10 macOS Daily Life skills, Office Suite automation, and Headless WhatsApp.
-   The complete architecture is documented in [`COMMERCIAL_INSTINCT_INTEGRATION.md`](COMMERCIAL_INSTINCT_INTEGRATION.md).
-2. **🧠 OpenInstinct (Local Sovereign Brain — Offline Fallback):**
-   A 100% private, self-hosted, local terminal assistant modeled after OpenCode and Claude Code. Powered by your local Ollama engine (`qwen2.5-coder:7b` on Apple Silicon), OpenInstinct gives you an ultra-fast terminal REPL with cross-conversation workstream memory and direct sub-50ms execution across all 5 Mac harness engines—completely free, offline, and without WhatsApp or closed-source cloud dependencies.
-   Documented in [`OPENINSTINCT_BRAIN_SPEC.md`](OPENINSTINCT_BRAIN_SPEC.md).
+Don't have Instinct access, or want to use your own model? [OpenHarness](https://github.com/GitCoder052023/OpenHarness) is the execution engine behind OpenAgent, available on its own. Connect Claude, Gemini, Codex, or a local Ollama model to the same Mac tools without the voice and WhatsApp setup.
 
 ```text
 [ Jarvis sleeping ]
@@ -40,11 +37,11 @@ You (making coffee):  "Wake up, Jarvis."
 
 You:       "Run the test suite on OpenAgent. If it's green, post a Threads update
             about what I shipped today."
-             bash               ./test.py                              195 passed
+             bash               ./test.py                              241 passed
              bash               git log --since=midnight --oneline     6 commits
              social_dedup_check threads / post                         not yet posted
              social_post        threads.net (authenticated profile)    published
-Jarvis:    "All 195 tests passed. The update is live on Threads."
+Jarvis:    "All 241 tests passed. The update is live on Threads."
 
 You (from the couch):  "Show me what it looks like."
              social_screenshot  live Chrome session                    delivered to WhatsApp
@@ -137,9 +134,9 @@ sequenceDiagram
 
 ---
 
-## 🚀 Newly Integrated Enterprise Subsystems for Commercial Instinct AI
+## 🚀 Enterprise Subsystems for Instinct AI
 
-To make OpenAgent an enterprise-grade execution body for **Commercial Instinct AI on WhatsApp** ([instinct.com](https://instinct.com)), seven battle-tested subsystems were integrated directly into the core Python architecture. This guarantees that your cloud AI chief-of-staff operates with bank-grade safety, persistent learning, and executive-level software capabilities:
+To make OpenAgent an enterprise-grade execution body for **Instinct AI** ([instinct.com](https://instinct.com)), seven battle-tested subsystems were integrated directly into the core Python architecture. This guarantees that your cloud AI chief-of-staff operates with bank-grade safety, persistent learning, and executive-level software capabilities:
 
 ### 1. Fine-Grained Safety Guard Engine (`src/OpenAgent/guard.py`)
 Cloud AI models executing shell commands on your physical Mac require deterministic safety boundaries. The Guard Engine replaces crude all-or-nothing flags with a capability-based authorization matrix:
@@ -158,7 +155,7 @@ Cloud AI models executing shell commands on your physical Mac require determinis
 * **Resource Matching:** Glob-pattern matching against paths, URLs, and shell commands.
 
 ### 2. Experience Memory & Mistake Notebook ("错题本") (`src/OpenAgent/experience.py`)
-Commercial Instinct sessions can reset context or suffer attention drift over weeks. The Experience Engine provides persistent local learning:
+Instinct sessions can reset context or suffer attention drift over weeks. The Experience Engine provides persistent local learning:
 * **Structured Correction Capture:** Captures `question`, `wrong_action`, `correction`, and `derived_rule`, categorized into `Fact`, `Style`, `Format`, or `Scope`.
 * **Zero Repeat Errors:** Every correction is saved to `.openagent/experience/experiences.jsonl`. When Instinct starts a new task, matching rules are injected or queried via `active_rules`, ensuring your personal preferences persist permanently across machine reboots.
 
@@ -188,7 +185,7 @@ While OpenAgent controls WhatsApp Desktop via Accessibility APIs for primary for
 * List chats and contacts via `wacli_chats`.
 
 ### 6. Universal Model Context Protocol (MCP) Client (`src/OpenAgent/mcp_adapter.py`)
-Commercial Instinct is not restricted to hardcoded tools. Through the dynamic **MCP Client**:
+Instinct AI is not restricted to hardcoded tools. Through the dynamic **MCP Client**:
 * Declare any MCP-compliant server (PostgreSQL, GitHub, Slack, Linear, Memory, Supabase) in `.openagent/mcp.json`.
 * Supports both **Stdio** subprocesses and **StreamableHTTP / SSE** remote endpoints.
 * Tools are discovered dynamically via `mcp_tools` and executed via `mcp_call`.
@@ -243,16 +240,16 @@ cd OpenAgent
 
 ```bash
 # Common launch commands:
-./boot.py                               # Interactive boot: choose Instinct (WhatsApp, default) or OpenInstinct (local)
-./boot.py --brain openinstinct          # Local sovereign brain (Ollama + terminal REPL, 100% private)
-./boot.py --brain instinct --voice      # Commercial Instinct voice mode ("Wake up Jarvis")
-./boot.py --brain instinct              # Push-to-talk mode over WhatsApp (hold F8 to speak)
-./boot.py --doctor                      # Run preflight health check without starting agent
-./boot.py --start-firecrawl             # Auto-spinup Firecrawl Docker scraper engine
-./boot.py --start-chrome                # Auto-launch Chrome with remote debugging on port 9222
-./calibrate.py --dump                   # Dump sanitized AX UI tree for deep debugging
-./test.py --unit                        # Run only unit test suite
-./test.py --harness                     # Test live Bun IPC harness
+./boot.py --voice --send-mode audio  # Recommended: hands-free wake word ("Wake up Jarvis")
+./boot.py                           # Push-to-talk mode (hold F8 to speak)
+./boot.py --doctor                  # Run preflight health check without starting agent
+./boot.py --voice --send-mode text  # Wake-word mode with local Whisper STT transcription
+./boot.py --start-firecrawl         # Auto-spinup Firecrawl Docker scraper engine
+./boot.py --start-chrome            # Auto-launch Chrome with remote debugging on port 9222
+./calibrate.py --dump               # Dump sanitized AX UI tree for deep debugging
+./test.py --unit                    # Run only unit test suite
+./test.py --harness                 # Test live Bun IPC harness
+./test.py                           # Comprehensive system test runner
 ```
 
 
@@ -286,51 +283,6 @@ Instinct will recognize the `JARVIS_CALL` protocol and begin executing tasks on 
 ```
 
 **Push-to-talk.** Start with `./boot.py` (or `./start.sh`). Hold `F8`, speak, then release to send. Holding `F8` during a reply cuts the reply short. Press `Esc` to cancel or exit.
-
-## Dual Brain Architecture: OpenInstinct vs. Commercial Instinct
-
-OpenAgent gives you complete freedom of intelligence:
-
-| Feature | OpenInstinct (Local Sovereign Brain) | Commercial Instinct (WhatsApp Cloud) |
-| :--- | :--- | :--- |
-| **Model** | Local Ollama (`qwen2.5-coder:7b`) | Closed-source cloud model |
-| **Interface** | Interactive Terminal REPL (like OpenCode / Claude Code) | Hands-free voice / WhatsApp notes |
-| **Transport** | Direct local IPC (<50ms latency) | WhatsApp Desktop Accessibility scraping |
-| **Privacy** | 100% offline, zero cloud telemetry, zero API costs | Cloud-hosted by Spear Street Technology |
-| **Hardware Overhead** | ~4.7 GB VRAM on Apple Silicon (fits safely on 16GB Macs) | Offloaded to cloud |
-| **Setup** | Zero configuration (requires `ollama`) | Requires WhatsApp Desktop & UI calibration |
-
-### Using OpenInstinct in the Terminal
-
-Start the OpenInstinct brain:
-```bash
-./boot.py --brain openinstinct
-```
-
-You are greeted with a high-speed, interactive terminal REPL:
-* **Natural Chief-of-Staff Dialogue:** Native Jarvis persona with commercial Instinct's signature tone: sharp, decisive, dry butler wit, calling you "sir", casual lowercase, never sycophantic.
-* **Direct Mac Execution:** Autonomously executes shell commands, code edits, clicks, and browser tasks with real-time receipts.
-* **Live Visual Feedback:** Animated braille spinners (`⠋ Thinking...`) with real-time execution timers and tool badges.
-* **3-Tier Persistent Memory:** Automatically tracks your profile and active workstreams in `~/.openagent/memory.json` across sessions.
-* **Built-in Slash Commands:**
-  * `/read <path>` — Inspect a file or directory on your Mac and synthesize its contents
-  * `/help` — View available commands
-  * `/workstreams` — Inspect active project goals and pending steps
-  * `/profile` — View persistent facts about you and your preferences
-  * `/tools` — List all 20+ registered local execution tools
-  * `/doctor` — Audit local subsystem connectivity (Ollama, Bun, Mac, Chrome)
-  * `/clear` — Reset conversation context while preserving persistent memory
-  * `/exit` — Save state and quit
-
-#### Future-Proof Model Configuration
-OpenInstinct connects to any local or remote OpenAI-compatible / Ollama endpoint via `.env`:
-```bash
-# In your .env file:
-OPENINSTINCT_MODEL=qwen2.5-coder:7b     # Swap to qwen2.5-coder:14b, llama3.1, or any future model
-OPENINSTINCT_OLLAMA_URL=http://localhost:11434  # Point to localhost or a remote home GPU server
-```
-
-For the deep architectural feasibility analysis and integration roadmap, see [`OPENINSTINCT_BRAIN_SPEC.md`](OPENINSTINCT_BRAIN_SPEC.md).
 
 ## Tool Suite
 
@@ -512,6 +464,16 @@ OpenAgent is configured via `.env` in the project root:
 | `LOCOAGENT_TIMEOUT` | `120.0` | Timeout in seconds for social automation commands |
 | `BRIDGE_LOG_FILE` | `~/Library/Logs/OpenAgent/bridge.jsonl` | Diagnostic JSONL event log path |
 
+## Offline Terminal Mode (Experimental)
+
+For private, offline terminal workflows without WhatsApp or cloud dependencies, OpenAgent includes an experimental local fallback powered by local Ollama models (`qwen2.5-coder:7b`):
+
+```bash
+./boot.py --brain openinstinct
+```
+
+> ⚠️ **Note:** OpenInstinct is in early experimental development. For architectural notes and feasibility research, see [`OPENINSTINCT_BRAIN_SPEC.md`](OPENINSTINCT_BRAIN_SPEC.md).
+
 ## Testing & Diagnostics
 
 Run the comprehensive pytest suite:
@@ -530,14 +492,15 @@ Stream live runtime logs:
 
 ```bash
 tail -f ~/Library/Logs/OpenAgent/bridge.jsonl
-
 ```
 
 For advanced Accessibility tree inspection and calibration, see [`docs/CALIBRATION.md`](docs/CALIBRATION.md).
 
 ## Documentation
 
-- [Setup Prompt & Tool Instructions](docs/JARVIS_INSTRUCTIONS.md) — Initialization block to connect Instinct. *(Note: Author's personal operational configuration — edit according to your own name, handles, and requirements.)*
+- [Setup Prompt & Tool Instructions](docs/JARVIS_INSTRUCTIONS.md) — Initialization block to connect Instinct AI. *(Note: Author's personal operational configuration — edit according to your own name, handles, and requirements.)*
+- [Instinct AI Integration Specification](COMMERCIAL_INSTINCT_INTEGRATION.md) — Deep architectural specification of the 7 enterprise subsystems.
+- [Offline Terminal Mode Spec (OpenInstinct)](OPENINSTINCT_BRAIN_SPEC.md) — Architectural notes and feasibility analysis for local offline models.
 - [Social Media Automation Guide](docs/SOCIAL_MEDIA_AUTOMATION.md) — Architecture, platform ports, and operational guide for Threads & Reddit.
 - [Accessibility & Calibration Guide](docs/CALIBRATION.md) — Deep calibration for AX trees, audio routing, and debug states.
 - [Security Policy](SECURITY.md) — Security model, threat boundaries, and vulnerability reporting.
