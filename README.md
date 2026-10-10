@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/browser-use/macos-harness/main/static/banner-ink.svg" alt="OpenAgent" width="100%" />
+https://github.com/user-attachments/assets/627ceeab-4194-4f79-a7d5-c98e72197949
 
 <div align="center">
 
@@ -16,8 +16,6 @@ OpenAgent is the local macOS body for [Instinct AI](https://instinct.com/). It's
 [![Status](https://img.shields.io/badge/status-active%20beta-orange.svg?style=flat-square)]()
 
 [Quick Start](#quick-start) · [Talking to Jarvis](#talking-to-jarvis) · [Why OpenAgent](#why-openagent) · [How It Works](#how-it-works) · [Features](#core-features) · [Tool Suite](#tool-suite) · [Configuration](#configuration) · [Docs](#documentation) · [Contributing](#contributing)
-
-https://github.com/user-attachments/assets/627ceeab-4194-4f79-a7d5-c98e72197949
 
 </div>
 
