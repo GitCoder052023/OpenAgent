@@ -180,7 +180,7 @@ cd OpenAgent
 
 ```bash
 # Common launch commands:
-./boot.py                               # Interactive boot: choose OpenInstinct (local) or Instinct (WhatsApp)
+./boot.py                               # Interactive boot: choose Instinct (WhatsApp, default) or OpenInstinct (local)
 ./boot.py --brain openinstinct          # Local sovereign brain (Ollama + terminal REPL, 100% private)
 ./boot.py --brain instinct --voice      # Commercial Instinct voice mode ("Wake up Jarvis")
 ./boot.py --brain instinct              # Push-to-talk mode over WhatsApp (hold F8 to speak)

@@ -710,7 +710,7 @@ def parse_args():
     )
     # OpenAgent Subcommand
     parser.add_argument("command", nargs="?", default="run", choices=["run", "inspect", "speak", "openinstinct"], help="Action: 'run' (default bridge), 'openinstinct' (terminal brain), 'inspect' (AX tree), or 'speak' (TTS)")
-    parser.add_argument("--brain", choices=["instinct", "openinstinct"], default=None, help="Brain engine to use: 'openinstinct' (local terminal brain via Ollama) or 'instinct' (WhatsApp Desktop commercial Instinct)")
+    parser.add_argument("--brain", choices=["instinct", "openinstinct"], default=None, help="Brain engine to use: 'instinct' (WhatsApp Desktop commercial Instinct, default) or 'openinstinct' (local terminal brain via Ollama)")
     parser.add_argument("--text", default="", help="Text to speak (for 'speak' command)")
 
     # OpenAgent Pass-Through Flags
@@ -751,16 +751,16 @@ def main():
             print(f"\n{Style.BOLD}{Style.CYAN}==============================================================================")
             print("                      🧠 CHOOSE YOUR BRAIN ENGINE                             ")
             print(f"=============================================================================={Style.RESET}")
-            print(f"  {Style.BOLD}[1] OpenInstinct{Style.RESET}   → Local sovereign brain (Ollama, interactive terminal REPL, 100% private) [Default]")
-            print(f"  {Style.BOLD}[2] Instinct{Style.RESET}       → Commercial cloud Instinct (WhatsApp Desktop bridge & voice)")
+            print(f"  {Style.BOLD}[1] Instinct{Style.RESET}       → Commercial cloud Instinct (WhatsApp Desktop bridge & voice) [Default]")
+            print(f"  {Style.BOLD}[2] OpenInstinct{Style.RESET}   → Local sovereign brain (Ollama, interactive terminal REPL, 100% private)")
             try:
                 choice = input(f"\n{Style.BOLD}Select brain engine [1/2] (default: 1): {Style.RESET}").strip()
-                brain = "instinct" if choice == "2" else "openinstinct"
+                brain = "openinstinct" if choice == "2" else "instinct"
             except (KeyboardInterrupt, EOFError):
                 print("\nExiting...")
                 sys.exit(0)
         else:
-            brain = "openinstinct"
+            brain = "instinct"
 
     # Display banner once inside the bootstrapped environment
     log_banner()
