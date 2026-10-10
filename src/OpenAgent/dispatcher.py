@@ -37,10 +37,61 @@ except ImportError:
     LocoAdapter = None  # type: ignore[assignment,misc]
     LocoError = Exception  # type: ignore[assignment,misc]
 
+try:
+    from .guard import get_default_guard, EFFECT_ALLOW, EFFECT_ASK, EFFECT_DENY
+except ImportError:
+    get_default_guard = None
+    EFFECT_ALLOW, EFFECT_ASK, EFFECT_DENY = "allow", "ask", "deny"
+
+try:
+    from .audit import log_event as log_audit_event, get_recent_events as get_recent_audit_events
+except ImportError:
+    def log_audit_event(*args, **kwargs):  # type: ignore
+        pass
+    def get_recent_audit_events(*args, **kwargs):  # type: ignore
+        return []
+
+try:
+    from .skills_adapter import get_default_skills_adapter
+except ImportError:
+    get_default_skills_adapter = None
+
+try:
+    from .office_adapter import get_default_office_adapter
+except ImportError:
+    get_default_office_adapter = None
+
+try:
+    from .wacli_adapter import get_default_wacli_adapter
+except ImportError:
+    get_default_wacli_adapter = None
+
+try:
+    from .ocr_adapter import get_default_ocr_adapter
+except ImportError:
+    get_default_ocr_adapter = None
+
+try:
+    from .mcp_adapter import get_default_mcp_adapter
+except ImportError:
+    get_default_mcp_adapter = None
+
+try:
+    from .experience import get_default_experience
+except ImportError:
+    get_default_experience = None
+
 _DEFAULT_MAC_ADAPTER: Optional[Any] = None
 _DEFAULT_BROWSER_ADAPTER: Optional[Any] = None
 _DEFAULT_FIRECRAWL_ADAPTER: Optional[Any] = None
 _DEFAULT_LOCO_ADAPTER: Optional[Any] = None
+_DEFAULT_SKILLS_ADAPTER: Optional[Any] = None
+_DEFAULT_OFFICE_ADAPTER: Optional[Any] = None
+_DEFAULT_WACLI_ADAPTER: Optional[Any] = None
+_DEFAULT_OCR_ADAPTER: Optional[Any] = None
+_DEFAULT_MCP_ADAPTER: Optional[Any] = None
+_DEFAULT_GUARD: Optional[Any] = None
+_DEFAULT_EXPERIENCE: Optional[Any] = None
 
 
 def get_default_mac_adapter() -> Optional[Any]:
@@ -81,6 +132,76 @@ def get_default_loco_adapter() -> Optional[Any]:
         except Exception as exc:
             logger.warning("Could not initialize default LocoAdapter: %s", exc)
     return _DEFAULT_LOCO_ADAPTER
+
+
+def get_default_skills() -> Optional[Any]:
+    global _DEFAULT_SKILLS_ADAPTER
+    if _DEFAULT_SKILLS_ADAPTER is None and get_default_skills_adapter is not None:
+        try:
+            _DEFAULT_SKILLS_ADAPTER = get_default_skills_adapter()
+        except Exception as exc:
+            logger.warning("Could not initialize default SkillsAdapter: %s", exc)
+    return _DEFAULT_SKILLS_ADAPTER
+
+
+def get_default_office() -> Optional[Any]:
+    global _DEFAULT_OFFICE_ADAPTER
+    if _DEFAULT_OFFICE_ADAPTER is None and get_default_office_adapter is not None:
+        try:
+            _DEFAULT_OFFICE_ADAPTER = get_default_office_adapter()
+        except Exception as exc:
+            logger.warning("Could not initialize default OfficeAdapter: %s", exc)
+    return _DEFAULT_OFFICE_ADAPTER
+
+
+def get_default_wacli() -> Optional[Any]:
+    global _DEFAULT_WACLI_ADAPTER
+    if _DEFAULT_WACLI_ADAPTER is None and get_default_wacli_adapter is not None:
+        try:
+            _DEFAULT_WACLI_ADAPTER = get_default_wacli_adapter()
+        except Exception as exc:
+            logger.warning("Could not initialize default WacliAdapter: %s", exc)
+    return _DEFAULT_WACLI_ADAPTER
+
+
+def get_default_ocr() -> Optional[Any]:
+    global _DEFAULT_OCR_ADAPTER
+    if _DEFAULT_OCR_ADAPTER is None and get_default_ocr_adapter is not None:
+        try:
+            _DEFAULT_OCR_ADAPTER = get_default_ocr_adapter()
+        except Exception as exc:
+            logger.warning("Could not initialize default OCRAdapter: %s", exc)
+    return _DEFAULT_OCR_ADAPTER
+
+
+def get_default_mcp() -> Optional[Any]:
+    global _DEFAULT_MCP_ADAPTER
+    if _DEFAULT_MCP_ADAPTER is None and get_default_mcp_adapter is not None:
+        try:
+            _DEFAULT_MCP_ADAPTER = get_default_mcp_adapter()
+        except Exception as exc:
+            logger.warning("Could not initialize default McpAdapter: %s", exc)
+    return _DEFAULT_MCP_ADAPTER
+
+
+def get_guard() -> Optional[Any]:
+    global _DEFAULT_GUARD
+    if _DEFAULT_GUARD is None and get_default_guard is not None:
+        try:
+            _DEFAULT_GUARD = get_default_guard()
+        except Exception as exc:
+            logger.warning("Could not initialize default GuardEngine: %s", exc)
+    return _DEFAULT_GUARD
+
+
+def get_experience() -> Optional[Any]:
+    global _DEFAULT_EXPERIENCE
+    if _DEFAULT_EXPERIENCE is None and get_default_experience is not None:
+        try:
+            _DEFAULT_EXPERIENCE = get_default_experience()
+        except Exception as exc:
+            logger.warning("Could not initialize default ExperienceEngine: %s", exc)
+    return _DEFAULT_EXPERIENCE
 
 
 logger = logging.getLogger("openagent.dispatcher")
@@ -373,11 +494,19 @@ def execute_tool_call(
     browser_adapter: Optional[Any] = None,
     firecrawl_adapter: Optional[Any] = None,
     loco_adapter: Optional[Any] = None,
+    skills_adapter: Optional[Any] = None,
+    office_adapter: Optional[Any] = None,
+    wacli_adapter: Optional[Any] = None,
+    ocr_adapter: Optional[Any] = None,
+    mcp_adapter: Optional[Any] = None,
+    guard: Optional[Any] = None,
+    experience: Optional[Any] = None,
 ) -> Dict[str, Any]:
-    """Execute a parsed tool call using the headless harness, native macOS adapter, browser adapter, Firecrawl, or LocoAgent.
+    """Execute a parsed tool call using the headless harness, native macOS adapter,
+    browser adapter, Firecrawl, LocoAgent, Skills, Office, OCR, Wacli, or MCP.
 
     Returns a standardized dictionary:
-    {"status": "ok" | "error", "tool": name, "result": ..., "error": ...}
+    {"status": "ok" | "error" | "ask", "tool": name, "result": ..., "error": ...}
     """
     tool = str(call.get("tool", "")).strip().lower()
     args = call.get("args", {})
@@ -401,6 +530,101 @@ def execute_tool_call(
 
     if loco_adapter is None:
         loco_adapter = get_default_loco_adapter()
+
+    if skills_adapter is None:
+        skills_adapter = get_default_skills()
+
+    if office_adapter is None:
+        office_adapter = get_default_office()
+
+    if wacli_adapter is None:
+        wacli_adapter = get_default_wacli()
+
+    if ocr_adapter is None:
+        ocr_adapter = get_default_ocr()
+
+    if mcp_adapter is None:
+        mcp_adapter = get_default_mcp()
+
+    if guard is None:
+        guard = get_guard()
+
+    if experience is None:
+        experience = get_experience()
+
+    # --- Approval confirmation keywords ---
+    if tool in ("confirm", "approve", "confirm_action", "yes"):
+        token = args.get("token") or args.get("code") or args.get("id") or "CONFIRM"
+        pending = guard.approve_pending(str(token)) if guard else None
+        if pending:
+            # Re-execute the approved pending tool call with approval bypass
+            res = execute_tool_call(
+                harness=harness,
+                call={"tool": pending.tool, "args": pending.args},
+                mac_adapter=mac_adapter,
+                browser_adapter=browser_adapter,
+                firecrawl_adapter=firecrawl_adapter,
+                loco_adapter=loco_adapter,
+                skills_adapter=skills_adapter,
+                office_adapter=office_adapter,
+                wacli_adapter=wacli_adapter,
+                ocr_adapter=ocr_adapter,
+                mcp_adapter=mcp_adapter,
+                guard=None,  # Bypass guard for approved execution
+                experience=experience,
+            )
+            return {"status": "ok", "tool": "confirm", "result": {"approved_action": pending.tool, "execution_result": res}}
+        return {"status": "error", "tool": "confirm", "error": f"No pending action found matching token '{token}'."}
+
+    elif tool in ("cancel", "reject", "cancel_action", "deny"):
+        token = args.get("token") or args.get("code") or args.get("id") or "CANCEL"
+        cancelled = guard.cancel_pending(str(token)) if guard else False
+        return {"status": "ok", "tool": "cancel", "result": {"cancelled": cancelled, "message": "Pending action cancelled."}}
+
+    # --- Safety Guard Policy Evaluation ---
+    if guard is not None:
+        eval_res = guard.evaluate(tool, args, subject="instinct")
+        if eval_res.effect == EFFECT_DENY:
+            log_audit_event(
+                event_type="tool_execution",
+                tool=tool,
+                arguments_length=len(str(args)),
+                outcome="denied",
+                duration_ms=0.0,
+                effect=EFFECT_DENY,
+                rule=eval_res.rule_name,
+                reason=eval_res.reason,
+                error=eval_res.message,
+            )
+            return {
+                "status": "error",
+                "tool": tool,
+                "error": eval_res.message,
+                "blocked": True,
+                "rule": eval_res.rule_name,
+            }
+        elif eval_res.effect == EFFECT_ASK:
+            log_audit_event(
+                event_type="tool_execution",
+                tool=tool,
+                arguments_length=len(str(args)),
+                outcome="pending_approval",
+                duration_ms=0.0,
+                effect=EFFECT_ASK,
+                rule=eval_res.rule_name,
+                reason=eval_res.reason,
+            )
+            return {
+                "status": "ask",
+                "tool": tool,
+                "token": eval_res.token,
+                "message": eval_res.message,
+                "requires_approval": True,
+                "rule": eval_res.rule_name,
+            }
+
+    import time
+    t0 = time.time()
 
     try:
         # --- Native macOS Computer-Use Primitives (macos-harness) ---
@@ -1097,14 +1321,260 @@ def execute_tool_call(
             res = loco_adapter.exec_agent_browser(platform=platform, command=str(cmd), timeout=timeout)
             return {"status": "ok", "tool": tool, "result": res}
 
+        # --- Native macOS & Daily Life Skills (openagent/skills) ---
+        elif tool in ("apple_reminders", "reminders", "remindctl"):
+            if skills_adapter is None:
+                raise RuntimeError("Skills adapter is not available")
+            res = skills_adapter.reminders(action=args.get("action", "list"), **args)
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("imsg", "imessage", "sms"):
+            if skills_adapter is None:
+                raise RuntimeError("Skills adapter is not available")
+            res = skills_adapter.imessage(action=args.get("action", "send"), **args)
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("things_mac", "things", "things3"):
+            if skills_adapter is None:
+                raise RuntimeError("Skills adapter is not available")
+            res = skills_adapter.things3(action=args.get("action", "today"), **args)
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("spotify", "spogo", "spotify_player"):
+            if skills_adapter is None:
+                raise RuntimeError("Skills adapter is not available")
+            res = skills_adapter.spotify(action=args.get("action", "status"), **args)
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("1password", "onepassword", "op"):
+            if skills_adapter is None:
+                raise RuntimeError("Skills adapter is not available")
+            res = skills_adapter.onepassword(action=args.get("action", "get"), **args)
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("peekaboo",):
+            if skills_adapter is None:
+                raise RuntimeError("Skills adapter is not available")
+            res = skills_adapter.peekaboo(action=args.get("action", "image"), **args)
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("apple_notes", "notes"):
+            if skills_adapter is None:
+                raise RuntimeError("Skills adapter is not available")
+            res = skills_adapter.apple_notes(action=args.get("action", "create"), **args)
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("skills_list", "list_skills", "skills_catalog"):
+            if skills_adapter is None:
+                raise RuntimeError("Skills adapter is not available")
+            res = skills_adapter.list_skills()
+            return {"status": "ok", "tool": tool, "result": {"skills": res, "total": len(res)}}
+
+        # --- Enterprise Office Automation (Word, Excel, PowerPoint) ---
+        elif tool in ("word_read", "read_word", "docx_read"):
+            if office_adapter is None:
+                raise RuntimeError("Office adapter is not available")
+            res = office_adapter.word_read(
+                path=args.get("path") or args.get("file_path", ""),
+                max_paragraphs=int(args.get("max_paragraphs", 50)),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("word_write", "write_word", "docx_write"):
+            if office_adapter is None:
+                raise RuntimeError("Office adapter is not available")
+            res = office_adapter.word_write(
+                path=args.get("path") or args.get("file_path", "document.docx"),
+                title=args.get("title", "Document"),
+                paragraphs=args.get("paragraphs", []),
+                tables=args.get("tables"),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("excel_read", "read_excel", "xlsx_read"):
+            if office_adapter is None:
+                raise RuntimeError("Office adapter is not available")
+            res = office_adapter.excel_read(
+                path=args.get("path") or args.get("file_path", ""),
+                sheet_name=args.get("sheet_name"),
+                max_rows=int(args.get("max_rows", 50)),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("excel_write", "write_excel", "xlsx_write"):
+            if office_adapter is None:
+                raise RuntimeError("Office adapter is not available")
+            res = office_adapter.excel_write(
+                path=args.get("path") or args.get("file_path", "spreadsheet.xlsx"),
+                sheet_name=args.get("sheet_name", "Sheet1"),
+                headers=args.get("headers"),
+                rows=args.get("rows"),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("pptx_read", "read_pptx"):
+            if office_adapter is None:
+                raise RuntimeError("Office adapter is not available")
+            res = office_adapter.pptx_read(
+                path=args.get("path") or args.get("file_path", ""),
+                max_slides=int(args.get("max_slides", 25)),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("pptx_write", "write_pptx"):
+            if office_adapter is None:
+                raise RuntimeError("Office adapter is not available")
+            res = office_adapter.pptx_write(
+                path=args.get("path") or args.get("file_path", "presentation.pptx"),
+                title=args.get("title", "Presentation"),
+                slides=args.get("slides", []),
+                subtitle=args.get("subtitle", "Prepared by OpenAgent"),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("pptx_template_fill", "fill_pptx"):
+            if office_adapter is None:
+                raise RuntimeError("Office adapter is not available")
+            res = office_adapter.pptx_template_fill(
+                template_path=args.get("template_path") or args.get("template", ""),
+                output_path=args.get("output_path") or args.get("output", "filled_presentation.pptx"),
+                replacements=args.get("replacements", {}),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        # --- Headless WhatsApp CLI (wacli) ---
+        elif tool in ("wacli_send", "whatsapp_send"):
+            if wacli_adapter is None:
+                raise RuntimeError("Wacli adapter is not available")
+            res = wacli_adapter.send(
+                to=args.get("to") or args.get("recipient", ""),
+                message=args.get("message") or args.get("text", ""),
+                file_path=args.get("file") or args.get("file_path"),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("wacli_search", "whatsapp_search"):
+            if wacli_adapter is None:
+                raise RuntimeError("Wacli adapter is not available")
+            res = wacli_adapter.search(
+                query=args.get("query") or args.get("q", ""),
+                chat=args.get("chat"),
+                limit=int(args.get("limit", 20)),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("wacli_chats", "whatsapp_chats"):
+            if wacli_adapter is None:
+                raise RuntimeError("Wacli adapter is not available")
+            res = wacli_adapter.chats(
+                query=args.get("query"),
+                limit=int(args.get("limit", 20)),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("wacli_status", "wacli_doctor"):
+            if wacli_adapter is None:
+                raise RuntimeError("Wacli adapter is not available")
+            res = wacli_adapter.status()
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        # --- Offline OCR & Document Text Extraction ---
+        elif tool in ("ocr_pdf", "pdf_ocr"):
+            if ocr_adapter is None:
+                raise RuntimeError("OCR adapter is not available")
+            res = ocr_adapter.ocr_pdf(
+                path=args.get("path") or args.get("file_path", ""),
+                max_pages=int(args.get("max_pages", 10)),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("ocr_image", "image_ocr"):
+            if ocr_adapter is None:
+                raise RuntimeError("OCR adapter is not available")
+            res = ocr_adapter.ocr_image(path=args.get("path") or args.get("file_path", ""))
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("extract_document", "document_read", "ocr_document"):
+            if ocr_adapter is None:
+                raise RuntimeError("OCR adapter is not available")
+            res = ocr_adapter.extract_document_text(path=args.get("path") or args.get("file_path", ""))
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        # --- Experience & Mistake Notebook ('错题本') ---
+        elif tool in ("record_experience", "record_mistake", "learn_rule"):
+            if experience is None:
+                raise RuntimeError("Experience engine is not available")
+            exp = experience.record(
+                question=args.get("question", ""),
+                wrong_action=args.get("wrong_action") or args.get("mistake", ""),
+                correction=args.get("correction") or args.get("fix", ""),
+                rule=args.get("rule", ""),
+                category=args.get("category", "Fact"),
+            )
+            return {"status": "ok", "tool": tool, "result": {"experience_id": exp.id, "rule": exp.rule}}
+
+        elif tool in ("search_experiences", "get_experiences"):
+            if experience is None:
+                raise RuntimeError("Experience engine is not available")
+            exps = experience.search(query=args.get("query", ""), limit=int(args.get("limit", 5)))
+            return {"status": "ok", "tool": tool, "result": {"results": [e.__dict__ for e in exps], "total": len(exps)}}
+
+        elif tool in ("active_rules", "get_rules"):
+            if experience is None:
+                raise RuntimeError("Experience engine is not available")
+            rules = experience.get_active_rules(context_query=args.get("query", ""))
+            return {"status": "ok", "tool": tool, "result": {"rules": rules, "count": len(rules)}}
+
+        # --- Universal Model Context Protocol (MCP) ---
+        elif tool in ("mcp_call", "mcp_tool"):
+            if mcp_adapter is None:
+                raise RuntimeError("MCP adapter is not available")
+            res = mcp_adapter.call_tool(
+                server_name=args.get("server", ""),
+                tool_name=args.get("tool") or args.get("name", ""),
+                arguments=args.get("args") or args.get("arguments", {}),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("mcp_list", "mcp_tools"):
+            if mcp_adapter is None:
+                raise RuntimeError("MCP adapter is not available")
+            tools_list = mcp_adapter.list_all_tools()
+            return {"status": "ok", "tool": tool, "result": {"mcp_tools": tools_list, "total": len(tools_list)}}
+
+        # --- Audit Activity Trail & Guard Policies ---
+        elif tool in ("audit_events", "audit_log", "activity_log"):
+            events = get_recent_audit_events(limit=int(args.get("limit", 20)))
+            return {"status": "ok", "tool": tool, "result": {"events": events, "count": len(events)}}
+
+        elif tool in ("guard_rules", "list_policies"):
+            rules = guard.list_rules() if guard else []
+            return {"status": "ok", "tool": tool, "result": {"rules": rules, "count": len(rules)}}
+
         else:
             raise ValueError(f"Unknown harness tool: '{tool}'")
 
     except (HarnessError, FirecrawlError, LocoError) as err:
         logger.warning("Execution error for tool '%s': %s", tool, err)
+        log_audit_event(
+            event_type="tool_execution",
+            tool=tool,
+            arguments_length=len(str(args)),
+            outcome="error",
+            duration_ms=(time.time() - t0) * 1000,
+            error=str(err),
+        )
         return {"status": "error", "tool": tool, "error": str(err)}
     except Exception as exc:
         logger.exception("Unexpected execution error for tool '%s': %s", tool, exc)
+        log_audit_event(
+            event_type="tool_execution",
+            tool=tool,
+            arguments_length=len(str(args)),
+            outcome="error",
+            duration_ms=(time.time() - t0) * 1000,
+            error=str(exc),
+        )
         return {"status": "error", "tool": tool, "error": str(exc)}
 
 
@@ -1115,6 +1585,9 @@ def format_tool_response(response: Dict[str, Any], max_length: int = MAX_WHATSAP
     status = response.get("status", "unknown")
 
     header = prefix_header or f"[Jarvis Tool Response: {tool} | status: {status}]"
+
+    if status == "ask":
+        return response.get("message", "⚠️ [Jarvis Guard] Action requires user confirmation.")
 
     if status == "error":
         error_msg = response.get("error", "Unknown error")
@@ -1421,6 +1894,28 @@ def format_tool_response(response: Dict[str, Any], max_length: int = MAX_WHATSAP
 
     elif tool in ("social_exec", "social_ab"):
         body = f"Agent-Browser Exec [{result.get('platform')}@CDP {result.get('cdp_port')}]:\n{result.get('output', '')}"
+
+    elif tool in ("word_write", "excel_write", "pptx_write", "pptx_template_fill"):
+        body = result.get("message", f"Office document created at {result.get('path', '')}")
+
+    elif tool in ("word_read", "excel_read", "pptx_read"):
+        if tool == "word_read":
+            body = f"Word Document ({result.get('total_paragraphs', 0)} paragraphs):\n{result.get('text_summary', '')}"
+        elif tool == "excel_read":
+            body = f"Excel Sheets: {result.get('sheets')}\nHeaders: {result.get('headers')}\nRows: {len(result.get('rows', []))}"
+        else:
+            slides = result.get('slides', [])
+            body = f"PowerPoint Deck ({result.get('total_slides', 0)} slides):\n" + "\n".join(f"- Slide {s.get('slide_number')}: {s.get('title')}" for s in slides[:5])
+
+    elif tool in ("apple_reminders", "reminders", "remindctl", "imsg", "imessage", "things_mac", "things", "things3", "spotify", "spogo", "1password", "op", "peekaboo", "apple_notes", "notes", "wacli_send", "wacli_search", "wacli_chats", "wacli_status"):
+        body = result.get("output") or result.get("stdout") or json.dumps(result, indent=2)
+
+    elif tool in ("ocr_pdf", "ocr_image", "extract_document"):
+        text_preview = result.get("text", "")[:1200]
+        body = f"OCR Extracted Content:\n{text_preview}"
+
+    elif tool in ("record_experience", "learn_rule"):
+        body = f"🧠 Learned Rule Recorded [{result.get('experience_id')}]: \"{result.get('rule')}\""
 
     elif tool in ("system_info", "instructions", "system_prompt", "mac_ax", "ax", "mac_browser", "browser", "mac_doctor", "doctor"):
         body = json.dumps(result, indent=2)

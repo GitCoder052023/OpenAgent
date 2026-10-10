@@ -11,11 +11,11 @@ OpenAgent is the local macOS body for [Instinct](https://instinct.com/). It's an
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
 [![uv](https://img.shields.io/badge/package%20manager-uv-blueviolet.svg?style=flat-square)](https://astral.sh/uv)
 [![Bun](https://img.shields.io/badge/runtime-bun-black.svg?style=flat-square&logo=bun)](https://bun.sh)
-[![Tests](https://img.shields.io/badge/tests-195%20passing-brightgreen.svg?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/tests-241%20passing-brightgreen.svg?style=flat-square)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-purple.svg?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20beta-orange.svg?style=flat-square)]()
 
-[Quick Start](#quick-start) · [Talking to Jarvis](#talking-to-jarvis) · [Why OpenAgent](#why-openagent) · [How It Works](#how-it-works) · [Features](#core-features) · [Tool Suite](#tool-suite) · [Configuration](#configuration) · [Docs](#documentation) · [Contributing](#contributing)
+[Quick Start](#quick-start) · [Talking to Jarvis](#talking-to-jarvis) · [Commercial Instinct Integration](COMMERCIAL_INSTINCT_INTEGRATION.md) · [Why OpenAgent](#why-openagent) · [How It Works](#how-it-works) · [Tool Suite](#tool-suite) · [Configuration](#configuration) · [Docs](#documentation)
 
 https://github.com/user-attachments/assets/627ceeab-4194-4f79-a7d5-c98e72197949
 
@@ -28,14 +28,12 @@ OpenAgent connects autonomous AI intelligence to your Mac, operating your local 
 
 OpenAgent supports **two distinct brain architectures**:
 
-1. **🧠 OpenInstinct (Local Sovereign Brain — Recommended):**
+1. **☁️ Commercial Instinct (WhatsApp Voice Assistant — Primary):**
+   Connects [Instinct](https://instinct.com/) (invite-only cloud personal chief-of-staff) to your Mac over WhatsApp Desktop, giving it an always-listening, hands-free voice interface modeled on Tony Stark's Jarvis ("Wake up, Jarvis"). Fully upgraded with the enterprise Guard Engine, Experience Memory ("错题本"), 10 macOS Daily Life skills, Office Suite automation, Headless WhatsApp, and local RapidOCR.
+   The complete architecture is documented in [`COMMERCIAL_INSTINCT_INTEGRATION.md`](COMMERCIAL_INSTINCT_INTEGRATION.md).
+2. **🧠 OpenInstinct (Local Sovereign Brain — Offline Fallback):**
    A 100% private, self-hosted, local terminal assistant modeled after OpenCode and Claude Code. Powered by your local Ollama engine (`qwen2.5-coder:7b` on Apple Silicon), OpenInstinct gives you an ultra-fast terminal REPL with cross-conversation workstream memory and direct sub-50ms execution across all 5 Mac harness engines—completely free, offline, and without WhatsApp or closed-source cloud dependencies.
-2. **☁️ Commercial Instinct (WhatsApp Voice Assistant):**
-   Connects [Instinct](https://instinct.com/) (invite-only cloud personal assistant) to your Mac over WhatsApp Desktop, giving it an always-listening, hands-free voice interface modeled on Tony Stark's Jarvis ("Wake up, Jarvis").
-
-The complete technical design and feasibility report for the sovereign brain is documented in [`OPENINSTINCT_BRAIN_SPEC.md`](OPENINSTINCT_BRAIN_SPEC.md).
-
-Don't have Instinct access, or want to use your own model? OpenAgent's OpenInstinct brain runs out-of-the-box on your Mac. You can also connect Claude, Gemini, or Ollama standalone via [OpenHarness](https://github.com/GitCoder052023/OpenHarness).
+   Documented in [`OPENINSTINCT_BRAIN_SPEC.md`](OPENINSTINCT_BRAIN_SPEC.md).
 
 ```text
 [ Jarvis sleeping ]
@@ -370,7 +368,57 @@ Operate real social accounts with primary focus on **Threads (`threads.net`) and
 
 </details>
 
-> Full schema specifications and example payloads are available in [`docs/JARVIS_INSTRUCTIONS.md`](docs/JARVIS_INSTRUCTIONS.md).
+<details>
+<summary><b>Native macOS Daily Life Skills Suite</b> (10 tools)</summary>
+
+| Tool | Description | Key Arguments |
+| --- | --- | --- |
+| `apple_reminders` | Create, list, complete, and delete Apple Reminders (synced to iOS) | `action`, `title`, `due`, `list` |
+| `imsg` | Read iMessage conversation threads and send SMS/iMessage from CLI | `action`, `to`, `text`, `limit` |
+| `things_mac` | Query Things 3 Inbox, Today view, search tasks, and add todos | `action`, `title`, `notes`, `when` |
+| `spotify` | Control Spotify music playback, search tracks, and list devices | `action`, `query` |
+| `1password` | Retrieve secrets, logins, and items from 1Password via `op` | `action`, `item`, `reference` |
+| `peekaboo` | Inspect macOS window hierarchies and capture screen elements | `action`, `target`, `out` |
+| `apple_notes` | Create and search Apple Notes via native AppleScript | `action`, `title`, `body` |
+| `camsnap` | Capture live frames and clips from RTSP/ONVIF security cameras | `action`, `camera` |
+| `nano_pdf` | Edit PDF pages using natural language prompts | `action`, `path`, `prompt` |
+| `skills_list` | List all 54 registered agent skills and local installation status | *(none)* |
+
+</details>
+
+<details>
+<summary><b>Enterprise Office Suite Tools</b> (7 tools)</summary>
+
+| Tool | Description | Key Arguments |
+| --- | --- | --- |
+| `word_read` | Read Word `.docx` documents with headings, paragraphs, and tables | `path`, `max_paragraphs` |
+| `word_write` | Generate styled Word `.docx` documents with tables and headers | `path`, `title`, `paragraphs`, `tables` |
+| `excel_read` | Inspect Excel `.xlsx` spreadsheets, sheet names, and table rows | `path`, `sheet_name`, `max_rows` |
+| `excel_write` | Create or update formatted Excel `.xlsx` workbooks | `path`, `sheet_name`, `headers`, `rows` |
+| `pptx_read` | Inspect PowerPoint `.pptx` decks, slide titles, and bullet points | `path`, `max_slides` |
+| `pptx_write` | Generate presentation decks with title and content slides | `path`, `title`, `slides`, `subtitle` |
+| `pptx_template_fill` | Fill template placeholder tags (`{{KEY}}`) in existing decks | `template_path`, `output_path`, `replacements` |
+
+</details>
+
+<details>
+<summary><b>Headless WhatsApp, OCR, Security Guard & Experience Tools</b> (9 tools)</summary>
+
+| Tool | Description | Key Arguments |
+| --- | --- | --- |
+| `wacli_send` | Headless background WhatsApp message or document delivery | `to`, `message`, `file` |
+| `wacli_search` | Search historical WhatsApp messages across chats without GUI | `query`, `chat`, `limit` |
+| `wacli_chats` | List recent WhatsApp conversations and contacts | `query`, `limit` |
+| `ocr_pdf` | 100% offline OCR on scanned PDFs via RapidOCR ONNX + pypdfium2 | `path`, `max_pages` |
+| `ocr_image` | Offline neural OCR on receipts, screenshots, and photos | `path` |
+| `record_experience` | Save human corrections and learned rules ("错题本") permanently | `question`, `wrong_action`, `correction`, `rule` |
+| `search_experiences`| Search learned user rules to prevent repeat mistakes | `query`, `limit` |
+| `guard_rules` | Inspect active safety authorization policies and categories | *(none)* |
+| `audit_events` | Tail recent tool invocations, durations, and guard verdicts | `limit` |
+
+</details>
+
+> Full schema specifications, tool calling envelopes, and architecture blueprints are documented in [`COMMERCIAL_INSTINCT_INTEGRATION.md`](COMMERCIAL_INSTINCT_INTEGRATION.md) and [`docs/JARVIS_INSTRUCTIONS.md`](docs/JARVIS_INSTRUCTIONS.md).
 
 ## Configuration
 
