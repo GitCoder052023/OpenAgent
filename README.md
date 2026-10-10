@@ -245,10 +245,12 @@ Start the OpenInstinct brain:
 ```
 
 You are greeted with a high-speed, interactive terminal REPL:
-* **Natural Chief-of-Staff Dialogue:** Replicates commercial Instinct's signature tone: sharp, decisive, casual lowercase, never sycophantic or padded.
+* **Natural Chief-of-Staff Dialogue:** Native Jarvis persona with commercial Instinct's signature tone: sharp, decisive, dry butler wit, calling you "sir", casual lowercase, never sycophantic.
 * **Direct Mac Execution:** Autonomously executes shell commands, code edits, clicks, and browser tasks with real-time receipts.
-* **3-Tier Persistent Memory:** Automatically tracks your profile and active workstreams in `~/.openagent/openinstinct_memory.json` across sessions.
+* **Live Visual Feedback:** Animated braille spinners (`⠋ Thinking...`) with real-time execution timers and tool badges.
+* **3-Tier Persistent Memory:** Automatically tracks your profile and active workstreams in `~/.openagent/memory.json` across sessions.
 * **Built-in Slash Commands:**
+  * `/read <path>` — Inspect a file or directory on your Mac and synthesize its contents
   * `/help` — View available commands
   * `/workstreams` — Inspect active project goals and pending steps
   * `/profile` — View persistent facts about you and your preferences
@@ -256,6 +258,14 @@ You are greeted with a high-speed, interactive terminal REPL:
   * `/doctor` — Audit local subsystem connectivity (Ollama, Bun, Mac, Chrome)
   * `/clear` — Reset conversation context while preserving persistent memory
   * `/exit` — Save state and quit
+
+#### Future-Proof Model Configuration
+OpenInstinct connects to any local or remote OpenAI-compatible / Ollama endpoint via `.env`:
+```bash
+# In your .env file:
+OPENINSTINCT_MODEL=qwen2.5-coder:7b     # Swap to qwen2.5-coder:14b, llama3.1, or any future model
+OPENINSTINCT_OLLAMA_URL=http://localhost:11434  # Point to localhost or a remote home GPU server
+```
 
 For the deep architectural feasibility analysis and integration roadmap, see [`OPENINSTINCT_BRAIN_SPEC.md`](OPENINSTINCT_BRAIN_SPEC.md).
 
