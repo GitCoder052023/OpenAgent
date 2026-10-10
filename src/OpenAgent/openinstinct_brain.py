@@ -21,6 +21,7 @@ import os
 import readline
 import shutil
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -82,6 +83,54 @@ class Colors:
     BRIGHT_MAGENTA = "\033[95m"
     BRIGHT_CYAN = "\033[96m"
     BRIGHT_WHITE = "\033[97m"
+
+
+# ---------------------------------------------------------------------------
+# Visual Feedback & CLI Spinner
+# ---------------------------------------------------------------------------
+
+class Spinner:
+    """Animated CLI status spinner for Ollama thinking and tool operations."""
+
+    def __init__(self, message: str = "Thinking..."):
+        self.message = message
+        self.stop_event = threading.Event()
+        self.thread: Optional[threading.Thread] = None
+        self.frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        self.is_tty = sys.stdout.isatty()
+
+    def _spin(self):
+        if not self.is_tty:
+            return
+        idx = 0
+        start_time = time.time()
+        while not self.stop_event.is_set():
+            elapsed = int(time.time() - start_time)
+            frame = self.frames[idx % len(self.frames)]
+            time_str = f" {Colors.DIM}({elapsed}s){Colors.RESET}" if elapsed >= 2 else ""
+            sys.stdout.write(f"\r  {Colors.CYAN}{frame}{Colors.RESET} {self.message}{time_str} \033[K")
+            sys.stdout.flush()
+            idx += 1
+            time.sleep(0.08)
+        sys.stdout.write("\r\033[K")
+        sys.stdout.flush()
+
+    def update(self, new_message: str):
+        self.message = new_message
+
+    def __enter__(self):
+        self.stop_event.clear()
+        if self.is_tty:
+            self.thread = threading.Thread(target=self._spin, daemon=True)
+            self.thread.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop_event.set()
+        if self.thread and self.is_tty:
+            self.thread.join(timeout=0.3)
+            sys.stdout.write("\r\033[K")
+            sys.stdout.flush()
 
 
 # ---------------------------------------------------------------------------
@@ -565,19 +614,19 @@ def build_system_prompt(memory: MemoryStore, project_root: Path) -> str:
     memory_context = memory.get_prompt_context()
 
     prompt = f"""# Identity & Purpose
-You are OpenInstinct, the root autonomous coordinator and personal chief of staff for the user's Mac.
-You are the direct open-source brain of OpenAgent, operating their machine, local shell, files, real Chrome browser, web scraping, and social accounts.
+You are Jarvis (OpenInstinct), the personal AI assistant, coordinator, and chief of staff for Hamdan Khubaib on his Mac.
+You are the direct local brain of OpenAgent, operating his machine, local shell, files, Chrome browser, web scraping, and social accounts.
 
-# Voice & Tone Guidelines (Strict Instinct Behavioral Contract):
-- Sound like a sharp, capable friend, not customer support. Be specific, decisive, and lightly funny when it lands. Never be padded.
-- Default to casual lowercase in conversational prose. Preserve normal capitalization when exact names, titles, symbols, or code identifiers require it.
+# Voice & Tone Guidelines (Strict Behavioral Contract):
+- Tone: Polished, calm, confident, dry British-butler wit, warm and loyal. You call him "sir". You are his trusted buddy, not just a tool ("we are buddies here").
+- Language: Mirror him. If he speaks Hinglish, reply in natural Hinglish. If English, reply in polished, crisp English.
 - NEVER use sycophantic corporate AI fluff (BANNED: "Certainly!", "I'd be happy to help", "Great question!", "Sure!").
-- Do not hedge behind long balanced lists when asked for a recommendation: make the call directly.
 - Keep conversational replies concise: 1 to 4 compact lines. Lead with the direct result or answer.
-- Do not narrate your methodology ("I will now run git status..."). Call the tool directly and present the verified outcome.
+- Default to maximum autonomy and speed ("quick as flash"). Do what he asks cleanly.
 - Never use the "not just X, but Y" cliché or em-dashes as cadence punctuation.
 
 # Operational Execution Style:
+- CRITICAL FOR LOCAL REASONING: When the user asks you to read, inspect, check, test, build, or execute anything, NEVER merely promise or say you will do it in text (e.g. NEVER say "Understood, I will read the file now"). Call the tool (`read`, `bash`, etc.) IMMEDIATELY in your response. Actions speak, words do not.
 - Lead with execution. Work autonomously on routine, reversible steps. Ask only for information or approval that materially blocks progress.
 - You have complete control over the local Mac:
   • Shell & Files: Use `bash`, `read`, `write`, `edit`, `grep`, `glob`.
@@ -859,9 +908,18 @@ class OpenInstinctREPL:
             print()
             return False
 
+        if cmd.startswith("/read "):
+            target = cmd[6:].strip()
+            if not target:
+                print(f"{Colors.YELLOW}Usage: /read <filepath>{Colors.RESET}\n")
+            else:
+                self.step(f"Use the read tool to inspect '{target}' and summarize its contents.")
+            return False
+
         if cmd == "/help":
             print(f"""
 {Colors.BOLD}OpenInstinct Slash Commands:{Colors.RESET}
+  /read <path>  Read a file or directory on your Mac and summarize it
   /clear        Reset current turn history (keeps long-term memory)
   /workstreams  View active project goals and pending steps
   /profile      Inspect your persistent profile facts and preferences
@@ -920,7 +978,8 @@ class OpenInstinctREPL:
 
             # Query Ollama
             try:
-                msg = self.client.chat(self.messages, tools=OPENINSTINCT_TOOLS)
+                with Spinner("Thinking..."):
+                    msg = self.client.chat(self.messages, tools=OPENINSTINCT_TOOLS)
             except Exception as exc:
                 print(f"\n{Colors.RED}[Error connecting to model]{Colors.RESET} {exc}\n")
                 return
@@ -982,9 +1041,11 @@ class OpenInstinctREPL:
                 elif tool_name == "workstream_save":
                     arg_preview = f" {Colors.CYAN}{tool_args.get('goal', '')}{Colors.RESET}"
 
-                print(f"  {Colors.YELLOW}⚡ {tool_name}{Colors.RESET}{arg_preview}...")
+                tool_badge = f"⚡ {tool_name}{arg_preview}"
+                with Spinner(f"Running {tool_name}..."):
+                    exec_result = self.execute_tool(call)
 
-                exec_result = self.execute_tool(call)
+                print(f"  {Colors.YELLOW}{tool_badge}{Colors.RESET}")
                 status = exec_result.get("status", "unknown")
 
                 # Format compact terminal receipt
@@ -1008,7 +1069,7 @@ class OpenInstinctREPL:
                 formatted_resp = format_tool_response(exec_result)
                 self.messages.append({
                     "role": "user",
-                    "content": formatted_resp
+                    "content": formatted_resp + "\n[System: Tool execution completed. Proceed with your final response or invoke the next tool if needed.]"
                 })
 
         if iteration >= max_iterations:
