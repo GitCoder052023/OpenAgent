@@ -15,7 +15,7 @@ OpenAgent is the local macOS body for [Instinct AI](https://instinct.com/). It's
 [![License: MIT](https://img.shields.io/badge/license-MIT-purple.svg?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20beta-orange.svg?style=flat-square)]()
 
-[Quick Start](#quick-start) · [Talking to Jarvis](#talking-to-jarvis) · [Why OpenAgent](#why-openagent) · [How It Works](#how-it-works) · [Features](#core-features) · [Tool Suite](#tool-suite) · [Configuration](#configuration) · [Docs](#documentation) · [Contributing](#contributing)
+[Quick Start](#quick-start) · [Talking to Jarvis](#talking-to-jarvis) · [Why OpenAgent](#why-openagent) · [How It Works](#how-it-works) · [Features](#core-features) · [Tool Suite](#tool-suite) · [Philosophy](#-directional-philosophy-the-true-jarvis-vision) · [Docs](#documentation) · [Contributing](#contributing)
 
 </div>
 
@@ -462,15 +462,41 @@ OpenAgent is configured via `.env` in the project root:
 | `LOCOAGENT_TIMEOUT` | `120.0` | Timeout in seconds for social automation commands |
 | `BRIDGE_LOG_FILE` | `~/Library/Logs/OpenAgent/bridge.jsonl` | Diagnostic JSONL event log path |
 
-## Offline Terminal Mode (Experimental)
+## OpenInstinct: The Sovereign Local Brain (Experimental)
 
-For private, offline terminal workflows without WhatsApp or cloud dependencies, OpenAgent includes an experimental local fallback powered by local Ollama models (`qwen2.5-coder:7b`):
+While [Instinct AI](https://instinct.com/) serves as OpenAgent's primary cloud chief-of-staff for always-listening voice notes and mobile WhatsApp interaction, OpenAgent also incorporates **OpenInstinct**—our secondary, experimental, 100% private local brain.
+
+Modeled after autonomous terminal coding environments like OpenCode and Claude Code, OpenInstinct delivers an ultra-fast, local terminal REPL that executes sub-50ms actions across all OpenAgent Mac harness engines without WhatsApp, closed cloud APIs, or external telemetry:
 
 ```bash
+# Launch the local terminal REPL:
 ./boot.py --brain openinstinct
 ```
 
-> ⚠️ **Note:** OpenInstinct is in early experimental development. For architectural notes and feasibility research, see [`OPENINSTINCT_BRAIN_SPEC.md`](OPENINSTINCT_BRAIN_SPEC.md).
+### What OpenInstinct Delivers
+* **100% Offline & Private:** Zero cloud dependencies. Your code, terminal output, and conversation data never leave your local hardware.
+* **Direct Mac Harness Execution:** Seamlessly drives shell commands, file edits, Chrome CDP automation, native window clicks, and web ingestion with live receipts.
+* **Persistent Cross-Session Workstream Memory:** Automatically records your project goals, active tasks, and personal profile facts into `~/.openagent/memory.json` across machine restarts.
+* **Interactive Terminal UX:** Animated braille spinners (`⠋ Thinking...`), real-time execution timing, and colored tool receipts.
+* **Built-in Slash Commands:**
+  * `/read <path>` — Inspect a file or directory on your Mac and synthesize its contents
+  * `/workstreams` — Inspect active project goals, priorities, and pending steps
+  * `/profile` — View persistent facts about you and your preferences
+  * `/tools` — List all registered local execution tools
+  * `/doctor` — Audit local subsystem connectivity (Ollama, Bun, Mac, Chrome)
+  * `/clear` — Reset turn context while preserving persistent memory
+  * `/exit` — Save state and quit
+
+### Connecting Local & Remote Beast Models
+OpenInstinct connects to any local or remote OpenAI-compatible or Ollama endpoint via `.env`:
+
+```bash
+# In your .env file:
+OPENINSTINCT_MODEL=qwen2.5-coder:7b             # Swap to 14b, 32b, deepseek-r1, llama-3.3, or frontier local weights
+OPENINSTINCT_OLLAMA_URL=http://localhost:11434  # Point to localhost or a remote home GPU server
+```
+
+> ⚠️ **Status Note:** OpenInstinct is currently in secondary, experimental status. For deep architectural feasibility analysis and future integration milestones, see [`OPENINSTINCT_BRAIN_SPEC.md`](OPENINSTINCT_BRAIN_SPEC.md).
 
 ## Testing & Diagnostics
 
@@ -506,6 +532,30 @@ For advanced Accessibility tree inspection and calibration, see [`docs/CALIBRATI
 
 ---
 
+## 🧭 Directional Philosophy: The True Jarvis Vision
+
+You might find it absurd, funny, or borderline delusional—but our developmental directional philosophy is unapologetically simple:
+
+> **The vision for OpenAgent is to build a unified, uncompromising infrastructure for a next-generation personal AI agent that is, quite literally, as close to Tony Stark's Jarvis as computationally possible.**
+
+Not a glorified autocomplete, not a fragile browser extension, and not a passive chatbot locked inside a browser tab—but a sovereign, always-operating companion that actually runs your computer, executes real-world jobs, manages your digital presence, and remembers your life across years.
+
+### The Core Tenets of Our Direction
+
+1. **Zero External Dependence (Complete Self-Hostability):**  
+   Today, OpenAgent integrates with Instinct AI as the primary intelligence driver because its cloud chief-of-staff experience over WhatsApp is battle-tested for daily mobile life. But our foundational mission is to ensure that OpenAgent is **never permanently locked into any external closed-source commercial product or corporate cloud**. We have engineered OpenAgent from the ground up to be completely self-hostable, where every single layer—voice perception, computer-use execution, memory, guardrails, and intelligence—can run entirely on your own terms.
+
+2. **Plugging the Two Monsters Together:**  
+   Integrating **OpenInstinct** (the sovereign local intelligence) into **OpenAgent** (the sovereign macOS execution body) is the defining architectural step toward complete independence and unity. By plugging these two monsters together, you create a unified, completely open-source personal Jarvis system for your day-to-day life that no external provider can shut off, paywall, or censor.
+
+3. **Built for Beast Models, Not Just Small Toys:**  
+   We are not building this infrastructure merely to run small 7B parameter models for shallow, toy tasks. We are preparing this unified infrastructure for **frontier-tier beast models** to aggressively compete with cloud and commercial solutions—heavyweight local models running on tens of millions of dollars of home servers, multi-GPU rigs, and unified-memory Apple Silicon hardware clusters that have the raw reasoning capacity to handle **real-world complex jobs**, not just simple commands. *(Yeah guys, really.)*
+
+4. **Sovereignty on Bare Metal:**  
+   Your personal assistant should work for you and only you. By keeping execution local on bare metal with deterministic guardrails and append-only activity auditing, your secrets, tokens, private chats, and files stay strictly within your sovereign boundary.
+
+---
+
 ## Contributing
 
 Contributions are welcome. High-impact areas include:
@@ -522,6 +572,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development workflow and [`CODE
 
 OpenAgent is built with gratitude on the shoulders of the open-source agent tooling community:
 - **[OpenCode](https://github.com/anomalyco/opencode)** — Inspiring open-source agentic coding architectures.
+- **[OpenAgent (Go)](https://github.com/openagent-io/openagent)** — For pioneering multi-tool enterprise dispatch architecture, the "错题本" experience learning memory, standalone Office suite automation primitives, and rich macOS CLI integrations.
 - **[Browser Use](https://github.com/browser-use/browser-use)** — Directly integrating **[Browser Harness](https://github.com/browser-use/browser-harness)** for high-speed Chrome CDP automation and domain skills, alongside **[macOS Harness](https://github.com/browser-use/macos-harness)** for pioneering native macOS computer-use foundations.
 - **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** & **[Vosk](https://alphacephei.com/vosk/)** — Lightweight, local, low-latency audio intelligence.
 - **[Firecrawl](https://github.com/firecrawl/firecrawl)** — Pioneering open-source web scraping, crawling, and clean LLM markdown extraction engine.

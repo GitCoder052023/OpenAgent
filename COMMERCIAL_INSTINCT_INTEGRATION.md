@@ -5,7 +5,7 @@
 * **Target Brain:** Commercial Instinct AI (`instinct.com`) via WhatsApp Desktop & Headless WhatsApp Transport
 * **Target Platform:** macOS Darwin (Apple Silicon & Intel)
 * **Date:** October 2026
-* **Reference Commits:** [`7fdce8b`](https://github.com/GitCoder052023/OpenAgent/commit/7fdce8b) (Clean Instinct AI Docs & Hero Section), [`9a2a553`](https://github.com/GitCoder052023/OpenAgent/commit/9a2a553) (Clean OCR Removal), [`18fbd19`](https://github.com/GitCoder052023/OpenAgent/commit/18fbd19) (Enterprise Integration)
+* **Reference Commits:** [`b4f022c`](https://github.com/GitCoder052023/OpenAgent/commit/b4f022c) (Vision & True Jarvis Directional Philosophy), [`9a2a553`](https://github.com/GitCoder052023/OpenAgent/commit/9a2a553) (Clean OCR Removal), [`18fbd19`](https://github.com/GitCoder052023/OpenAgent/commit/18fbd19) (Enterprise Integration)
 
 ---
 
