@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/browser-use/macos-harness/main/static/banner-ink.svg" alt="OpenAgent" width="100%" />
+https://github.com/user-attachments/assets/627ceeab-4194-4f79-a7d5-c98e72197949
 
 <div align="center">
 
@@ -16,9 +16,6 @@ OpenAgent is the local macOS body for [Instinct](https://instinct.com/). It's an
 [![Status](https://img.shields.io/badge/status-active%20beta-orange.svg?style=flat-square)]()
 
 [Quick Start](#quick-start) · [Talking to Jarvis](#talking-to-jarvis) · [Commercial Instinct Integration](COMMERCIAL_INSTINCT_INTEGRATION.md) · [Why OpenAgent](#why-openagent) · [How It Works](#how-it-works) · [Tool Suite](#tool-suite) · [Configuration](#configuration) · [Docs](#documentation)
-
-https://github.com/user-attachments/assets/627ceeab-4194-4f79-a7d5-c98e72197949
-
 
 </div>
 
@@ -128,8 +125,76 @@ sequenceDiagram
 | **Real Browser Control** | Your authenticated Chrome: background tabs, compositor clicks through iframes and shadow DOM, framework-safe form filling, 97 site-specific domain skills | Browser Harness (CDP) |
 | **Web Ingestion** | Scrape to Markdown, search with full-content results, recursive crawl, site mapping, schema-based JSON extraction | Self-hosted Firecrawl (Docker) |
 | **Social Automation** | Posting, replies, likes, search and scheduled workflows on Threads and Reddit (plus X, LinkedIn, Instagram, Facebook, YouTube, TikTok, GitHub) in isolated, persistent Chrome profiles | LocoAgent (CDP) |
+| **Safety Guard Engine** | Fine-grained policy evaluation (`ALLOW` / `ASK` / `DENY`), protected path globbing (SSH keys, root wipes), WhatsApp approval tokens (`CONFIRM <token>`) | `guard.py` (Rule Matrix) |
+| **Experience Memory ("错题本")** | Cross-session human feedback learning, mistake capture, and derived negative rules permanently persisted to disk | `experience.py` (JSONL Ledger) |
+| **macOS Daily Life Skills** | Native executive assistant skills: Reminders, iMessage, Things 3, Spotify, 1Password, Apple Notes, Camsnap, Nano-PDF, Tmux | `skills_adapter.py` (CLI Suite) |
+| **Enterprise Office Suite** | Standalone Microsoft Word (`.docx`), Excel (`.xlsx`), and PowerPoint (`.pptx`) inspection, formatting, and template filling without MS Office | `office_adapter.py` (`python-docx`, `openpyxl`, `python-pptx`) |
+| **Headless WhatsApp Transport** | Background WhatsApp message delivery, contact lookup, and cross-chat message search without stealing foreground window focus | `wacli_adapter.py` (`wacli`) |
+| **Universal MCP Client** | Dynamic discovery and execution of any external MCP tool across Stdio subprocesses and remote SSE/StreamableHTTP endpoints | `mcp_adapter.py` (Model Context Protocol) |
+| **Activity Audit Trail** | Thread-safe, non-blocking append-only JSONL event logging capturing tool names, execution duration, and security guard verdicts | `audit.py` (JSONL Audit Stream) |
 
 **Self-healing runtime.** `boot.py` provisions its own environment, installs missing dependencies, downloads speech models, restarts the agent (and its listening session) with exponential backoff and keeps WhatsApp Desktop alive in the background. `./boot.py --doctor` runs a full preflight audit.
+
+---
+
+## 🚀 Newly Integrated Enterprise Subsystems for Commercial Instinct AI
+
+To make OpenAgent an enterprise-grade execution body for **Commercial Instinct AI on WhatsApp** ([instinct.com](https://instinct.com)), seven battle-tested subsystems were integrated directly into the core Python architecture. This guarantees that your cloud AI chief-of-staff operates with bank-grade safety, persistent learning, and executive-level software capabilities:
+
+### 1. Fine-Grained Safety Guard Engine (`src/OpenAgent/guard.py`)
+Cloud AI models executing shell commands on your physical Mac require deterministic safety boundaries. The Guard Engine replaces crude all-or-nothing flags with a capability-based authorization matrix:
+* **Three Effects:**
+  * `ALLOW`: Safe, idempotent read operations run friction-free (sub-50ms).
+  * `ASK`: High-impact actions generate a secure 4-character token (e.g., `B4K2`). OpenAgent pauses execution and asks on WhatsApp:
+    ```text
+    ⚠️ [SAFETY GUARD CONFIRMATION NEEDED]
+    Instinct requested high-impact action: [bash]
+    Resource: git push origin main --force
+    Reason: Force-pushing git branches can overwrite remote work. Confirmation required.
+    To execute, reply 'CONFIRM B4K2' (or 'CONFIRM'). To abort, reply 'CANCEL'.
+    ```
+    Once you reply `CONFIRM`, OpenAgent retrieves the cached pending call and executes it immediately.
+  * `DENY`: Hard-coded deny rules instantly block catastrophic commands (e.g. `rm -rf /`, `rm -rf ~/*`, accessing `~/.ssh/id_*`, `/etc/shadow`).
+* **Resource Matching:** Glob-pattern matching against paths, URLs, and shell commands.
+
+### 2. Experience Memory & Mistake Notebook ("错题本") (`src/OpenAgent/experience.py`)
+Commercial Instinct sessions can reset context or suffer attention drift over weeks. The Experience Engine provides persistent local learning:
+* **Structured Correction Capture:** Captures `question`, `wrong_action`, `correction`, and `derived_rule`, categorized into `Fact`, `Style`, `Format`, or `Scope`.
+* **Zero Repeat Errors:** Every correction is saved to `.openagent/experience/experiences.jsonl`. When Instinct starts a new task, matching rules are injected or queried via `active_rules`, ensuring your personal preferences persist permanently across machine reboots.
+
+### 3. Native macOS Daily Life Skills Suite (`src/OpenAgent/skills_adapter.py`)
+Instinct can directly manage your personal daily life through native macOS CLI integrations:
+* **`apple_reminders` (`remindctl`):** *"Jarvis, remind me to call Mom at 6pm"* → instantly syncs to your iPhone Reminders.
+* **`imsg` (`imsg`):** Read iMessage threads and send SMS/iMessages to contacts from the command line.
+* **`things_mac` (`things`):** Query Things 3 Inbox, Today view, search projects, and create tagged todos.
+* **`spotify` (`spogo`):** Control desktop music playback (*"Jarvis, play lo-fi hip hop"*, pause, skip, status).
+* **`1password` (`op`):** Retrieve API tokens, logins, and credentials securely without saving plain text.
+* **`peekaboo` (`peekaboo`):** Inspect macOS window hierarchies and capture specific screen regions.
+* **`apple_notes` (`osascript`):** Read and generate rich formatted Apple Notes via native AppleScript.
+* **`camsnap` (`camsnap`):** Capture live frames and video clips from RTSP home security cameras.
+* **`nano_pdf` (`nano-pdf`):** Edit PDF pages using natural language prompts.
+* **`tmux` (`tmux`):** Manage persistent background terminal sessions and capture panes.
+
+### 4. Enterprise Office Suite Automation (`src/OpenAgent/office_adapter.py`)
+Instinct acts as an executive assistant that generates and inspects Microsoft Office documents without needing Microsoft Office installed:
+* **Microsoft Word (`.docx`):** `word_read` parses headings, body text, and tables; `word_write` generates polished documents with custom headings and table styling.
+* **Microsoft Excel (`.xlsx`):** `excel_read` inspects workbook sheets, column headers, and data rows; `excel_write` creates styled spreadsheets with navy header fills and auto-calculated column widths.
+* **Microsoft PowerPoint (`.pptx`):** `pptx_read` extracts deck hierarchy and bullet points; `pptx_write` generates complete keynote slide decks; `pptx_template_fill` replaces template placeholder tags (`{{TITLE}}`, `{{METRICS}}`) with dynamic values.
+
+### 5. Headless WhatsApp CLI Adapter (`src/OpenAgent/wacli_adapter.py`)
+While OpenAgent controls WhatsApp Desktop via Accessibility APIs for primary foreground voice chat, `wacli` provides a non-intrusive headless channel:
+* Send messages and attachments silently in the background without stealing window focus.
+* Search historical messages across any chat using `wacli_search`.
+* List chats and contacts via `wacli_chats`.
+
+### 6. Universal Model Context Protocol (MCP) Client (`src/OpenAgent/mcp_adapter.py`)
+Commercial Instinct is not restricted to hardcoded tools. Through the dynamic **MCP Client**:
+* Declare any MCP-compliant server (PostgreSQL, GitHub, Slack, Linear, Memory, Supabase) in `.openagent/mcp.json`.
+* Supports both **Stdio** subprocesses and **StreamableHTTP / SSE** remote endpoints.
+* Tools are discovered dynamically via `mcp_tools` and executed via `mcp_call`.
+
+### 7. Non-Blocking Activity Audit Trail (`src/OpenAgent/audit.py`)
+Every tool invocation, argument byte length, execution duration in milliseconds, safety guard decision, and execution status is recorded to an append-only JSON Lines stream (`.openagent/audit/audit_YYYYMMDD.jsonl`). Thread-safe, non-blocking, and perfect for real-time monitoring.
 
 ## Quick Start
 
@@ -402,7 +467,7 @@ Operate real social accounts with primary focus on **Threads (`threads.net`) and
 </details>
 
 <details>
-<summary><b>Headless WhatsApp, Security Guard & Experience Tools</b> (7 tools)</summary>
+<summary><b>Headless WhatsApp, Security Guard, Experience & Universal MCP Tools</b> (10 tools)</summary>
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
@@ -413,6 +478,9 @@ Operate real social accounts with primary focus on **Threads (`threads.net`) and
 | `search_experiences`| Search learned user rules to prevent repeat mistakes | `query`, `limit` |
 | `guard_rules` | Inspect active safety authorization policies and categories | *(none)* |
 | `audit_events` | Tail recent tool invocations, durations, and guard verdicts | `limit` |
+| `mcp_call` | Invoke any dynamic Model Context Protocol (MCP) server tool | `server`, `tool`, `arguments` |
+| `mcp_tools` | List all discovered tools from active Stdio & SSE MCP servers | `server` |
+| `mcp_status` | Inspect registered MCP servers and connection status | *(none)* |
 
 </details>
 
