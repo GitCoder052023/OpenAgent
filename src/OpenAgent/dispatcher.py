@@ -67,11 +67,6 @@ except ImportError:
     get_default_wacli_adapter = None
 
 try:
-    from .ocr_adapter import get_default_ocr_adapter
-except ImportError:
-    get_default_ocr_adapter = None
-
-try:
     from .mcp_adapter import get_default_mcp_adapter
 except ImportError:
     get_default_mcp_adapter = None
@@ -88,7 +83,6 @@ _DEFAULT_LOCO_ADAPTER: Optional[Any] = None
 _DEFAULT_SKILLS_ADAPTER: Optional[Any] = None
 _DEFAULT_OFFICE_ADAPTER: Optional[Any] = None
 _DEFAULT_WACLI_ADAPTER: Optional[Any] = None
-_DEFAULT_OCR_ADAPTER: Optional[Any] = None
 _DEFAULT_MCP_ADAPTER: Optional[Any] = None
 _DEFAULT_GUARD: Optional[Any] = None
 _DEFAULT_EXPERIENCE: Optional[Any] = None
@@ -162,16 +156,6 @@ def get_default_wacli() -> Optional[Any]:
         except Exception as exc:
             logger.warning("Could not initialize default WacliAdapter: %s", exc)
     return _DEFAULT_WACLI_ADAPTER
-
-
-def get_default_ocr() -> Optional[Any]:
-    global _DEFAULT_OCR_ADAPTER
-    if _DEFAULT_OCR_ADAPTER is None and get_default_ocr_adapter is not None:
-        try:
-            _DEFAULT_OCR_ADAPTER = get_default_ocr_adapter()
-        except Exception as exc:
-            logger.warning("Could not initialize default OCRAdapter: %s", exc)
-    return _DEFAULT_OCR_ADAPTER
 
 
 def get_default_mcp() -> Optional[Any]:
@@ -497,13 +481,12 @@ def execute_tool_call(
     skills_adapter: Optional[Any] = None,
     office_adapter: Optional[Any] = None,
     wacli_adapter: Optional[Any] = None,
-    ocr_adapter: Optional[Any] = None,
     mcp_adapter: Optional[Any] = None,
     guard: Optional[Any] = None,
     experience: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Execute a parsed tool call using the headless harness, native macOS adapter,
-    browser adapter, Firecrawl, LocoAgent, Skills, Office, OCR, Wacli, or MCP.
+    browser adapter, Firecrawl, LocoAgent, Skills, Office, Wacli, or MCP.
 
     Returns a standardized dictionary:
     {"status": "ok" | "error" | "ask", "tool": name, "result": ..., "error": ...}
@@ -540,9 +523,6 @@ def execute_tool_call(
     if wacli_adapter is None:
         wacli_adapter = get_default_wacli()
 
-    if ocr_adapter is None:
-        ocr_adapter = get_default_ocr()
-
     if mcp_adapter is None:
         mcp_adapter = get_default_mcp()
 
@@ -568,7 +548,6 @@ def execute_tool_call(
                 skills_adapter=skills_adapter,
                 office_adapter=office_adapter,
                 wacli_adapter=wacli_adapter,
-                ocr_adapter=ocr_adapter,
                 mcp_adapter=mcp_adapter,
                 guard=None,  # Bypass guard for approved execution
                 experience=experience,
@@ -1478,28 +1457,6 @@ def execute_tool_call(
             res = wacli_adapter.status()
             return {"status": res.get("status", "ok"), "tool": tool, "result": res}
 
-        # --- Offline OCR & Document Text Extraction ---
-        elif tool in ("ocr_pdf", "pdf_ocr"):
-            if ocr_adapter is None:
-                raise RuntimeError("OCR adapter is not available")
-            res = ocr_adapter.ocr_pdf(
-                path=args.get("path") or args.get("file_path", ""),
-                max_pages=int(args.get("max_pages", 10)),
-            )
-            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
-
-        elif tool in ("ocr_image", "image_ocr"):
-            if ocr_adapter is None:
-                raise RuntimeError("OCR adapter is not available")
-            res = ocr_adapter.ocr_image(path=args.get("path") or args.get("file_path", ""))
-            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
-
-        elif tool in ("extract_document", "document_read", "ocr_document"):
-            if ocr_adapter is None:
-                raise RuntimeError("OCR adapter is not available")
-            res = ocr_adapter.extract_document_text(path=args.get("path") or args.get("file_path", ""))
-            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
-
         # --- Experience & Mistake Notebook ('错题本') ---
         elif tool in ("record_experience", "record_mistake", "learn_rule"):
             if experience is None:
@@ -1909,10 +1866,6 @@ def format_tool_response(response: Dict[str, Any], max_length: int = MAX_WHATSAP
 
     elif tool in ("apple_reminders", "reminders", "remindctl", "imsg", "imessage", "things_mac", "things", "things3", "spotify", "spogo", "1password", "op", "peekaboo", "apple_notes", "notes", "wacli_send", "wacli_search", "wacli_chats", "wacli_status"):
         body = result.get("output") or result.get("stdout") or json.dumps(result, indent=2)
-
-    elif tool in ("ocr_pdf", "ocr_image", "extract_document"):
-        text_preview = result.get("text", "")[:1200]
-        body = f"OCR Extracted Content:\n{text_preview}"
 
     elif tool in ("record_experience", "learn_rule"):
         body = f"🧠 Learned Rule Recorded [{result.get('experience_id')}]: \"{result.get('rule')}\""

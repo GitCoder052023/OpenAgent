@@ -29,7 +29,7 @@ OpenAgent connects autonomous AI intelligence to your Mac, operating your local 
 OpenAgent supports **two distinct brain architectures**:
 
 1. **☁️ Commercial Instinct (WhatsApp Voice Assistant — Primary):**
-   Connects [Instinct](https://instinct.com/) (invite-only cloud personal chief-of-staff) to your Mac over WhatsApp Desktop, giving it an always-listening, hands-free voice interface modeled on Tony Stark's Jarvis ("Wake up, Jarvis"). Fully upgraded with the enterprise Guard Engine, Experience Memory ("错题本"), 10 macOS Daily Life skills, Office Suite automation, Headless WhatsApp, and local RapidOCR.
+   Connects [Instinct](https://instinct.com/) (invite-only cloud personal chief-of-staff) to your Mac over WhatsApp Desktop, giving it an always-listening, hands-free voice interface modeled on Tony Stark's Jarvis ("Wake up, Jarvis"). Fully upgraded with the enterprise Guard Engine, Experience Memory ("错题本"), 10 macOS Daily Life skills, Office Suite automation, and Headless WhatsApp.
    The complete architecture is documented in [`COMMERCIAL_INSTINCT_INTEGRATION.md`](COMMERCIAL_INSTINCT_INTEGRATION.md).
 2. **🧠 OpenInstinct (Local Sovereign Brain — Offline Fallback):**
    A 100% private, self-hosted, local terminal assistant modeled after OpenCode and Claude Code. Powered by your local Ollama engine (`qwen2.5-coder:7b` on Apple Silicon), OpenInstinct gives you an ultra-fast terminal REPL with cross-conversation workstream memory and direct sub-50ms execution across all 5 Mac harness engines—completely free, offline, and without WhatsApp or closed-source cloud dependencies.
@@ -402,15 +402,13 @@ Operate real social accounts with primary focus on **Threads (`threads.net`) and
 </details>
 
 <details>
-<summary><b>Headless WhatsApp, OCR, Security Guard & Experience Tools</b> (9 tools)</summary>
+<summary><b>Headless WhatsApp, Security Guard & Experience Tools</b> (7 tools)</summary>
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
 | `wacli_send` | Headless background WhatsApp message or document delivery | `to`, `message`, `file` |
 | `wacli_search` | Search historical WhatsApp messages across chats without GUI | `query`, `chat`, `limit` |
 | `wacli_chats` | List recent WhatsApp conversations and contacts | `query`, `limit` |
-| `ocr_pdf` | 100% offline OCR on scanned PDFs via RapidOCR ONNX + pypdfium2 | `path`, `max_pages` |
-| `ocr_image` | Offline neural OCR on receipts, screenshots, and photos | `path` |
 | `record_experience` | Save human corrections and learned rules ("错题本") permanently | `question`, `wrong_action`, `correction`, `rule` |
 | `search_experiences`| Search learned user rules to prevent repeat mistakes | `query`, `limit` |
 | `guard_rules` | Inspect active safety authorization policies and categories | *(none)* |

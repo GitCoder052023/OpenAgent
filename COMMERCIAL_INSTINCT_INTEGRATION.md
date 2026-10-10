@@ -5,8 +5,7 @@
 * **Target Brain:** Commercial Instinct AI (`instinct.com`) via WhatsApp Desktop & Headless WhatsApp Transport
 * **Target Platform:** macOS Darwin (Apple Silicon & Intel)
 * **Date:** October 2026
-* **Repository:** [https://github.com/GitCoder052023/OpenAgent](https://github.com/GitCoder052023/OpenAgent)
-* **Reference Commit:** [`ed7121e`](https://github.com/GitCoder052023/OpenAgent/commit/ed7121e1ab8c18b254357bfcce561e4b8871e298)
+* **Reference Commits:** [`5eee020`](https://github.com/GitCoder052023/OpenAgent/commit/5eee020) (Latest Clean: OCR Engine Removed), [`18fbd19`](https://github.com/GitCoder052023/OpenAgent/commit/18fbd19) (Enterprise Integration)
 
 ---
 
@@ -73,7 +72,6 @@ flowchart TD
             Loco["loco_adapter (Social Media Automation)"]
             Skills["skills_adapter (54 macOS Daily Skills)"]
             Office["office_adapter (Word, Excel, PowerPoint)"]
-            OCR["ocr_adapter (RapidOCR & pypdfium2)"]
             Wacli["wacli_adapter (Headless WhatsApp CLI)"]
             MCP["mcp_adapter (Universal Dynamic MCP)"]
         end
@@ -88,7 +86,7 @@ flowchart TD
 
 ---
 
-## 4. Deep-Dive: The 8 Integrated Enterprise Subsystems
+## 4. Deep-Dive: The 7 Integrated Enterprise Subsystems
 
 ### Subsystem 1: Fine-Grained Tool Guard Engine (`src/OpenAgent/guard.py`)
 In previous versions, OpenAgent relied on a crude binary `safe_mode` (either strict or complete god-mode). Because Commercial Instinct runs in the cloud, exposing arbitrary shell execution without guardrails poses a significant security risk.
@@ -168,17 +166,7 @@ The **`wacli` adapter** provides a non-intrusive headless channel:
 
 ---
 
-### Subsystem 6: 100% Offline Document OCR (`src/OpenAgent/ocr_adapter.py`)
-Commercial Instinct frequently receives receipts, whiteboards, scanned PDF contracts, and screenshots. Relying on cloud vision APIs adds latency and compromises privacy.
-
-OpenAgent now incorporates **RapidOCR ONNX Runtime** + **pypdfium2**:
-* Scanned PDFs are rendered into memory bitmaps and processed by local ONNX neural models in ~50ms.
-* Pure digital text PDFs are extracted in sub-10ms via `pypdf`.
-* Single receipts and photos are processed locally with zero cloud API keys required.
-
----
-
-### Subsystem 7: Universal Model Context Protocol Client (`src/OpenAgent/mcp_adapter.py`)
+### Subsystem 6: Universal Model Context Protocol Client (`src/OpenAgent/mcp_adapter.py`)
 Commercial Instinct is no longer limited to hardcoded Python adapters. Through the dynamic **MCP Client**:
 * Any MCP-compliant server (PostgreSQL, GitHub, Slack, Linear, Memory, Supabase) can be declared in `.openagent/mcp.json`.
 * OpenAgent supports both **Stdio** subprocesses and **StreamableHTTP / SSE** servers.
@@ -186,7 +174,7 @@ Commercial Instinct is no longer limited to hardcoded Python adapters. Through t
 
 ---
 
-### Subsystem 8: Non-Blocking Audit Trail (`src/OpenAgent/audit.py`)
+### Subsystem 7: Non-Blocking Audit Trail (`src/OpenAgent/audit.py`)
 Every tool call, argument length, duration in milliseconds, safety guard decision, and execution outcome is logged to an append-only JSON Lines file (`.openagent/audit/audit_YYYYMMDD.jsonl`).
 * Completely non-blocking and thread-safe.
 * External tools, scripts, or dashboards can tail OpenAgent's activity in real time.
@@ -247,7 +235,6 @@ Total Suites: 6 | Duration: 26.02s
 * [`src/OpenAgent/skills_adapter.py`](src/OpenAgent/skills_adapter.py): 10 high-leverage native macOS daily life skills (Apple Reminders, iMessage, Things 3, Spotify, 1Password, etc.).
 * [`src/OpenAgent/office_adapter.py`](src/OpenAgent/office_adapter.py): Enterprise Microsoft Word (.docx), Excel (.xlsx), and PowerPoint (.pptx) automation tools.
 * [`src/OpenAgent/wacli_adapter.py`](src/OpenAgent/wacli_adapter.py): Headless WhatsApp CLI integration.
-* [`src/OpenAgent/ocr_adapter.py`](src/OpenAgent/ocr_adapter.py): RapidOCR + pypdfium2 offline document and PDF text extraction.
 * [`src/OpenAgent/mcp_adapter.py`](src/OpenAgent/mcp_adapter.py): Universal Model Context Protocol client for dynamic tool discovery.
 * [`src/OpenAgent/audit.py`](src/OpenAgent/audit.py): Append-only JSONL activity audit logger.
 * [`src/OpenAgent/dispatcher.py`](src/OpenAgent/dispatcher.py): Integrated router wiring all new capabilities into the `JARVIS_CALL` loop.

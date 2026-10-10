@@ -62,8 +62,6 @@ TOOL_CATEGORIES = {
     "word_read": CATEGORY_READ,
     "excel_read": CATEGORY_READ,
     "pptx_read": CATEGORY_READ,
-    "ocr_pdf": CATEGORY_READ,
-    "ocr_image": CATEGORY_READ,
     # Write
     "write": CATEGORY_WRITE,
     "edit": CATEGORY_WRITE,
