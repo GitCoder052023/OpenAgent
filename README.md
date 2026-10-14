@@ -5,25 +5,26 @@ https://github.com/user-attachments/assets/627ceeab-4194-4f79-a7d5-c98e72197949
 # OpenAgent ⌘
 
 **Say "Wake up, Jarvis." Then just talk.**<br/>
-OpenAgent is the local macOS body for [Instinct AI](https://instinct.com/). It's an always-listening, hands-free assistant that operates your Mac, your browser, the web and your social accounts while you get on with your day.
+OpenAgent is an integrated, local macOS execution environment providing **85+ callable tools** that allow [Instinct AI](https://instinct.com/) to operate your Mac, your browser, social media, WhatsApp, and digital workflows on your behalf—an always-listening, hands-free assistant while you get on with your day.
 
 [![macOS](https://img.shields.io/badge/platform-macOS%20Darwin-lightgrey.svg?style=flat-square&logo=apple)](https://apple.com)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
 [![uv](https://img.shields.io/badge/package%20manager-uv-blueviolet.svg?style=flat-square)](https://astral.sh/uv)
 [![Bun](https://img.shields.io/badge/runtime-bun-black.svg?style=flat-square&logo=bun)](https://bun.sh)
+[![Tools](https://img.shields.io/badge/tools-85%2B%20callable-success.svg?style=flat-square)](#tool-suite)
 [![Tests](https://img.shields.io/badge/tests-260%20passing-brightgreen.svg?style=flat-square)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-purple.svg?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20beta-orange.svg?style=flat-square)]()
 
-[Quick Start](#quick-start) · [Talking to Jarvis](#talking-to-jarvis) · [Why OpenAgent](#why-openagent) · [How It Works](#how-it-works) · [Features](#core-features) · [Tool Suite](#tool-suite) · [Philosophy](#-directional-philosophy-the-true-jarvis-vision) · [Docs](#documentation) · [Contributing](#contributing)
+[Quick Start](#quick-start) · [Talking to Jarvis](#talking-to-jarvis) · [Why OpenAgent](#why-openagent) · [How It Works](#how-it-works) · [Core Features](#core-features) · [Tool Suite](#tool-suite) · [Philosophy](#-directional-philosophy-the-true-jarvis-vision) · [Docs](#documentation) · [Contributing](#contributing)
 
 </div>
 
 ---
 
-OpenAgent connects [Instinct AI](https://instinct.com/), a personal AI assistant that lives in your messaging apps, to your Mac and gives it a voice interface modeled on Jarvis. Start it once and say **"Wake up, Jarvis."** From then on, you speak naturally from anywhere in the room, and Instinct AI reasons over each request while OpenAgent carries it out locally: shell commands, code edits, native app control, your authenticated Chrome, self-hosted web scraping, and your social media accounts. Replies come back out loud, and screenshots & results land in your chat.
+OpenAgent connects [Instinct AI](https://instinct.com/), a personal AI assistant that lives in your messaging apps, to your Mac and gives it a voice interface modeled on Jarvis. Start it once and say **"Wake up, Jarvis."** From then on, you speak naturally from anywhere in the room, and Instinct AI reasons over each request while OpenAgent carries it out locally through **85+ callable tools**: shell commands, code edits, native app control, your authenticated Chrome, self-hosted web scraping, office documents, native macOS productivity apps, social media automation, and WhatsApp actions on your behalf.
 
-The two halves together make up a personal assistant that can act in the cloud and on your desktop.
+The two halves together make up a personal assistant that can act in the cloud and on your desktop: **Instinct thinks. OpenAgent acts.**
 
 Don't have Instinct access, or want to use your own model? [OpenHarness](https://github.com/GitCoder052023/OpenHarness) is the execution engine behind OpenAgent, available on its own. Connect Claude, Gemini, Codex, or a local Ollama model to the same Mac tools without the voice and WhatsApp setup.
 
@@ -89,7 +90,7 @@ OpenAgent uses **WhatsApp Desktop as the transport** between Instinct and your M
 2. **Tool calls.** Instinct replies with structured calls wrapped in a `JARVIS_CALL:<base64-JSON>:END` envelope. Base64 encoding protects the payload from WhatsApp's markdown formatting, which removes characters like `*`, `_` and `~`.
 3. **Observation.** OpenAgent reads incoming messages through the macOS Accessibility API.
 4. **Verification.** A fail-closed guard confirms the message came from the verified Instinct chat.
-5. **Execution.** The dispatcher routes the call to one of five engines and runs it locally.
+5. **Execution.** The dispatcher routes the call to the appropriate engine or adapter and runs it locally.
 6. **Response.** Results, diffs and screenshots go back into the chat. Instinct continues the loop until the task is complete, and its voice replies play back automatically.
 
 ```mermaid
@@ -112,18 +113,18 @@ sequenceDiagram
 
 ## Core Features
 
-| Engine | What it gives Instinct | Built on |
+| Capability / Engine | What it provides | Built on |
 | :--- | :--- | :--- |
-| **Developer Harness** | Sandboxed `bash`, paginated `read`, atomic `write`, exact-match `edit`, `ripgrep` search, `glob`, AppleScript | Bun + TypeScript |
+| **Developer Harness** | Sandboxed `bash`, paginated `read`, atomic `write`, exact-match `edit`, `ripgrep` regex search, `glob`, and AppleScript | Bun + TypeScript |
 | **Voice Interface** | Offline wake word, continuous hands-free sessions, silence-based turn-taking, echo guard, automatic reply playback | Vosk, whisper.cpp, SoX |
 | **Native Computer Use** | Window capture, Accessibility tree queries, PID-targeted clicks, keystrokes, drags and scrolls that don't steal focus | macOS Accessibility & Quartz |
-| **Real Browser Control** | Your authenticated Chrome: background tabs, compositor clicks through iframes and shadow DOM, framework-safe form filling, 97 site-specific domain skills | Browser Harness (CDP) |
-| **Web Ingestion** | Scrape to Markdown, search with full-content results, recursive crawl, site mapping, schema-based JSON extraction | Self-hosted Firecrawl (Docker) |
-| **Social Automation** | Posting, replies, likes, search and scheduled workflows on Threads and Reddit (plus X, LinkedIn, Instagram, Facebook, YouTube, TikTok, GitHub) in isolated, persistent Chrome profiles | LocoAgent (CDP) |
-| **macOS Daily Life Skills** | Native executive assistant skills: Reminders, iMessage, Things 3, Spotify, 1Password, Apple Notes, Camsnap, Nano-PDF, Tmux | `skills_adapter.py` (CLI Suite) |
-| **Enterprise Office Suite** | Standalone Microsoft Word (`.docx`), Excel (`.xlsx`), and PowerPoint (`.pptx`) inspection, formatting, and template filling without MS Office | `office_adapter.py` (`python-docx`, `openpyxl`, `python-pptx`) |
-| **Native WhatsApp Protocol Engine** | Full multi-device headless WhatsApp operations (chats, messages, voice notes, media, polls, contacts, webhooks, anti-ban) | `whatsapp-mcp-extended` (Go `whatsmeow` + MCP) |
-| **Universal MCP Client** | Dynamic discovery and execution of any external MCP tool across Stdio subprocesses and remote SSE/StreamableHTTP endpoints | `mcp_adapter.py` (Model Context Protocol) |
+| **Browser Automation** | Authenticated Chrome: background tabs, compositor clicks through iframes and shadow DOM, framework-safe form filling, 97 domain-specific skills | Browser Harness (CDP) |
+| **Web Ingestion & Search** | Scrape to clean Markdown, search with full-content results, recursive crawl, site mapping, schema-based JSON extraction | Self-hosted Firecrawl (Docker) |
+| **Social Media Automation** | Posting, replies, likes, search and scheduled workflows on Threads and Reddit (plus X, LinkedIn, Instagram, Facebook, YouTube, TikTok, GitHub) in isolated, persistent Chrome profiles | LocoAgent (CDP) |
+| **macOS Productivity** | Native desktop integrations: Apple Reminders, iMessage, Things 3, Spotify, 1Password, Apple Notes, camera feeds, Nano-PDF, Tmux | `skills_adapter.py` (CLI Suite) |
+| **Office Document Automation** | Standalone Microsoft Word (`.docx`), Excel (`.xlsx`), and PowerPoint (`.pptx`) generation, inspection, and template filling without requiring Microsoft Office | `office_adapter.py` (`python-docx`, `openpyxl`, `python-pptx`) |
+| **WhatsApp Communication** | Full multi-device headless WhatsApp operations (chats, messages, voice notes, media, polls, contacts) plus lightweight `wacli` CLI fallback | `whatsapp-mcp-extended` (Go `whatsmeow` + MCP), `wacli` |
+| **Universal MCP Client** | Dynamic discovery and execution of external tools from any MCP server across Stdio subprocesses and remote SSE/StreamableHTTP endpoints | `mcp_adapter.py` (Model Context Protocol) |
 | **Zero-Focus Ghost Mode** | Pure background execution while you game or work: CDP offscreen perception, AX tree queries, PID input targeting, and instant focus restoration | `browser_adapter`, `mac_adapter`, `desktop` |
 
 ### 👻 Zero-Focus Background Operation (Ghost Mode)
@@ -135,52 +136,6 @@ You can play immersive fullscreen games (Metal, Steam, Wine/CrossOver) or work i
 - **Fail-Safe Focus Restoration**: Any background operation captures the user's active application PID and instantly restores focus in milliseconds.
 
 **Self-healing runtime.** `boot.py` provisions its own environment, installs missing dependencies, downloads speech models, restarts the agent (and its listening session) with exponential backoff and keeps WhatsApp Desktop alive in the background. `./boot.py --doctor` runs a full preflight audit.
-
-## 🚀 Enterprise Subsystems for Instinct AI
-
-To make OpenAgent an enterprise-grade execution body for **Instinct AI** ([instinct.com](https://instinct.com)), five battle-tested subsystems are integrated directly into the core Python architecture. This guarantees that your cloud AI chief-of-staff operates with executive-level software capabilities:
-
-### 1. Native macOS Daily Life Skills Suite
-Instinct can directly manage your personal daily life through native macOS CLI integrations:
-* **`apple_reminders` (`remindctl`):** *"Jarvis, remind me to call Mom at 6pm"* → instantly syncs to your iPhone Reminders.
-* **`imsg` (`imsg`):** Read iMessage threads and send SMS/iMessages to contacts from the command line.
-* **`things_mac` (`things`):** Query Things 3 Inbox, Today view, search projects, and create tagged todos.
-* **`spotify` (`spogo`):** Control desktop music playback (*"Jarvis, play lo-fi hip hop"*, pause, skip, status).
-* **`1password` (`op`):** Retrieve API tokens, logins, and credentials securely without saving plain text.
-* **`peekaboo` (`peekaboo`):** Inspect macOS window hierarchies and capture specific screen regions.
-* **`apple_notes` (`osascript`):** Read and generate rich formatted Apple Notes via native AppleScript.
-* **`camsnap` (`camsnap`):** Capture live frames and video clips from RTSP home security cameras.
-* **`nano_pdf` (`nano-pdf`):** Edit PDF pages using natural language prompts.
-* **`tmux` (`tmux`):** Manage persistent background terminal sessions and capture panes.
-
-### 2. Enterprise Office Suite Automation
-Instinct acts as an executive assistant that generates and inspects Microsoft Office documents without needing Microsoft Office installed:
-* **Microsoft Word (`.docx`):** `word_read` parses headings, body text, and tables; `word_write` generates polished documents with custom headings and table styling.
-* **Microsoft Excel (`.xlsx`):** `excel_read` inspects workbook sheets, column headers, and data rows; `excel_write` creates styled spreadsheets with navy header fills and auto-calculated column widths.
-* **Microsoft PowerPoint (`.pptx`):** `pptx_read` extracts deck hierarchy and bullet points; `pptx_write` generates complete keynote slide decks; `pptx_template_fill` replaces template placeholder tags (`{{TITLE}}`, `{{METRICS}}`) with dynamic values.
-
-### 3. Native WhatsApp Protocol Engine (`whatsapp-mcp-extended`)
-OpenAgent natively embeds an enterprise-grade Go `whatsmeow` multi-device engine and Python Model Context Protocol (MCP) server, allowing Instinct AI to operate your personal WhatsApp account 100% headlessly at the network protocol layer without touching the desktop GUI:
-* **Zero GUI Interference (Pure Ghost Mode)**: Operates over secure WebSockets with end-to-end Signal Protocol cryptography. Jarvis reads incoming messages, replies to contacts, sends PDFs, and creates polls while you game or code in fullscreen without stealing mouse focus or raising windows.
-* **14 Native Autonomous Protocol Tools**:
-  - *Direct Messaging & History*: `whatsapp_send` (text, quoting, @mentions), `whatsapp_read` (cross-chat keyword search, thread history), `whatsapp_chats` (active threads, unread counts).
-  - *Media & Native Voice Notes*: `whatsapp_file` (PDFs, images, videos, documents), `whatsapp_audio` (native WhatsApp voice notes in `.m4a`, `.ogg`, `.wav`).
-  - *Realtime Interactivity*: `whatsapp_reaction` (emoji reactions), `whatsapp_edit` (message editing), `whatsapp_delete` (message revocation for everyone), `whatsapp_poll` (multi-choice interactive polls).
-  - *Contacts & CRM Context*: `whatsapp_contacts` (address book lookup), `whatsapp_contact_context` (deep interaction history and metrics).
-  - *Administration*: `whatsapp_group` (create groups, add/remove members, promote admins), `whatsapp_presence` (online, typing, recording states), `whatsapp_status` (engine health).
-* **Autonomous Docker Orchestration**: Integrated directly into `boot.py` via `./boot.py --start-whatsapp-mcp`. Automatically supervises the Go bridge (`http://localhost:8180`) and Next.js Web UI (`http://localhost:8090`).
-* **Instant Device Pairing (No QR Required)**: Open `http://localhost:8090`, enter your phone number, and link with the 8-digit code from **WhatsApp > Linked Devices > Link with phone number instead** (or scan live ASCII QR in container logs).
-* **Self-Healing Session Persistence**: Cryptographic identity keys and session tokens persist permanently in SQLite (`src/tools/whatsapp-mcp/data/whatsapp-bridge.db`) across Mac reboots and container restarts. Includes 15-minute handshake timeouts, auto-expiring pairing locks, and manual reset endpoints (`POST /api/pair/reset`).
-* 👉 *Full documentation, architecture, and voice command examples in [Native WhatsApp Protocol Guide](docs/WHATSAPP_INTEGRATION.md).*
-
-### 4. Headless WhatsApp CLI Adapter (Fallback Channel)
-While the native protocol engine handles full companion operations, `wacli` remains integrated as an ultra-lightweight CLI fallback channel for quick terminal-based message delivery and searching without background services.
-
-### 5. Universal Model Context Protocol (MCP) Client
-Instinct AI is not restricted to hardcoded tools. Through the dynamic **MCP Client**:
-* Declare any MCP-compliant server (PostgreSQL, GitHub, Slack, Linear, Memory, Supabase) in `.openagent/mcp.json`.
-* Supports both **Stdio** subprocesses and **StreamableHTTP / SSE** remote endpoints.
-* Tools are discovered dynamically via `mcp_tools` and executed via `mcp_call`.
 
 ## Quick Start
 
@@ -289,7 +244,7 @@ Instinct will recognize the `JARVIS_CALL` protocol and begin executing tasks on 
 
 This links your personal WhatsApp account as a companion multi-device session so Jarvis can perform actions for you (e.g., *"Jarvis, message Sarah that I'm running 5 mins late"*, *"Check my unread messages"*, or *"Send this PDF to the dev group"*):
 
-1. **Start the WhatsApp Protocol Subsystem**:
+1. **Start the WhatsApp Protocol Engine**:
    ```bash
    ./boot.py --start-whatsapp-mcp
    ```
@@ -337,7 +292,7 @@ This links your personal WhatsApp account as a companion multi-device session so
 Instinct calls tools by wrapping structured JSON in a transport envelope:
 `JARVIS_CALL:<base64-encoded-JSON>:END`.
 
-There are 55+ tools across five engines. Expand a section for the full reference.
+OpenAgent provides 85+ callable tools across 9 functional categories. Expand a section for the full reference.
 
 <details>
 <summary><b>Developer Harness Tools</b> (8 tools)</summary>
@@ -374,7 +329,7 @@ There are 55+ tools across five engines. Expand a section for the full reference
 </details>
 
 <details>
-<summary><b>Real Browser Control Tools (Browser Harness CDP)</b> (14 tools)</summary>
+<summary><b>Browser Automation Tools</b> (14 tools)</summary>
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
@@ -396,7 +351,7 @@ There are 55+ tools across five engines. Expand a section for the full reference
 </details>
 
 <details>
-<summary><b>Self-Hosted Web Ingestion & Extraction Tools (Firecrawl Engine)</b> (7 tools)</summary>
+<summary><b>Web Ingestion & Extraction Tools</b> (7 tools)</summary>
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
@@ -411,7 +366,7 @@ There are 55+ tools across five engines. Expand a section for the full reference
 </details>
 
 <details>
-<summary><b>Social Media Automation Tools (LocoAgent Engine)</b> (13 tools)</summary>
+<summary><b>Social Media Automation Tools</b> (13 tools)</summary>
 
 Operate real social accounts with primary focus on **Threads (`threads.net`) and Reddit (`reddit.com`)** (plus X/Twitter, LinkedIn, Instagram, Facebook, YouTube, TikTok, and GitHub) with persistent anti-detection Chrome profiles:
 
@@ -434,62 +389,72 @@ Operate real social accounts with primary focus on **Threads (`threads.net`) and
 </details>
 
 <details>
-<summary><b>Native macOS Daily Life Skills Suite</b> (10 tools)</summary>
+<summary><b>Native macOS Productivity Tools</b> (10 tools)</summary>
+
+Execute native macOS productivity and desktop workflows through system CLIs and AppleScript (`remindctl`, `imsg`, `things`, `spogo`, `op`, `peekaboo`, `osascript`, `camsnap`, `nano-pdf`, `tmux`):
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
-| `apple_reminders` | Create, list, complete, and delete Apple Reminders (synced to iOS) | `action`, `title`, `due`, `list` |
-| `imsg` | Read iMessage conversation threads and send SMS/iMessage from CLI | `action`, `to`, `text`, `limit` |
-| `things_mac` | Query Things 3 Inbox, Today view, search tasks, and add todos | `action`, `title`, `notes`, `when` |
-| `spotify` | Control Spotify music playback, search tracks, and list devices | `action`, `query` |
-| `1password` | Retrieve secrets, logins, and items from 1Password via `op` | `action`, `item`, `reference` |
-| `peekaboo` | Inspect macOS window hierarchies and capture screen elements | `action`, `target`, `out` |
-| `apple_notes` | Create and search Apple Notes via native AppleScript | `action`, `title`, `body` |
-| `camsnap` | Capture live frames and clips from RTSP/ONVIF security cameras | `action`, `camera` |
-| `nano_pdf` | Edit PDF pages using natural language prompts | `action`, `path`, `prompt` |
-| `skills_list` | List all 54 registered agent skills and local installation status | *(none)* |
+| `apple_reminders` | Create, list, complete, and delete Apple Reminders (synced to iOS via `remindctl`) | `action`, `title`, `due`, `list` |
+| `imsg` | Read iMessage conversation threads and send SMS/iMessage from the command line (`imsg`) | `action`, `to`, `text`, `limit` |
+| `things_mac` | Query Things 3 Inbox, Today view, search tasks, and add tagged todos (`things`) | `action`, `title`, `notes`, `when` |
+| `spotify` | Control desktop Spotify playback, search tracks, and list devices (`spogo`) | `action`, `query` |
+| `1password` | Retrieve secrets, API tokens, and logins securely via 1Password CLI (`op`) | `action`, `item`, `reference` |
+| `peekaboo` | Inspect macOS window hierarchies and capture specific screen regions (`peekaboo`) | `action`, `target`, `out` |
+| `apple_notes` | Create and search rich formatted Apple Notes via native AppleScript (`osascript`) | `action`, `title`, `body` |
+| `camsnap` | Capture live frames and video clips from RTSP/ONVIF security cameras (`camsnap`) | `action`, `camera` |
+| `nano_pdf` | Edit PDF pages using natural language prompts (`nano-pdf`) | `action`, `path`, `prompt` |
+| `skills_list` | List all registered agent skills and local installation status | *(none)* |
 
 </details>
 
 <details>
-<summary><b>Enterprise Office Suite Tools</b> (7 tools)</summary>
+<summary><b>Office Document Tools</b> (7 tools)</summary>
+
+Inspect, create, and format Microsoft Office documents programmatically without requiring Microsoft Office installed, built on `python-docx`, `openpyxl`, and `python-pptx`:
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
-| `word_read` | Read Word `.docx` documents with headings, paragraphs, and tables | `path`, `max_paragraphs` |
-| `word_write` | Generate styled Word `.docx` documents with tables and headers | `path`, `title`, `paragraphs`, `tables` |
-| `excel_read` | Inspect Excel `.xlsx` spreadsheets, sheet names, and table rows | `path`, `sheet_name`, `max_rows` |
-| `excel_write` | Create or update formatted Excel `.xlsx` workbooks | `path`, `sheet_name`, `headers`, `rows` |
-| `pptx_read` | Inspect PowerPoint `.pptx` decks, slide titles, and bullet points | `path`, `max_slides` |
-| `pptx_write` | Generate presentation decks with title and content slides | `path`, `title`, `slides`, `subtitle` |
-| `pptx_template_fill` | Fill template placeholder tags (`{{KEY}}`) in existing decks | `template_path`, `output_path`, `replacements` |
+| `word_read` | Read Word `.docx` documents with headings, body paragraphs, and tables | `path`, `max_paragraphs` |
+| `word_write` | Generate styled Word `.docx` documents with custom headings and table styling | `path`, `title`, `paragraphs`, `tables` |
+| `excel_read` | Inspect Excel `.xlsx` workbooks, sheet names, headers, and data rows | `path`, `sheet_name`, `max_rows` |
+| `excel_write` | Create or update formatted Excel `.xlsx` workbooks with styled headers and column widths | `path`, `sheet_name`, `headers`, `rows` |
+| `pptx_read` | Inspect PowerPoint `.pptx` decks, slide hierarchy, titles, and bullet points | `path`, `max_slides` |
+| `pptx_write` | Generate presentation slide decks with title and content layouts | `path`, `title`, `slides`, `subtitle` |
+| `pptx_template_fill` | Replace template placeholder tags (e.g. `{{TITLE}}`, `{{METRICS}}`) with dynamic values in existing decks | `template_path`, `output_path`, `replacements` |
 
 </details>
 
 <details>
-<summary><b>Native WhatsApp MCP Extended Protocol Suite</b> (14 tools)</summary>
+<summary><b>WhatsApp Protocol Tools</b> (14 tools)</summary>
+
+Operate your personal WhatsApp account headlessly via a multi-device WebSocket protocol engine (powered by Go `whatsmeow` and FastMCP) with end-to-end Signal Protocol cryptography. Jarvis interacts, searches, sends media, and manages groups without touching the desktop GUI or stealing mouse focus. For lightweight CLI-only messaging, `wacli` is also available as a fallback channel.
+
+👉 *Full setup, pairing instructions, session recovery, and architecture details are documented in the [Native WhatsApp Protocol Guide](docs/WHATSAPP_INTEGRATION.md).*
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
-| `whatsapp_send` | Send text messages headlessly via native Multi-Device WebSocket protocol | `recipient`, `message`, `quoted_message_id`, `mentioned_jids` |
+| `whatsapp_send` | Send text messages headlessly via native Multi-Device WebSocket protocol (with quoting and @mentions) | `recipient`, `message`, `quoted_message_id`, `mentioned_jids` |
 | `whatsapp_read` | Search historical messages across all chats or read thread history | `chat_jid`, `query`, `limit`, `sender` |
 | `whatsapp_chats` | List all active conversations, group threads, and unread counts | `limit` |
 | `whatsapp_contacts` | Fast contact search by name, push name, or phone number | `query` |
 | `whatsapp_contact_context`| Full contact historical thread and CRM interaction metrics | `contact` |
 | `whatsapp_file` | Send files, images, PDFs, and documents headlessly without desktop GUI | `recipient`, `file_path`, `caption` |
-| `whatsapp_audio` | Send native audio recordings and official voice notes | `recipient`, `audio_path` |
+| `whatsapp_audio` | Send native audio recordings and official voice notes (`.m4a`, `.ogg`, `.wav`) | `recipient`, `audio_path` |
 | `whatsapp_reaction` | React to any WhatsApp message with emojis (`👍`, `❤️`, `🔥`) | `chat_jid`, `message_id`, `emoji` |
 | `whatsapp_edit` | Edit previously sent message text | `chat_jid`, `message_id`, `new_text` |
 | `whatsapp_delete` | Revoke / delete messages for everyone in the chat | `chat_jid`, `message_id` |
-| `whatsapp_poll` | Create interactive polls in individual chats or groups | `chat_jid`, `question`, `options`, `max_answers` |
-| `whatsapp_group` | Group administration (create, members, admin roles, topic) | `action`, `group_jid`, `participants`, `name`, `topic` |
-| `whatsapp_presence` | Set presence state (`available`, `unavailable`, `composing`) | `status` |
+| `whatsapp_poll` | Create interactive multi-choice polls in individual chats or groups | `chat_jid`, `question`, `options`, `max_answers` |
+| `whatsapp_group` | Group administration (create groups, add/remove members, promote admins, set topics) | `action`, `group_jid`, `participants`, `name`, `topic` |
+| `whatsapp_presence` | Set presence state (`available`, `unavailable`, `composing`, `recording`) | `status` |
 | `whatsapp_status` | Inspect WhatsApp protocol engine health and session status | *(none)* |
 
 </details>
 
 <details>
 <summary><b>Universal Model Context Protocol (MCP) Tools</b> (3 tools)</summary>
+
+Dynamically discover and execute tools from any external MCP-compliant server (such as PostgreSQL, GitHub, Slack, Linear, or Supabase) declared in `.openagent/mcp.json`. Supports both local Stdio subprocesses and remote StreamableHTTP / SSE endpoints:
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
@@ -527,6 +492,23 @@ OpenAgent is configured via `.env` in the project root:
 | `LOCOAGENT_TIMEOUT` | `120.0` | Timeout in seconds for social automation commands |
 | `BRIDGE_LOG_FILE` | `~/Library/Logs/OpenAgent/bridge.jsonl` | Diagnostic JSONL event log path |
 
+### External MCP Server Configuration
+
+External Model Context Protocol (MCP) servers can be declared in `.openagent/mcp.json`. Both local Stdio subprocesses and remote SSE/StreamableHTTP endpoints are supported:
+
+```json
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": ["-y", "@supabase/mcp-server"]
+    }
+  }
+}
+```
+
+Configured servers are automatically queried at startup, and their tools become callable via `mcp_tools` and `mcp_call`.
+
 ## OpenInstinct: The Sovereign Local Brain (Experimental)
 
 While [Instinct AI](https://instinct.com/) serves as OpenAgent's primary cloud chief-of-staff for always-listening voice notes and mobile WhatsApp interaction, OpenAgent also incorporates **OpenInstinct**—our secondary, experimental, 100% private local brain.
@@ -548,7 +530,7 @@ Modeled after autonomous terminal coding environments like OpenCode and Claude C
   * `/workstreams` — Inspect active project goals, priorities, and pending steps
   * `/profile` — View persistent facts about you and your preferences
   * `/tools` — List all registered local execution tools
-  * `/doctor` — Audit local subsystem connectivity (Ollama, Bun, Mac, Chrome)
+  * `/doctor` — Audit local component connectivity (Ollama, Bun, Mac, Chrome)
   * `/clear` — Reset turn context while preserving persistent memory
   * `/exit` — Save state and quit
 
