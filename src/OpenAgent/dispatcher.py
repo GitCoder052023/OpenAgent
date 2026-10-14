@@ -57,6 +57,12 @@ try:
 except ImportError:
     get_default_mcp_adapter = None
 
+try:
+    from .whatsapp_adapter import get_default_whatsapp_adapter, WhatsAppError
+except ImportError:
+    get_default_whatsapp_adapter = None
+    WhatsAppError = Exception
+
 _DEFAULT_MAC_ADAPTER: Optional[Any] = None
 _DEFAULT_BROWSER_ADAPTER: Optional[Any] = None
 _DEFAULT_FIRECRAWL_ADAPTER: Optional[Any] = None
@@ -65,6 +71,7 @@ _DEFAULT_SKILLS_ADAPTER: Optional[Any] = None
 _DEFAULT_OFFICE_ADAPTER: Optional[Any] = None
 _DEFAULT_WACLI_ADAPTER: Optional[Any] = None
 _DEFAULT_MCP_ADAPTER: Optional[Any] = None
+_DEFAULT_WHATSAPP_ADAPTER: Optional[Any] = None
 
 
 def get_default_mac_adapter() -> Optional[Any]:
@@ -145,6 +152,16 @@ def get_default_mcp() -> Optional[Any]:
         except Exception as exc:
             logger.warning("Could not initialize default McpAdapter: %s", exc)
     return _DEFAULT_MCP_ADAPTER
+
+
+def get_default_whatsapp() -> Optional[Any]:
+    global _DEFAULT_WHATSAPP_ADAPTER
+    if _DEFAULT_WHATSAPP_ADAPTER is None and get_default_whatsapp_adapter is not None:
+        try:
+            _DEFAULT_WHATSAPP_ADAPTER = get_default_whatsapp_adapter()
+        except Exception as exc:
+            logger.warning("Could not initialize default WhatsAppAdapter: %s", exc)
+    return _DEFAULT_WHATSAPP_ADAPTER
 
 
 
@@ -442,9 +459,10 @@ def execute_tool_call(
     office_adapter: Optional[Any] = None,
     wacli_adapter: Optional[Any] = None,
     mcp_adapter: Optional[Any] = None,
+    whatsapp_adapter: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Execute a parsed tool call using the headless harness, native macOS adapter,
-    browser adapter, Firecrawl, LocoAgent, Skills, Office, Wacli, or MCP.
+    browser adapter, Firecrawl, LocoAgent, Skills, Office, Wacli, MCP, or WhatsApp Extended.
 
     Returns a standardized dictionary:
     {"status": "ok" | "error", "tool": name, "result": ..., "error": ...}
@@ -483,6 +501,9 @@ def execute_tool_call(
 
     if mcp_adapter is None:
         mcp_adapter = get_default_mcp()
+
+    if whatsapp_adapter is None:
+        whatsapp_adapter = get_default_whatsapp()
 
     try:
         # --- Native macOS Computer-Use Primitives (macos-harness) ---
@@ -1325,7 +1346,7 @@ def execute_tool_call(
             return {"status": res.get("status", "ok"), "tool": tool, "result": res}
 
         # --- Headless WhatsApp CLI (wacli) ---
-        elif tool in ("wacli_send", "whatsapp_send"):
+        elif tool == "wacli_send":
             if wacli_adapter is None:
                 raise RuntimeError("Wacli adapter is not available")
             res = wacli_adapter.send(
@@ -1335,29 +1356,156 @@ def execute_tool_call(
             )
             return {"status": res.get("status", "ok"), "tool": tool, "result": res}
 
-        elif tool in ("wacli_search", "whatsapp_search"):
-            if wacli_adapter is None:
-                raise RuntimeError("Wacli adapter is not available")
-            res = wacli_adapter.search(
-                query=args.get("query") or args.get("q", ""),
-                chat=args.get("chat"),
-                limit=int(args.get("limit", 20)),
+        # --- Native WhatsApp Protocol Engine (whatsapp-mcp-extended) ---
+        elif tool in ("whatsapp_send", "wa_send", "whatsapp_message"):
+            if whatsapp_adapter is not None:
+                res = whatsapp_adapter.send_message(
+                    recipient=args.get("recipient") or args.get("to") or args.get("chat_jid", ""),
+                    message=args.get("message") or args.get("text", ""),
+                    quoted_message_id=args.get("quoted_message_id") or args.get("reply_to"),
+                    mentioned_jids=args.get("mentioned_jids"),
+                )
+            elif wacli_adapter is not None:
+                res = wacli_adapter.send(
+                    to=args.get("recipient") or args.get("to", ""),
+                    message=args.get("message") or args.get("text", ""),
+                    file_path=args.get("file") or args.get("file_path"),
+                )
+            else:
+                raise RuntimeError("Neither WhatsApp Protocol Adapter nor Wacli is available")
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("whatsapp_read", "wa_read", "whatsapp_messages", "wa_messages", "whatsapp_search", "wa_search"):
+            if whatsapp_adapter is not None:
+                res = whatsapp_adapter.list_messages(
+                    chat_jid=args.get("chat_jid") or args.get("chat") or args.get("recipient"),
+                    query=args.get("query") or args.get("q"),
+                    limit=int(args.get("limit", 25)),
+                    sender=args.get("sender"),
+                )
+            elif wacli_adapter is not None:
+                res = wacli_adapter.search(
+                    query=args.get("query") or args.get("q", ""),
+                    chat=args.get("chat") or args.get("chat_jid"),
+                    limit=int(args.get("limit", 20)),
+                )
+            else:
+                raise RuntimeError("WhatsApp Protocol Adapter is not available")
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("whatsapp_chats", "wa_chats"):
+            if whatsapp_adapter is not None:
+                res = whatsapp_adapter.list_chats(limit=int(args.get("limit", 40)))
+            elif wacli_adapter is not None:
+                res = wacli_adapter.chats(query=args.get("query"), limit=int(args.get("limit", 20)))
+            else:
+                raise RuntimeError("WhatsApp Protocol Adapter is not available")
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("whatsapp_contacts", "wa_contacts"):
+            if whatsapp_adapter is None:
+                raise RuntimeError("WhatsApp Protocol Adapter is not available")
+            res = whatsapp_adapter.search_contacts(query=args.get("query") or args.get("q") or args.get("name", ""))
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("whatsapp_contact_context", "wa_contact_context"):
+            if whatsapp_adapter is None:
+                raise RuntimeError("WhatsApp Protocol Adapter is not available")
+            res = whatsapp_adapter.get_contact_context(contact_jid_or_phone=args.get("contact") or args.get("recipient") or args.get("phone", ""))
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("whatsapp_file", "wa_file", "whatsapp_document"):
+            if whatsapp_adapter is not None:
+                res = whatsapp_adapter.send_file(
+                    recipient=args.get("recipient") or args.get("to") or args.get("chat_jid", ""),
+                    file_path=args.get("file_path") or args.get("path") or args.get("file", ""),
+                    caption=args.get("caption") or args.get("message"),
+                )
+            elif wacli_adapter is not None:
+                res = wacli_adapter.send(
+                    to=args.get("recipient") or args.get("to", ""),
+                    message=args.get("caption") or args.get("message", ""),
+                    file_path=args.get("file_path") or args.get("file"),
+                )
+            else:
+                raise RuntimeError("WhatsApp Protocol Adapter is not available")
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("whatsapp_audio", "wa_audio", "whatsapp_voice"):
+            if whatsapp_adapter is None:
+                raise RuntimeError("WhatsApp Protocol Adapter is not available")
+            res = whatsapp_adapter.send_audio(
+                recipient=args.get("recipient") or args.get("to") or args.get("chat_jid", ""),
+                audio_path=args.get("audio_path") or args.get("path") or args.get("file", ""),
             )
             return {"status": res.get("status", "ok"), "tool": tool, "result": res}
 
-        elif tool in ("wacli_chats", "whatsapp_chats"):
-            if wacli_adapter is None:
-                raise RuntimeError("Wacli adapter is not available")
-            res = wacli_adapter.chats(
-                query=args.get("query"),
-                limit=int(args.get("limit", 20)),
+        elif tool in ("whatsapp_reaction", "wa_react"):
+            if whatsapp_adapter is None:
+                raise RuntimeError("WhatsApp Protocol Adapter is not available")
+            res = whatsapp_adapter.send_reaction(
+                chat_jid=args.get("chat_jid") or args.get("chat", ""),
+                message_id=args.get("message_id") or args.get("id", ""),
+                emoji=args.get("emoji") or args.get("reaction", "👍"),
             )
             return {"status": res.get("status", "ok"), "tool": tool, "result": res}
 
-        elif tool in ("wacli_status", "wacli_doctor"):
-            if wacli_adapter is None:
-                raise RuntimeError("Wacli adapter is not available")
-            res = wacli_adapter.status()
+        elif tool in ("whatsapp_edit", "wa_edit"):
+            if whatsapp_adapter is None:
+                raise RuntimeError("WhatsApp Protocol Adapter is not available")
+            res = whatsapp_adapter.edit_message(
+                chat_jid=args.get("chat_jid") or args.get("chat", ""),
+                message_id=args.get("message_id") or args.get("id", ""),
+                new_text=args.get("new_text") or args.get("message", ""),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("whatsapp_delete", "wa_delete"):
+            if whatsapp_adapter is None:
+                raise RuntimeError("WhatsApp Protocol Adapter is not available")
+            res = whatsapp_adapter.delete_message(
+                chat_jid=args.get("chat_jid") or args.get("chat", ""),
+                message_id=args.get("message_id") or args.get("id", ""),
+                sender_jid=args.get("sender_jid"),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("whatsapp_poll", "wa_poll"):
+            if whatsapp_adapter is None:
+                raise RuntimeError("WhatsApp Protocol Adapter is not available")
+            res = whatsapp_adapter.create_poll(
+                chat_jid=args.get("chat_jid") or args.get("chat", ""),
+                question=args.get("question", ""),
+                options=args.get("options", []),
+                max_answers=int(args.get("max_answers", 1)),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("whatsapp_group", "wa_group"):
+            if whatsapp_adapter is None:
+                raise RuntimeError("WhatsApp Protocol Adapter is not available")
+            res = whatsapp_adapter.manage_group(
+                action=args.get("action", "info"),
+                group_jid=args.get("group_jid") or args.get("chat_jid"),
+                participants=args.get("participants"),
+                name=args.get("name") or args.get("subject"),
+                topic=args.get("topic"),
+            )
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("whatsapp_presence", "wa_presence"):
+            if whatsapp_adapter is None:
+                raise RuntimeError("WhatsApp Protocol Adapter is not available")
+            res = whatsapp_adapter.set_presence(status=args.get("status", "available"))
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("whatsapp_status", "wa_status", "whatsapp_doctor"):
+            if whatsapp_adapter is not None:
+                res = whatsapp_adapter.status()
+            elif wacli_adapter is not None:
+                res = wacli_adapter.status()
+            else:
+                raise RuntimeError("Neither WhatsApp Protocol Adapter nor Wacli is available")
             return {"status": res.get("status", "ok"), "tool": tool, "result": res}
 
         # --- Universal Model Context Protocol (MCP) ---
@@ -1378,9 +1526,14 @@ def execute_tool_call(
             return {"status": "ok", "tool": tool, "result": {"mcp_tools": tools_list, "total": len(tools_list)}}
 
         else:
+            # Universal MCP fallback: Check if tool is provided by any configured MCP server
+            if mcp_adapter is not None:
+                mcp_res = mcp_adapter.call_tool("", tool, args)
+                if not (mcp_res.get("status") == "error" and "is not configured" in str(mcp_res.get("error", ""))):
+                    return {"status": mcp_res.get("status", "ok"), "tool": tool, "result": mcp_res}
             raise ValueError(f"Unknown harness tool: '{tool}'")
 
-    except (HarnessError, FirecrawlError, LocoError) as err:
+    except (HarnessError, FirecrawlError, LocoError, WhatsAppError) as err:
         logger.warning("Execution error for tool '%s': %s", tool, err)
         return {"status": "error", "tool": tool, "error": str(err)}
     except Exception as exc:
@@ -1714,7 +1867,7 @@ def format_tool_response(response: Dict[str, Any], max_length: int = MAX_WHATSAP
             slides = result.get('slides', [])
             body = f"PowerPoint Deck ({result.get('total_slides', 0)} slides):\n" + "\n".join(f"- Slide {s.get('slide_number')}: {s.get('title')}" for s in slides[:5])
 
-    elif tool in ("apple_reminders", "reminders", "remindctl", "imsg", "imessage", "things_mac", "things", "things3", "spotify", "spogo", "music", "apple_music", "1password", "op", "peekaboo", "apple_notes", "notes", "wacli_send", "wacli_search", "wacli_chats", "wacli_status"):
+    elif tool in ("apple_reminders", "reminders", "remindctl", "imsg", "imessage", "things_mac", "things", "things3", "spotify", "spogo", "music", "apple_music", "1password", "op", "peekaboo", "apple_notes", "notes", "wacli_send", "wacli_search", "wacli_chats", "wacli_status", "whatsapp_send", "wa_send", "whatsapp_read", "wa_read", "whatsapp_messages", "wa_messages", "whatsapp_chats", "whatsapp_contacts", "whatsapp_contact_context", "whatsapp_file", "whatsapp_audio", "whatsapp_reaction", "whatsapp_edit", "whatsapp_delete", "whatsapp_poll", "whatsapp_group", "whatsapp_presence", "whatsapp_status"):
         body = result.get("output") or result.get("stdout") or json.dumps(result, indent=2)
 
     elif tool in ("system_info", "instructions", "system_prompt", "mac_ax", "ax", "mac_browser", "browser", "mac_doctor", "doctor"):

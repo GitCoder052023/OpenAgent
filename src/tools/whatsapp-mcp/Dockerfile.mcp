@@ -1,0 +1,38 @@
+# Build stage: install deps into isolated venv, keeps build tools out of final image
+FROM python:3.13-slim AS builder
+
+RUN pip install --no-cache-dir uv
+
+WORKDIR /app
+COPY ./whatsapp-mcp-server/requirements.txt .
+
+# gradio/gradio_client only used in gradio-main.py (local dev UI), not main.py entrypoint
+RUN grep -vE "^gradio" requirements.txt > requirements-docker.txt \
+    && uv venv /opt/venv \
+    && uv pip install --python /opt/venv --no-cache -r requirements-docker.txt
+
+# Runtime stage: slim base + ffmpeg + venv only, no build tools
+FROM python:3.13-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+ARG UID=1000
+ARG GID=1000
+RUN groupadd -g ${GID} appuser && useradd -l -u ${UID} -g appuser appuser
+
+WORKDIR /app
+COPY ./whatsapp-mcp-server /app/whatsapp-mcp-server
+
+RUN mkdir -p /app/store /app/media \
+    && printf '#!/bin/bash\ncd /app/whatsapp-mcp-server\nexec python main.py\n' > /app/entrypoint-mcp.sh \
+    && chmod +x /app/entrypoint-mcp.sh \
+    && chown -R appuser:appuser /app
+
+USER appuser
+EXPOSE 8081
+ENTRYPOINT ["/app/entrypoint-mcp.sh"]

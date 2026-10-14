@@ -1,0 +1,25 @@
+name: ✨ Feature Request
+description: Propose a new WhatsApp transport feature or MCP tool
+title: '[Feature]: '
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### 📐 Design Philosophy Reminder
+        `whatsapp-mcp-extended` focuses strictly on **Lean Transport Primitives** for WhatsApp (socket lifecycle, messaging CRUD, media downloads, reactions, group management, presence, webhooks, and safety allowlists). Heavy ML features belong in `plugins/` or dedicated agent sidecars.
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: Feature Description
+      description: What transport primitive or MCP tool would you like added?
+      placeholder: Describe the proposal...
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case & Rationale
+      description: How does this help AI agents interact with WhatsApp?
+    validations:
+      required: true

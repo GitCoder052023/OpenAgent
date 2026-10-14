@@ -1,0 +1,40 @@
+name: Downstream Fork Monitor
+
+on:
+  schedule:
+    # Run every Sunday at midnight UTC
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+jobs:
+  check-forks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Downstream Forks for New Commits
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const forks = [
+              'simonseifert/whatsapp-mcp-pro',
+              'bitterdev/whatsapp-mcp-extended',
+              'domdomegg/whatsapp-mcp-extended',
+              'Coriatel/whatsapp-mcp-extended',
+              'laudite/whatsapp-mcp-extended',
+              'kasperpeulen/whatsapp-mcp-extended',
+              'slarrain/whatsapp-mcp-extended'
+            ];
+            
+            console.log("Checking downstream forks for recent updates...");
+            for (const fork of forks) {
+              try {
+                const [owner, repo] = fork.split('/');
+                const { data } = await github.rest.repos.getCommit({
+                  owner,
+                  repo,
+                  ref: 'main'
+                });
+                console.log(`Fork ${fork}: latest commit ${data.sha.substring(0, 7)} on ${data.commit.committer.date}`);
+              } catch (e) {
+                console.log(`Could not fetch ${fork}: ${e.message}`);
+              }
+            }

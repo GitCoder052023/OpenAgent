@@ -198,9 +198,22 @@ def main():
         except Exception as exc:
             print(f"Social Media Engine (LocoAgent): DISABLED ({exc}).")
 
-    event("watcher_config", list_calibrated=bool(cfg.message_list_path), direction_calibrated=bool(cfg.incoming_marker), harness=bool(harness), mac_adapter=bool(mac_adapter), firecrawl=bool(firecrawl_adapter), loco=bool(loco_adapter), safe_mode=cfg.safe_mode)
+    whatsapp_adapter = None
+    if cfg.whatsapp_mcp_enabled:
+        try:
+            from .whatsapp_adapter import get_default_whatsapp_adapter
+            whatsapp_adapter = get_default_whatsapp_adapter()
+            st = whatsapp_adapter.status()
+            if st.get("online"):
+                print("WhatsApp Protocol Engine: ENABLED (headless multi-device bridge online).")
+            else:
+                print("WhatsApp Protocol Engine: STANDBY (bridge container or daemon offline).")
+        except Exception as exc:
+            print(f"WhatsApp Protocol Engine: DISABLED ({exc}).")
+
+    event("watcher_config", list_calibrated=bool(cfg.message_list_path), direction_calibrated=bool(cfg.incoming_marker), harness=bool(harness), mac_adapter=bool(mac_adapter), firecrawl=bool(firecrawl_adapter), loco=bool(loco_adapter), whatsapp=bool(whatsapp_adapter), safe_mode=cfg.safe_mode)
     has_voice = bool(cfg.message_list_path and cfg.incoming_marker and cfg.voice_play_marker and cfg.voice_pause_marker)
-    has_tools = bool(cfg.message_list_path and (cfg.incoming_marker or not cfg.safe_mode) and (harness is not None or mac_adapter is not None or firecrawl_adapter is not None or loco_adapter is not None))
+    has_tools = bool(cfg.message_list_path and (cfg.incoming_marker or not cfg.safe_mode) and (harness is not None or mac_adapter is not None or firecrawl_adapter is not None or loco_adapter is not None or whatsapp_adapter is not None))
 
     if has_voice or has_tools:
         if has_voice:

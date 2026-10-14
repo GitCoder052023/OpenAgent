@@ -397,13 +397,32 @@ Operate real social accounts with primary focus on **Threads (`threads.net`) and
 </details>
 
 <details>
-<summary><b>Headless WhatsApp & Universal MCP Tools</b> (6 tools)</summary>
+<summary><b>Native WhatsApp MCP Extended Protocol Suite</b> (14 tools)</summary>
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
-| `wacli_send` | Headless background WhatsApp message or document delivery | `to`, `message`, `file` |
-| `wacli_search` | Search historical WhatsApp messages across chats without GUI | `query`, `chat`, `limit` |
-| `wacli_chats` | List recent WhatsApp conversations and contacts | `query`, `limit` |
+| `whatsapp_send` | Send text messages headlessly via native Multi-Device WebSocket protocol | `recipient`, `message`, `quoted_message_id`, `mentioned_jids` |
+| `whatsapp_read` | Search historical messages across all chats or read thread history | `chat_jid`, `query`, `limit`, `sender` |
+| `whatsapp_chats` | List all active conversations, group threads, and unread counts | `limit` |
+| `whatsapp_contacts` | Fast contact search by name, push name, or phone number | `query` |
+| `whatsapp_contact_context`| Full contact historical thread and CRM interaction metrics | `contact` |
+| `whatsapp_file` | Send files, images, PDFs, and documents headlessly without desktop GUI | `recipient`, `file_path`, `caption` |
+| `whatsapp_audio` | Send native audio recordings and official voice notes | `recipient`, `audio_path` |
+| `whatsapp_reaction` | React to any WhatsApp message with emojis (`👍`, `❤️`, `🔥`) | `chat_jid`, `message_id`, `emoji` |
+| `whatsapp_edit` | Edit previously sent message text | `chat_jid`, `message_id`, `new_text` |
+| `whatsapp_delete` | Revoke / delete messages for everyone in the chat | `chat_jid`, `message_id` |
+| `whatsapp_poll` | Create interactive polls in individual chats or groups | `chat_jid`, `question`, `options`, `max_answers` |
+| `whatsapp_group` | Group administration (create, members, admin roles, topic) | `action`, `group_jid`, `participants`, `name`, `topic` |
+| `whatsapp_presence` | Set presence state (`available`, `unavailable`, `composing`) | `status` |
+| `whatsapp_status` | Inspect WhatsApp protocol engine health and session status | *(none)* |
+
+</details>
+
+<details>
+<summary><b>Universal Model Context Protocol (MCP) Tools</b> (3 tools)</summary>
+
+| Tool | Description | Key Arguments |
+| --- | --- | --- |
 | `mcp_call` | Invoke any dynamic Model Context Protocol (MCP) server tool | `server`, `tool`, `arguments` |
 | `mcp_tools` | List all discovered tools from active Stdio & SSE MCP servers | `server` |
 | `mcp_status` | Inspect registered MCP servers and connection status | *(none)* |
@@ -551,6 +570,7 @@ OpenAgent is built with gratitude on the shoulders of the open-source agent tool
 - **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** & **[Vosk](https://alphacephei.com/vosk/)** — Lightweight, local, low-latency audio intelligence.
 - **[Firecrawl](https://github.com/firecrawl/firecrawl)** — Pioneering open-source web scraping, crawling, and clean LLM markdown extraction engine.
 - **[LocoAgent](https://github.com/LocoreMind/locoagent)** — Autonomous social media agent by LocoreMind providing persistent real-browser sessions, operation deduplication, and platform playbooks.
+- **[whatsapp-mcp-extended](https://github.com/FelixIsaac/whatsapp-mcp-extended)** — Multi-device WhatsApp protocol transport by FelixIsaac (extending AdamRussak & lharries) powered by `whatsmeow` and FastMCP.
 
 ---
 

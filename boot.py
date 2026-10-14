@@ -465,6 +465,38 @@ def manage_firecrawl(auto_start: bool = False) -> str:
     return "standby"
 
 
+def manage_whatsapp_bridge(auto_start: bool = False) -> str:
+    """Probes WhatsApp Extended Bridge at localhost:8180 or localhost:8080 and optionally spins up Docker container."""
+    def is_port_open(port):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            return s.connect_ex(("127.0.0.1", port)) == 0
+
+    target_port = 8180 if is_port_open(8180) else (8080 if is_port_open(8080) else 8180)
+    if is_port_open(target_port):
+        log_ok(f"WhatsApp Protocol Engine online (whatsmeow bridge at http://localhost:{target_port})")
+        return "online"
+
+    if auto_start:
+        docker_bin = shutil.which("docker")
+        if docker_bin:
+            docker_check = subprocess.run(["docker", "info"], capture_output=True)
+            if docker_check.returncode == 0:
+                wa_dir = ROOT_DIR / "src" / "tools" / "whatsapp-mcp"
+                if (wa_dir / "docker-compose.yaml").exists():
+                    log_info("Starting self-hosted WhatsApp Bridge via docker compose...")
+                    subprocess.run(["docker", "compose", "up", "-d", "whatsapp-bridge"], cwd=str(wa_dir), check=False)
+                    for _ in range(8):
+                        time.sleep(1.0)
+                        if is_port_open(8180) or is_port_open(8080):
+                            active_p = 8180 if is_port_open(8180) else 8080
+                            log_ok(f"WhatsApp Protocol Engine online (http://localhost:{active_p})")
+                            return "online"
+
+    log_info("WhatsApp Protocol Engine in standby mode (run 'docker compose up -d' in src/tools/whatsapp-mcp if needed)")
+    return "standby"
+
+
 def manage_chrome_cdp(auto_start: bool = False) -> str:
     """Probes Chrome DevTools Protocol port (9222) and optionally starts Chrome with remote debugging."""
     def is_port_open(port=9222):
@@ -730,6 +762,8 @@ def parse_args():
     parser.add_argument("--no-social", action="store_true", help="Do not auto-start LocoAgent social media sessions (Threads/Reddit)")
     parser.add_argument("--no-firecrawl", action="store_true", help="Do not auto-start Firecrawl Docker container")
     parser.add_argument("--start-firecrawl", action="store_true", help="Autonomously launch Firecrawl docker engine if offline")
+    parser.add_argument("--no-whatsapp-mcp", action="store_true", help="Do not auto-start WhatsApp MCP bridge container")
+    parser.add_argument("--start-whatsapp-mcp", action="store_true", help="Autonomously launch WhatsApp MCP bridge container if offline")
     parser.add_argument("--start-chrome", action="store_true", help="Autonomously launch Chrome with remote debugging on port 9222")
     parser.add_argument("--start-all-social", action="store_true", help="Launch all 9 configured social media browser sessions at boot")
     return parser.parse_known_args()
@@ -809,6 +843,8 @@ def main():
     manage_social_media(auto_start=auto_social, all_targets=known_args.start_all_social)
     auto_fc = known_args.start_firecrawl or (not known_args.no_firecrawl and shutil.which("docker") is not None)
     manage_firecrawl(auto_start=auto_fc)
+    auto_wa = known_args.start_whatsapp_mcp or (not known_args.no_whatsapp_mcp and shutil.which("docker") is not None)
+    manage_whatsapp_bridge(auto_start=auto_wa)
 
     # Step 5: Harness Preflight Health Verification
     log_step(5, 5, "Preflight Subsystem Verification")

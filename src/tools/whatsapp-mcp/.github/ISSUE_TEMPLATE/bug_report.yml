@@ -1,0 +1,44 @@
+name: 🐛 Bug Report
+description: Create a report to help us reproduce and fix a bug in the WhatsApp transport bridge
+title: '[Bug]: '
+labels: ['bug', 'triage']
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for opening a bug report! Please provide as much details as possible.
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe what happened...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps To Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Call tool 'send_message'
+        2. See error...
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Operating System / Environment
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (Docker)
+        - Linux (Native)
+        - Windows
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: Please paste any relevant error tracebacks or container logs.
+      render: shell

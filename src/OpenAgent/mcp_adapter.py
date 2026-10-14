@@ -73,6 +73,7 @@ class McpServerClient:
             env.update({str(k): str(v) for k, v in self.config["env"].items()})
 
         try:
+            cwd = self.config.get("cwd")
             p = subprocess.Popen(
                 [cmd] + list(args),
                 stdin=subprocess.PIPE,
@@ -80,6 +81,7 @@ class McpServerClient:
                 stderr=subprocess.PIPE,
                 text=True,
                 env=env,
+                cwd=str(cwd) if cwd else None,
             )
             # Write JSON-RPC initialize first if needed, or direct call
             init_msg = json.dumps({"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "OpenAgent", "version": "1.0"}}}) + "\n"

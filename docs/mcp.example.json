@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "whatsapp": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "src/tools/whatsapp-mcp/whatsapp-mcp-server",
+        "python",
+        "main.py"
+      ],
+      "env": {
+        "BRIDGE_HOST": "localhost:8180",
+        "WHATSAPP_API_BASE_URL": "http://localhost:8180/api",
+        "WHATSAPP_MCP_TOOLSETS": "all",
+        "WA_SKIP_DB_CHECK": "1"
+      }
+    }
+  }
+}

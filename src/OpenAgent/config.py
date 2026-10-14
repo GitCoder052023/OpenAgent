@@ -57,6 +57,11 @@ class Config:
     locoagent_root: str = ""
     locoagent_default_platform: str = "threads"
     locoagent_timeout: float = 120.0
+    whatsapp_mcp_enabled: bool = True
+    whatsapp_mcp_api_url: str = "http://localhost:8180"
+    whatsapp_mcp_api_key: str = ""
+    whatsapp_mcp_timeout: float = 30.0
+    whatsapp_mcp_allowlist_jids: str = ""
     sound_enabled: bool = True
     sound_volume: float = 1.0
     background_mode: bool = True
@@ -117,6 +122,16 @@ class Config:
         restore_focus_env = os.getenv("OPENAGENT_RESTORE_FOCUS", "true").strip().lower()
         restore_focus = restore_focus_env not in ("false", "0", "no", "off", "disable")
 
+        wa_enabled_env = os.getenv("WHATSAPP_MCP_ENABLED", "true").strip().lower()
+        whatsapp_mcp_enabled = wa_enabled_env in ("true", "1", "yes", "on")
+        whatsapp_mcp_api_url = os.getenv("WHATSAPP_MCP_API_URL", os.getenv("WHATSAPP_API_URL", cls.whatsapp_mcp_api_url)).rstrip("/")
+        whatsapp_mcp_api_key = os.getenv("WHATSAPP_MCP_API_KEY", os.getenv("WHATSAPP_API_KEY", ""))
+        try:
+            whatsapp_mcp_timeout = float(os.getenv("WHATSAPP_MCP_TIMEOUT", cls.whatsapp_mcp_timeout))
+        except (ValueError, TypeError):
+            whatsapp_mcp_timeout = 30.0
+        whatsapp_mcp_allowlist_jids = os.getenv("WHATSAPP_ALLOWLIST_JIDS", os.getenv("WHATSAPP_MCP_ALLOWLIST_JIDS", ""))
+
         return cls(number=os.getenv("BRIDGE_WHATSAPP_NUMBER", cls.number),
                    model=os.getenv("BRIDGE_WHISPER_MODEL", cls.model),
                    whisper_cli=os.getenv("BRIDGE_WHISPER_CLI", cls.whisper_cli),
@@ -144,6 +159,11 @@ class Config:
                    locoagent_root=locoagent_root,
                    locoagent_default_platform=locoagent_default_platform,
                    locoagent_timeout=locoagent_timeout,
+                   whatsapp_mcp_enabled=whatsapp_mcp_enabled,
+                   whatsapp_mcp_api_url=whatsapp_mcp_api_url,
+                   whatsapp_mcp_api_key=whatsapp_mcp_api_key,
+                   whatsapp_mcp_timeout=whatsapp_mcp_timeout,
+                   whatsapp_mcp_allowlist_jids=whatsapp_mcp_allowlist_jids,
                    sound_enabled=sound_enabled,
                    sound_volume=sound_volume,
                    background_mode=background_mode,

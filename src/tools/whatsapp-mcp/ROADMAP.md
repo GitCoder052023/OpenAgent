@@ -1,0 +1,428 @@
+# WhatsApp MCP Extended - Feature Roadmap
+
+> **Design Philosophy:** `whatsapp-mcp-extended` is engineered as a **Lean Transport Primitive** for WhatsApp (socket lifecycle, messaging CRUD, media downloads, reactions, group administration, webhooks, and safety allowlists). Heavy ML tasks (transcription, vector search) are kept modular as sidecars or reference recipes in [`plugins/`](plugins/).
+
+## Project Context
+
+- **Base**: `whatsapp-mcp-extended` (Dockerized, with webhooks)
+- **Core library**: whatsmeow (Go) - WhatsApp Web multi-device API
+- **Status**: Docker support ✅, Webhooks ✅, Contact management ✅, Safety Allowlists ✅, Quoted Message Replies ✅
+
+## Current State (v0.3.0+)
+
+### Recently Shipped (v0.3.0)
+- ✅ **Reply/Quote Support:** `send_message` supports optional `quoted_message_id` (Issue #57).
+- ✅ **Security Allowlist Gate:** `WHATSAPP_ALLOWLIST_JIDS` env var in Go bridge (Issue #47).
+- ✅ **Automated Downstream Monitoring:** `.github/workflows/downstream-check.yml` audits satellite forks.
+- ✅ **Plugins & Sidecars Architecture:** Reference recipes in [`plugins/`](plugins/) + [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
+### Implemented MCP surface
+- Default toolsets: `all` (26 tools)
+- Lean surface: `core`, `send`, `media` (15 tools)
+- Merged context/action tools: `get_contact_context`, `manage_nickname`, `manage_group`, `manage_blocklist`, `manage_newsletter`
+- Webhook system (via REST API)
+
+### Architecture
+```
+┌─────────────────────┐     ┌─────────────────────┐     ┌─────────────────────┐
+│   whatsapp-bridge   │     │   whatsapp-mcp      │     │   whatsapp-web-ui   │
+│   (Go + whatsmeow)  │◄────│   (Python + MCP)    │     │   (HTML/JS SPA)     │
+│   Port: 8080        │     │   Port: 8081        │     │   Port: 8090        │
+└─────────────────────┘     └─────────────────────┘     └─────────────────────┘
+         │                           │
+         ▼                           ▼
+    ┌─────────────────────────────────────┐
+    │           SQLite (store/)           │
+    │  messages.db │ whatsapp.db          │
+    └─────────────────────────────────────┘
+```
+
+---
+
+## Tool Comparison: whatsapp vs whatsapp-extended
+
+| Tool | `whatsapp` | `whatsapp-extended` |
+|------|:----------:|:-------------------:|
+| **Messages** | | |
+| `search_contacts` | ✅ | ✅ |
+| `list_messages` | ✅ | ✅ |
+| `list_chats` | ✅ | ✅ |
+| `get_chat` | ✅ | ✅ |
+| `get_direct_chat_by_contact` | ✅ | ✅ |
+| `get_contact_chats` | ✅ | ✅ |
+| `get_last_interaction` | ✅ | ✅ |
+| `get_message_context` | ✅ | ✅ |
+| **Sending** | | |
+| `send_message` | ✅ | ✅ |
+| `send_file` | ✅ | ✅ |
+| `send_audio_message` | ✅ | ✅ |
+| `download_media` | ✅ | ✅ |
+| **Contacts** | | |
+| `get_contact_details` | ❌ | ✅ |
+| `list_all_contacts` | ❌ | ✅ |
+| **Nicknames** | | |
+| `set_nickname` | ❌ | ✅ |
+| `get_nickname` | ❌ | ✅ |
+| `remove_nickname` | ❌ | ✅ |
+| `list_nicknames` | ❌ | ✅ |
+| **Infrastructure** | | |
+| Docker support | ❌ | ✅ |
+| Webhook system | ❌ | ✅ |
+| Gradio UI | ❌ | ✅ |
+| **Phase 1 Features** | | |
+| `send_reaction` | ❌ | ✅ |
+| `edit_message` | ❌ | ✅ |
+| `delete_message` | ❌ | ✅ |
+| `get_group_info` | ❌ | ✅ |
+| `mark_read` | ❌ | ✅ |
+| **Phase 2 Features** | | |
+| `create_group` | ❌ | ✅ |
+| `add_group_members` | ❌ | ✅ |
+| `remove_group_members` | ❌ | ✅ |
+| `promote_to_admin` | ❌ | ✅ |
+| `demote_admin` | ❌ | ✅ |
+| `leave_group` | ❌ | ✅ |
+| `update_group` | ❌ | ✅ |
+| **Phase 3 Features** | | |
+| `create_poll` | ❌ | ✅ |
+| **Phase 4 Features** | | |
+| `request_history` | ❌ | ✅ |
+| **Phase 5 Features** | | |
+| `set_presence` | ❌ | ✅ |
+| `subscribe_presence` | ❌ | ✅ |
+| `get_profile_picture` | ❌ | ✅ |
+| `get_blocklist` | ❌ | ✅ |
+| `block_user` | ❌ | ✅ |
+| `unblock_user` | ❌ | ✅ |
+| `follow_newsletter` | ❌ | ✅ |
+| `unfollow_newsletter` | ❌ | ✅ |
+| `create_newsletter` | ❌ | ✅ |
+| **Phase 6 Features** | | |
+| `send_typing` | ❌ | ✅ |
+| `set_about_text` | ❌ | ✅ |
+| `set_disappearing_timer` | ❌ | ✅ |
+| `get_privacy_settings` | ❌ | ✅ |
+| `pin_chat` | ❌ | ✅ |
+| `mute_chat` | ❌ | ✅ |
+| `archive_chat` | ❌ | ✅ |
+| `send_paused` | ❌ | ✅ |
+
+**Current exposed MCP surface: 26 default tools, 15 lean tools. Historical implementation list below includes internal/merged capabilities.**
+
+---
+
+## Phase 1: Quick Wins (Easy)
+
+### 1.1 Reactions
+- **Send**: `client.BuildReaction(chat, sender, msgID, emoji)`
+- **Store**: Add `events.Reaction` handler, store in DB
+- **MCP tool**: `send_reaction(message_id, chat_jid, emoji)`
+
+### 1.2 Edit Message
+- **Method**: `client.BuildEdit(chat, msgID, newContent)`
+- **MCP tool**: `edit_message(message_id, chat_jid, new_content)`
+
+### 1.3 Delete/Revoke Message
+- **Method**: `client.BuildRevoke(chat, sender, msgID)`
+- **MCP tool**: `delete_message(message_id, chat_jid)`
+
+### 1.4 Get Group Info
+- **Method**: `client.GetGroupInfo(jid)`
+- **MCP tool**: `get_group_info(group_jid)` → returns name, description, participants, admins
+
+### 1.5 Mark as Read
+- **Method**: `client.MarkRead([]types.MessageID, timestamp, chat, sender)`
+- **MCP tool**: `mark_read(message_ids, chat_jid)`
+
+---
+
+## Phase 2: Group Management (Medium)
+
+### 2.1 Create Group
+- **Method**: `client.CreateGroup(ctx, ReqCreateGroup{Name, Participants})`
+- **MCP tool**: `create_group(name, participant_jids[])`
+
+### 2.2 Add Group Members
+- **Method**: `client.UpdateGroupParticipants(jid, []JID, ParticipantChangeAdd)`
+- **MCP tool**: `add_group_members(group_jid, member_jids[])`
+
+### 2.3 Remove Group Members
+- **Method**: `client.UpdateGroupParticipants(jid, []JID, ParticipantChangeRemove)`
+- **MCP tool**: `remove_group_members(group_jid, member_jids[])`
+
+### 2.4 Promote/Demote Admin
+- **Methods**: `ParticipantChangePromote`, `ParticipantChangeDemote`
+- **MCP tools**: `promote_to_admin(group_jid, member_jid)`, `demote_admin(...)`
+
+### 2.5 Leave Group
+- **Method**: `client.LeaveGroup(jid)`
+- **MCP tool**: `leave_group(group_jid)`
+
+### 2.6 Update Group Settings
+- **Methods**: `SetGroupName()`, `SetGroupPhoto()`, `SetGroupTopic()`
+- **MCP tools**: `update_group_name(...)`, `update_group_photo(...)`
+
+---
+
+## Phase 3: Polls & Rich Messages (Medium)
+
+### 3.1 Create Poll
+- **Method**: `client.BuildPollCreation(name, options[], selectableCount)`
+- **MCP tool**: `create_poll(chat_jid, question, options[], multi_select)`
+
+### 3.2 Vote on Poll
+- **Method**: `client.BuildPollVote(ctx, pollInfo, selectedOptions[])`
+- **MCP tool**: `vote_poll(poll_message_id, chat_jid, selected_options[])`
+
+### 3.3 Store Rich Message Types
+Extend `extractTextContent()` and DB schema for:
+- Reactions (separate table or column)
+- Polls (poll_id, question, options JSON)
+- Poll votes
+- Locations (lat, lng, name)
+- Contacts (vCard)
+- Stickers
+
+---
+
+## Phase 4: History Sync Enhancement (Medium-Hard)
+
+### 4.1 Configurable Full Sync
+Configure `DeviceProps.HistorySyncConfig` before device creation:
+
+```go
+store.DeviceProps.HistorySyncConfig = &waProto.DeviceProps_HistorySyncConfig{
+    FullSyncDaysLimit:   proto.Uint32(365),   // 1 year
+    FullSyncSizeMbLimit: proto.Uint32(5000),  // 5GB
+    StorageQuotaMb:      proto.Uint32(5000),
+}
+```
+
+**Limitations**:
+- Only applies at initial device link
+- Must re-link device to change
+- Phone must have messages to sync
+
+### 4.2 On-Demand History Request
+- **Method**: `client.BuildHistorySyncRequest(lastKnownMsg, count)`
+- **MCP tool**: `request_history(chat_jid, count)` - fetch older messages per-chat
+
+---
+
+## Phase 5: Advanced Features (Hard)
+
+### 5.1 Presence/Online Status
+- `client.SubscribePresence(jid)`
+- `client.SendPresence(types.PresenceAvailable)`
+
+### 5.2 Profile Management
+- `client.GetProfilePictureInfo(jid, params)`
+- `client.SetGroupPhoto(jid, avatar)`
+
+### 5.3 Block/Unblock
+- `client.GetBlocklist()`
+- `client.UpdateBlocklist(changes)`
+
+### 5.4 Newsletters (if needed)
+- `client.CreateNewsletter(params)`
+- `client.FollowNewsletter(jid)`
+
+---
+
+## Implementation Checklist
+
+### Go Bridge Changes (`whatsapp-bridge/`)
+- [ ] Add new HTTP endpoints for each feature
+- [ ] Add event handlers for reactions, polls, etc.
+- [ ] Extend SQLite schema for new message types
+- [ ] Add history sync config option
+
+### Python MCP Server Changes (`whatsapp-mcp-server/`)
+- [ ] Add new MCP tool definitions
+- [ ] Add corresponding functions in `whatsapp.py`
+- [ ] Update type hints and docstrings
+
+### Documentation
+- [ ] Update README with new features
+- [ ] Add configuration docs for history sync
+- [ ] Document breaking changes (re-link for full sync)
+
+---
+
+## Database Schema Additions
+
+```sql
+-- Reactions table
+CREATE TABLE IF NOT EXISTS reactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id TEXT NOT NULL,
+    chat_jid TEXT NOT NULL,
+    sender TEXT NOT NULL,
+    emoji TEXT NOT NULL,
+    timestamp TIMESTAMP,
+    FOREIGN KEY (chat_jid) REFERENCES chats(jid)
+);
+
+-- Polls table
+CREATE TABLE IF NOT EXISTS polls (
+    id TEXT PRIMARY KEY,
+    chat_jid TEXT NOT NULL,
+    creator TEXT NOT NULL,
+    question TEXT NOT NULL,
+    options TEXT NOT NULL,  -- JSON array
+    selectable_count INTEGER DEFAULT 1,
+    created_at TIMESTAMP,
+    FOREIGN KEY (chat_jid) REFERENCES chats(jid)
+);
+
+-- Poll votes table
+CREATE TABLE IF NOT EXISTS poll_votes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    poll_id TEXT NOT NULL,
+    voter TEXT NOT NULL,
+    selected_options TEXT NOT NULL,  -- JSON array
+    timestamp TIMESTAMP,
+    FOREIGN KEY (poll_id) REFERENCES polls(id)
+);
+
+-- Extend messages table
+ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT 'text';
+ALTER TABLE messages ADD COLUMN location_lat REAL;
+ALTER TABLE messages ADD COLUMN location_lng REAL;
+ALTER TABLE messages ADD COLUMN quoted_message_id TEXT;
+```
+
+---
+
+## Completed Features ✅
+
+- [x] Docker support (docker-compose)
+- [x] Webhook system with triggers
+- [x] Contact nickname management
+- [x] Webhook management UI
+- [x] **Phase 1 Quick Wins** (5 new MCP tools):
+  - [x] `send_reaction` - React to messages with emoji
+  - [x] `edit_message` - Edit previously sent messages
+  - [x] `delete_message` - Delete/revoke messages
+  - [x] `get_group_info` - Get group name, description, participants
+  - [x] `mark_read` - Mark messages as read (blue ticks)
+- [x] **Phase 2 Group Management** (7 new MCP tools):
+  - [x] `create_group` - Create new WhatsApp group
+  - [x] `add_group_members` - Add members to a group
+  - [x] `remove_group_members` - Remove members from a group
+  - [x] `promote_to_admin` - Promote member to admin
+  - [x] `demote_admin` - Demote admin to regular member
+  - [x] `leave_group` - Leave a group
+  - [x] `update_group` - Update group name/topic
+- [x] **Phase 3 Polls** (1 new MCP tool):
+  - [x] `create_poll` - Create and send polls with single/multi-select options
+  - [ ] `vote_poll` - Deferred (requires poll message storage)
+- [x] **Phase 4 History Sync** (1 new MCP tool + config):
+  - [x] `request_history` - Request older messages for a chat (on-demand sync)
+  - [x] Configurable history sync via env vars (HISTORY_SYNC_DAYS_LIMIT, HISTORY_SYNC_SIZE_MB, STORAGE_QUOTA_MB)
+  - [x] Research documented in `docs/HISTORY_SYNC_RESEARCH.md`
+- [x] **Phase 5 Advanced Features** (9 new MCP tools):
+  - [x] `set_presence` - Set own presence (available/unavailable)
+  - [x] `subscribe_presence` - Subscribe to contact presence updates
+  - [x] `get_profile_picture` - Get profile picture URL for user/group
+  - [x] `get_blocklist` - Get list of blocked users
+  - [x] `block_user` - Block a user
+  - [x] `unblock_user` - Unblock a user
+  - [x] `follow_newsletter` - Follow/join a WhatsApp channel
+  - [x] `unfollow_newsletter` - Unfollow a WhatsApp channel
+  - [x] `create_newsletter` - Create a new WhatsApp channel
+
+### Security & Quality Hardening (Completed 2025-12-25)
+
+- [x] **P0 Security Fixes**:
+  - [x] API Key authentication middleware
+  - [x] SSRF protection for webhooks (private IP blocking)
+  - [x] CORS restriction (configurable allowed origins)
+  - [x] Secret token masking in API responses
+  - [x] Path traversal protection for media files
+- [x] **P1 Security Fixes**:
+  - [x] Rate limiting middleware
+  - [x] Non-root Docker containers
+  - [x] Security headers (X-Content-Type-Options, X-Frame-Options, etc.)
+  - [x] Structured audit logging
+- [x] **Code Quality**:
+  - [x] Python code modularization (lib/models.py, lib/database.py, lib/bridge.py, lib/utils.py)
+  - [x] Removed debug print statements
+  - [x] CI/CD GitHub Actions workflows (Go tests, Python lint, Docker build)
+- [x] **Issue #144**: `sender_name` field added to message output for AI agent readability
+
+---
+
+## Future Phases (Pre-Release Roadmap)
+
+### Phase 6: Must Have (v0.1.0 Pre-Release)
+
+| Feature | Tools | whatsmeow Method | Priority |
+|---------|-------|------------------|----------|
+| **Disappearing Messages** | ~~`set_disappearing_timer`~~ ✅, `get_disappearing_timer` | `SetDisappearingTimer()`, `SetDefaultDisappearingTimer()` | 🟡 Medium |
+| **Chat Settings** | ~~`pin_chat`~~ ✅, ~~`mute_chat`~~ ✅, ~~`archive_chat`~~ ✅, `get_chat_settings` | `appstate.BuildPin()`, `BuildMute()`, `BuildArchive()` | 🟡 Medium |
+| **Status/About** | ~~`set_about_text`~~ ✅, `post_status` | `SetStatusMessage()`, `SendMessage(StatusBroadcastJID)` | 🟡 Medium |
+| **Privacy Settings** | ~~`get_privacy_settings`~~ ✅, `set_privacy_setting` | `TryFetchPrivacySettings()`, `SetPrivacySetting()` | 🟡 Medium |
+| **Typing Indicator** | ~~`send_typing`~~ ✅, ~~`send_paused`~~ ✅ | `SendChatPresence(Composing/Paused)` | ✅ Done |
+| **Reply/Quote** | `reply_message` | `ContextInfo.QuotedMessage` | 🔴 High |
+
+### Phase 7: Should Have (v0.2.0)
+
+| Feature | Tools | Notes |
+|---------|-------|-------|
+| **Starred Messages** | `star_message`, `unstar_message`, `get_starred_messages` | `appstate.BuildStar()` |
+| **Forward Message** | `forward_message` | `ContextInfo.IsForwarded` |
+| **Send Location** | `send_location` | Lat/lng with optional name |
+| **Send Contact** | `send_contact` | vCard format |
+| **Set Profile Picture** | `set_profile_picture`, `remove_profile_picture` | Own avatar management |
+
+### Phase 8: Could Have (v0.3.0+)
+
+| Feature | Tools | Notes |
+|---------|-------|-------|
+| **Labels** | `create_label`, `assign_label`, `remove_label`, `list_labels` | Business accounts only |
+| **Broadcast Lists** | `create_broadcast`, `send_broadcast` | Different from newsletters |
+| **Community** | `create_community`, `manage_community` | Complex, newer feature |
+| **Call Signaling** | `initiate_call`, `reject_call` | Signaling only, no media |
+
+---
+
+## Quick Wins for v0.1.0
+
+Easiest to implement (single method calls):
+
+1. ~~**`send_typing`**~~ ✅ - `client.SendChatPresence(chat, types.ChatPresenceComposing)` **(Completed 2025-12-25)**
+2. ~~**`set_about_text`**~~ ✅ - `client.SetStatusMessage(msg)` **(Completed 2025-12-25)**
+3. ~~**`set_disappearing_timer`**~~ ✅ - `client.SetDisappearingTimer(chat, duration)` **(Completed 2025-12-25)**
+4. ~~**`get_privacy_settings`**~~ ✅ - `client.TryFetchPrivacySettings(ctx)` **(Completed 2025-12-25)**
+5. ~~**`pin_chat`**~~ ✅ - `client.SendAppState(appstate.BuildPin(chat, true))` **(Completed 2025-12-25)**
+6. ~~**`mute_chat`**~~ ✅ - `client.SendAppState(appstate.BuildMute(chat, duration))` **(Completed 2025-12-25)**
+7. ~~**`archive_chat`**~~ ✅ - `client.SendAppState(appstate.BuildArchive(chat, bool))` **(Completed 2025-12-25)**
+8. ~~**`send_paused`**~~ ✅ - Wrapper for `send_typing(chat, "paused")` **(Completed 2025-12-25)**
+
+Disappearing timer constants:
+```go
+DisappearingTimerOff     = 0
+DisappearingTimer24Hours = 24 * time.Hour
+DisappearingTimer7Days   = 7 * 24 * time.Hour
+DisappearingTimer90Days  = 90 * 24 * time.Hour
+```
+
+Privacy setting types:
+```go
+PrivacySettingTypeGroupAdd     = "groupadd"
+PrivacySettingTypeLastSeen     = "last"
+PrivacySettingTypeStatus       = "status"
+PrivacySettingTypeProfile      = "profile"
+PrivacySettingTypeReadReceipts = "readreceipts"
+PrivacySettingTypeOnline       = "online"
+```
+
+---
+
+## Resolved Questions
+
+1. ~~Reactions: separate table or JSON in messages?~~ → Deferred, using webhook delivery
+2. ~~Priority order for Phase 1 features?~~ → Completed all Phase 1-5
+3. ~~Config file format for history sync days?~~ → Environment variables
+4. ~~Backwards compatibility with existing DBs?~~ → Yes, additive changes only
