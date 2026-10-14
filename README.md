@@ -138,7 +138,7 @@ You can play immersive fullscreen games (Metal, Steam, Wine/CrossOver) or work i
 
 ## 🚀 Enterprise Subsystems for Instinct AI
 
-To make OpenAgent an enterprise-grade execution body for **Instinct AI** ([instinct.com](https://instinct.com)), four battle-tested subsystems are integrated directly into the core Python architecture. This guarantees that your cloud AI chief-of-staff operates with executive-level software capabilities:
+To make OpenAgent an enterprise-grade execution body for **Instinct AI** ([instinct.com](https://instinct.com)), five battle-tested subsystems are integrated directly into the core Python architecture. This guarantees that your cloud AI chief-of-staff operates with executive-level software capabilities:
 
 ### 1. Native macOS Daily Life Skills Suite
 Instinct can directly manage your personal daily life through native macOS CLI integrations:
@@ -159,23 +159,28 @@ Instinct acts as an executive assistant that generates and inspects Microsoft Of
 * **Microsoft Excel (`.xlsx`):** `excel_read` inspects workbook sheets, column headers, and data rows; `excel_write` creates styled spreadsheets with navy header fills and auto-calculated column widths.
 * **Microsoft PowerPoint (`.pptx`):** `pptx_read` extracts deck hierarchy and bullet points; `pptx_write` generates complete keynote slide decks; `pptx_template_fill` replaces template placeholder tags (`{{TITLE}}`, `{{METRICS}}`) with dynamic values.
 
-### 3. Headless WhatsApp CLI Adapter
-While OpenAgent controls WhatsApp Desktop via Accessibility APIs for primary foreground voice chat, `wacli` provides a non-intrusive headless channel:
-* Send messages and attachments silently in the background without stealing window focus.
-* Search historical messages across any chat using `wacli_search`.
-* List chats and contacts via `wacli_chats`.
+### 3. Native WhatsApp Protocol Engine (`whatsapp-mcp-extended`)
+OpenAgent natively embeds an enterprise-grade Go `whatsmeow` multi-device engine and Python Model Context Protocol (MCP) server, allowing Instinct AI to operate your personal WhatsApp account 100% headlessly at the network protocol layer without touching the desktop GUI:
+* **Zero GUI Interference (Pure Ghost Mode)**: Operates over secure WebSockets with end-to-end Signal Protocol cryptography. Jarvis reads incoming messages, replies to contacts, sends PDFs, and creates polls while you game or code in fullscreen without stealing mouse focus or raising windows.
+* **14 Native Autonomous Protocol Tools**:
+  - *Direct Messaging & History*: `whatsapp_send` (text, quoting, @mentions), `whatsapp_read` (cross-chat keyword search, thread history), `whatsapp_chats` (active threads, unread counts).
+  - *Media & Native Voice Notes*: `whatsapp_file` (PDFs, images, videos, documents), `whatsapp_audio` (native WhatsApp voice notes in `.m4a`, `.ogg`, `.wav`).
+  - *Realtime Interactivity*: `whatsapp_reaction` (emoji reactions), `whatsapp_edit` (message editing), `whatsapp_delete` (message revocation for everyone), `whatsapp_poll` (multi-choice interactive polls).
+  - *Contacts & CRM Context*: `whatsapp_contacts` (address book lookup), `whatsapp_contact_context` (deep interaction history and metrics).
+  - *Administration*: `whatsapp_group` (create groups, add/remove members, promote admins), `whatsapp_presence` (online, typing, recording states), `whatsapp_status` (engine health).
+* **Autonomous Docker Orchestration**: Integrated directly into `boot.py` via `./boot.py --start-whatsapp-mcp`. Automatically supervises the Go bridge (`http://localhost:8180`) and Next.js Web UI (`http://localhost:8090`).
+* **Instant Device Pairing (No QR Required)**: Open `http://localhost:8090`, enter your phone number, and link with the 8-digit code from **WhatsApp > Linked Devices > Link with phone number instead** (or scan live ASCII QR in container logs).
+* **Self-Healing Session Persistence**: Cryptographic identity keys and session tokens persist permanently in SQLite (`src/tools/whatsapp-mcp/data/whatsapp-bridge.db`) across Mac reboots and container restarts. Includes 15-minute handshake timeouts, auto-expiring pairing locks, and manual reset endpoints (`POST /api/pair/reset`).
+* 👉 *Full documentation, architecture, and voice command examples in [Native WhatsApp Protocol Guide](docs/WHATSAPP_INTEGRATION.md).*
 
-### 4. Universal Model Context Protocol (MCP) Client
+### 4. Headless WhatsApp CLI Adapter (Fallback Channel)
+While the native protocol engine handles full companion operations, `wacli` remains integrated as an ultra-lightweight CLI fallback channel for quick terminal-based message delivery and searching without background services.
+
+### 5. Universal Model Context Protocol (MCP) Client
 Instinct AI is not restricted to hardcoded tools. Through the dynamic **MCP Client**:
 * Declare any MCP-compliant server (PostgreSQL, GitHub, Slack, Linear, Memory, Supabase) in `.openagent/mcp.json`.
 * Supports both **Stdio** subprocesses and **StreamableHTTP / SSE** remote endpoints.
 * Tools are discovered dynamically via `mcp_tools` and executed via `mcp_call`.
-
-### 5. Native WhatsApp Protocol Engine
-OpenAgent natively embeds an enterprise-grade Go `whatsmeow` multi-device engine and Python MCP server, allowing Instinct AI to operate your WhatsApp account 100% headlessly:
-* **Rich Protocol Operations**: Send and read messages, retrieve contact CRM context, send voice notes/audio, share PDFs/images, react with emoji, edit/delete messages, and create interactive polls.
-* **Autonomous Docker Orchestration**: Integrated into `boot.py` via `./boot.py --start-whatsapp-mcp`. Spins up the Go bridge (`http://localhost:8180`) and Web UI (`http://localhost:8090`).
-* **Instant Device Pairing**: Link your WhatsApp account via 8-digit phone code on `http://localhost:8090` (no camera/QR needed). Sessions automatically persist in SQLite across reboots.
 
 ## Quick Start
 
@@ -583,6 +588,7 @@ For advanced Accessibility tree inspection and calibration, see [`docs/CALIBRATI
 ## Documentation
 
 - [Setup Prompt & Tool Instructions](docs/JARVIS_INSTRUCTIONS.md) — Initialization block to connect Instinct AI. *(Note: Author's personal operational configuration — edit according to your own name, handles, and requirements.)*
+- [Native WhatsApp Protocol Guide](docs/WHATSAPP_INTEGRATION.md) — Architecture, 14 native tools, phone code pairing, and anti-ban safeguards for headless WhatsApp.
 - [Offline Terminal Mode Spec (OpenInstinct)](OPENINSTINCT_BRAIN_SPEC.md) — Architectural notes and feasibility analysis for local offline models.
 - [Social Media Automation Guide](docs/SOCIAL_MEDIA_AUTOMATION.md) — Architecture, platform ports, and operational guide for Threads & Reddit.
 - [Accessibility & Calibration Guide](docs/CALIBRATION.md) — Deep calibration for AX trees, audio routing, and debug states.
