@@ -1,1 +1,0 @@
-"""WhatsApp MCP Server Tests."""

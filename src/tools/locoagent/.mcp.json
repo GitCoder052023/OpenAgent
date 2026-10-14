@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "computer-control": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "computer-use-mcp"]
-    }
-  }
-}

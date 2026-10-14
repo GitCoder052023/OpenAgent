@@ -1,9 +1,0 @@
-requests
-httpx
-pytest
-pytest-asyncio
-python-dotenv
-websockets
-nest-asyncio
-pydantic>=2.0
-aiohttp
