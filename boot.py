@@ -502,6 +502,10 @@ def manage_whatsapp_bridge(auto_start: bool = False) -> str:
     if active:
         p = active["port"]
         d = active["data"]
+        if auto_start and d.get("needs_pairing"):
+            wa_dir = ROOT_DIR / "src" / "tools" / "whatsapp-mcp"
+            if (wa_dir / "docker-compose.yaml").exists():
+                subprocess.run(["docker", "compose", "up", "-d", "web-ui"], cwd=str(wa_dir), check=False)
         note = " (needs pairing — open http://localhost:8090)" if d.get("needs_pairing") else ""
         log_ok(f"WhatsApp Protocol Engine online (whatsmeow bridge at http://localhost:{p}{note})")
         return "online"
