@@ -171,12 +171,11 @@ Instinct AI is not restricted to hardcoded tools. Through the dynamic **MCP Clie
 * Supports both **Stdio** subprocesses and **StreamableHTTP / SSE** remote endpoints.
 * Tools are discovered dynamically via `mcp_tools` and executed via `mcp_call`.
 
-### 5. Native WhatsApp Protocol Engine (`whatsapp-mcp-extended`)
-OpenAgent natively embeds an enterprise-grade Go `whatsmeow` multi-device engine and Python MCP server (`src/tools/whatsapp-mcp/`), allowing Instinct AI to operate your WhatsApp account 100% headlessly:
+### 5. Native WhatsApp Protocol Engine
+OpenAgent natively embeds an enterprise-grade Go `whatsmeow` multi-device engine and Python MCP server, allowing Instinct AI to operate your WhatsApp account 100% headlessly:
 * **Rich Protocol Operations**: Send and read messages, retrieve contact CRM context, send voice notes/audio, share PDFs/images, react with emoji, edit/delete messages, and create interactive polls.
 * **Autonomous Docker Orchestration**: Integrated into `boot.py` via `./boot.py --start-whatsapp-mcp`. Spins up the Go bridge (`http://localhost:8180`) and Web UI (`http://localhost:8090`).
-* **Instant Device Pairing**: Link your WhatsApp account via 8-digit phone code on `http://localhost:8090` (no camera/QR needed) or scan live ASCII QR codes in the container logs (`docker logs -f whatsapp-mcp-whatsapp-bridge-1`). Sessions automatically persist in SQLite across reboots.
-* **Fault-Tolerant Pairing Recovery**: Features automatic 15-minute handshake timeouts, digits-only phone normalization, auto-expiring locks, and manual state reset (`POST /api/pair/reset`).
+* **Instant Device Pairing**: Link your WhatsApp account via 8-digit phone code on `http://localhost:8090` (no camera/QR needed). Sessions automatically persist in SQLite across reboots.
 
 ## Quick Start
 
@@ -249,16 +248,74 @@ Open **System Settings → Privacy & Security** and verify permissions for your 
 * **Screen Recording**: Window capture (`mac_see`)
 * **Automation**: System Events and AppleScript app control
 
-### 3. Connect Instinct (One-Time)
+### 3. One-Time WhatsApp Setup
 
-Once OpenAgent is running, initialize Instinct with its capabilities:
+OpenAgent uses WhatsApp in two complementary roles:
+1. **WhatsApp Desktop**: The conversational voice and text transport between you, your Mac, and Instinct AI.
+2. **Native WhatsApp Protocol Engine (`whatsapp-mcp-extended`)**: The headless multi-device engine that allows Jarvis to send messages, read threads, search history, send files/voice notes, reactions, and polls on your behalf without touching the desktop GUI.
 
-1. Open [`docs/JARVIS_INSTRUCTIONS.md`](docs/JARVIS_INSTRUCTIONS.md).  
-   > ⚠️ **Note for Readers:** `docs/JARVIS_INSTRUCTIONS.md` is the author's personal setup and operational file (containing his personal accounts, subreddits, and persona guidelines). You will need to edit it according to your own name, social media handles, accounts, and requirements before sending it to your agent.
-2. Copy the initialization instruction prompt.
-3. Paste it directly into your WhatsApp chat with Instinct.
+---
+
+#### Part A: WhatsApp Desktop & Instinct AI (The Voice/Chat Interface)
+
+1. **Install WhatsApp Desktop**:
+   Download and log into official [WhatsApp Desktop](https://www.whatsapp.com/download) on your Mac.
+2. **Configure `.env`**:
+   Ensure `BRIDGE_WHATSAPP_NUMBER` matches your Instinct AI agent's phone number (e.g. `+16508702892`):
+   ```bash
+   BRIDGE_WHATSAPP_NUMBER=+16508702892
+   ```
+3. **Calibrate UI Elements**:
+   Run the calibration script to auto-detect WhatsApp Desktop's accessibility buttons and input fields:
+   ```bash
+   ./calibrate.py --save
+   ```
+4. **Send the Initial Setup Prompt to Instinct**:
+   - Open [`docs/JARVIS_INSTRUCTIONS.md`](docs/JARVIS_INSTRUCTIONS.md).
+     > ⚠️ **Note for Readers:** `docs/JARVIS_INSTRUCTIONS.md` contains the author's persona settings, handles, and accounts. Personalize it with your own name, preferences, and details.
+   - Copy the text from `[SYSTEM INSTRUCTION & CAPABILITIES INITIALIZATION]` downwards.
+   - Send it directly into your WhatsApp chat with Instinct AI.
 
 Instinct will recognize the `JARVIS_CALL` protocol and begin executing tasks on your Mac!
+
+---
+
+#### Part B: Linking Your Account to the Headless Protocol Engine (`whatsapp-mcp-extended`)
+
+This links your personal WhatsApp account as a companion multi-device session so Jarvis can perform actions for you (e.g., *"Jarvis, message Sarah that I'm running 5 mins late"*, *"Check my unread messages"*, or *"Send this PDF to the dev group"*):
+
+1. **Start the WhatsApp Protocol Subsystem**:
+   ```bash
+   ./boot.py --start-whatsapp-mcp
+   ```
+   This automatically brings up the Go bridge (`http://localhost:8180`) and Web UI (`http://localhost:8090`).
+
+2. **Link via 8-Digit Pairing Code (Recommended — No QR Needed)**:
+   - Open **[http://localhost:8090](http://localhost:8090)** in your browser.
+   - Enter your phone number in full international format (e.g., `919876543210`, country code first, no `+` or spaces).
+   - Click **Generate Code** to receive an 8-character pairing code.
+   - On your phone: Open **WhatsApp** → **Settings** (or 3 dots) → **Linked Devices** → **Link a Device**.
+   - Tap **Link with phone number instead** at the bottom and enter the 8-character code.
+
+3. **Alternative: Link via Live Terminal QR Code**:
+   If you prefer scanning a QR code:
+   ```bash
+   docker logs -f whatsapp-mcp-whatsapp-bridge-1
+   ```
+   Point your phone camera from **WhatsApp > Linked Devices > Link a Device** at the terminal ASCII QR.
+
+4. **Verify Session Status**:
+   ```bash
+   curl -s http://localhost:8180/api/connection
+   # Returns: {"success":true,"connected":true,"linked":true,"needs_pairing":false,"jid":"..."}
+   ```
+
+> 🔒 **Session Persistence & Recovery:**  
+> - **Persistent Sessions:** All credentials and cryptographic keys are saved into `src/tools/whatsapp-mcp/data/whatsapp-bridge.db` and persist automatically across Mac reboots and container restarts. You do not need to re-pair every time you run OpenAgent.  
+> - **Pairing Reset:** If a pairing attempt ever times out or is interrupted, simply click reset in the Web UI or run:
+>   ```bash
+>   curl -s -X POST http://localhost:8180/api/pair/reset
+>   ```
 
 ## How to Operate
 
