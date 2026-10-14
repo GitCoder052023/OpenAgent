@@ -136,13 +136,11 @@ You can play immersive fullscreen games (Metal, Steam, Wine/CrossOver) or work i
 
 **Self-healing runtime.** `boot.py` provisions its own environment, installs missing dependencies, downloads speech models, restarts the agent (and its listening session) with exponential backoff and keeps WhatsApp Desktop alive in the background. `./boot.py --doctor` runs a full preflight audit.
 
----
-
 ## 🚀 Enterprise Subsystems for Instinct AI
 
 To make OpenAgent an enterprise-grade execution body for **Instinct AI** ([instinct.com](https://instinct.com)), four battle-tested subsystems are integrated directly into the core Python architecture. This guarantees that your cloud AI chief-of-staff operates with executive-level software capabilities:
 
-### 1. Native macOS Daily Life Skills Suite (`src/OpenAgent/skills_adapter.py`)
+### 1. Native macOS Daily Life Skills Suite
 Instinct can directly manage your personal daily life through native macOS CLI integrations:
 * **`apple_reminders` (`remindctl`):** *"Jarvis, remind me to call Mom at 6pm"* → instantly syncs to your iPhone Reminders.
 * **`imsg` (`imsg`):** Read iMessage threads and send SMS/iMessages to contacts from the command line.
@@ -155,19 +153,19 @@ Instinct can directly manage your personal daily life through native macOS CLI i
 * **`nano_pdf` (`nano-pdf`):** Edit PDF pages using natural language prompts.
 * **`tmux` (`tmux`):** Manage persistent background terminal sessions and capture panes.
 
-### 2. Enterprise Office Suite Automation (`src/OpenAgent/office_adapter.py`)
+### 2. Enterprise Office Suite Automation
 Instinct acts as an executive assistant that generates and inspects Microsoft Office documents without needing Microsoft Office installed:
 * **Microsoft Word (`.docx`):** `word_read` parses headings, body text, and tables; `word_write` generates polished documents with custom headings and table styling.
 * **Microsoft Excel (`.xlsx`):** `excel_read` inspects workbook sheets, column headers, and data rows; `excel_write` creates styled spreadsheets with navy header fills and auto-calculated column widths.
 * **Microsoft PowerPoint (`.pptx`):** `pptx_read` extracts deck hierarchy and bullet points; `pptx_write` generates complete keynote slide decks; `pptx_template_fill` replaces template placeholder tags (`{{TITLE}}`, `{{METRICS}}`) with dynamic values.
 
-### 3. Headless WhatsApp CLI Adapter (`src/OpenAgent/wacli_adapter.py`)
+### 3. Headless WhatsApp CLI Adapter
 While OpenAgent controls WhatsApp Desktop via Accessibility APIs for primary foreground voice chat, `wacli` provides a non-intrusive headless channel:
 * Send messages and attachments silently in the background without stealing window focus.
 * Search historical messages across any chat using `wacli_search`.
 * List chats and contacts via `wacli_chats`.
 
-### 4. Universal Model Context Protocol (MCP) Client (`src/OpenAgent/mcp_adapter.py`)
+### 4. Universal Model Context Protocol (MCP) Client
 Instinct AI is not restricted to hardcoded tools. Through the dynamic **MCP Client**:
 * Declare any MCP-compliant server (PostgreSQL, GitHub, Slack, Linear, Memory, Supabase) in `.openagent/mcp.json`.
 * Supports both **Stdio** subprocesses and **StreamableHTTP / SSE** remote endpoints.
