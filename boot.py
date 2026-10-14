@@ -465,32 +465,73 @@ def manage_firecrawl(auto_start: bool = False) -> str:
     return "standby"
 
 
-def manage_whatsapp_bridge(auto_start: bool = False) -> str:
-    """Probes WhatsApp Extended Bridge at localhost:8180 or localhost:8080 and optionally spins up Docker container."""
-    def is_port_open(port):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(0.5)
-            return s.connect_ex(("127.0.0.1", port)) == 0
+def probe_whatsapp_bridge_endpoint(port: int = 8180) -> Optional[Dict[str, Any]]:
+    """Probes whether WhatsApp bridge is responding to HTTP health/connection API."""
+    import urllib.request
+    import urllib.error
+    url = f"http://127.0.0.1:{port}/api/health"
+    try:
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=1.2) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            if isinstance(data, dict) and ("connected" in data or "needs_pairing" in data or data.get("status") in ("ok", "healthy")):
+                return {"port": port, "data": data}
+    except urllib.error.HTTPError as exc:
+        # Bridge returns HTTP 503 when alive but waiting for initial QR or phone code pairing
+        try:
+            data = json.loads(exc.read().decode("utf-8"))
+            if isinstance(data, dict) and ("connected" in data or "needs_pairing" in data):
+                return {"port": port, "data": data}
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return None
 
-    target_port = 8180 if is_port_open(8180) else (8080 if is_port_open(8080) else 8180)
-    if is_port_open(target_port):
-        log_ok(f"WhatsApp Protocol Engine online (whatsmeow bridge at http://localhost:{target_port})")
+
+def manage_whatsapp_bridge(auto_start: bool = False) -> str:
+    """Probes WhatsApp Extended Bridge at localhost:8180 (preferred) or localhost:8080 and optionally spins up Docker container."""
+    def check_alive() -> Optional[Dict[str, Any]]:
+        for p in (8180, 8080):
+            res = probe_whatsapp_bridge_endpoint(p)
+            if res:
+                return res
+        return None
+
+    active = check_alive()
+    if active:
+        p = active["port"]
+        d = active["data"]
+        note = " (needs pairing — open http://localhost:8090)" if d.get("needs_pairing") else ""
+        log_ok(f"WhatsApp Protocol Engine online (whatsmeow bridge at http://localhost:{p}{note})")
         return "online"
 
     if auto_start:
         docker_bin = shutil.which("docker")
         if docker_bin:
             docker_check = subprocess.run(["docker", "info"], capture_output=True)
-            if docker_check.returncode == 0:
+            if docker_check.returncode != 0:
+                if os.path.exists("/Applications/Docker.app"):
+                    log_info("Launching Docker Desktop in background for WhatsApp Bridge...")
+                    subprocess.run(["open", "-g", "-j", "-a", "Docker"], check=False)
+                    for _ in range(8):
+                        time.sleep(1.0)
+                        if subprocess.run(["docker", "info"], capture_output=True).returncode == 0:
+                            break
+
+            if subprocess.run(["docker", "info"], capture_output=True).returncode == 0:
                 wa_dir = ROOT_DIR / "src" / "tools" / "whatsapp-mcp"
                 if (wa_dir / "docker-compose.yaml").exists():
                     log_info("Starting self-hosted WhatsApp Bridge via docker compose...")
-                    subprocess.run(["docker", "compose", "up", "-d", "whatsapp-bridge"], cwd=str(wa_dir), check=False)
-                    for _ in range(8):
+                    subprocess.run(["docker", "compose", "up", "-d"], cwd=str(wa_dir), check=False)
+                    for _ in range(12):
                         time.sleep(1.0)
-                        if is_port_open(8180) or is_port_open(8080):
-                            active_p = 8180 if is_port_open(8180) else 8080
-                            log_ok(f"WhatsApp Protocol Engine online (http://localhost:{active_p})")
+                        active = check_alive()
+                        if active:
+                            p = active["port"]
+                            d = active["data"]
+                            note = " (needs pairing — open http://localhost:8090)" if d.get("needs_pairing") else ""
+                            log_ok(f"WhatsApp Protocol Engine online (whatsmeow bridge at http://localhost:{p}{note})")
                             return "online"
 
     log_info("WhatsApp Protocol Engine in standby mode (run 'docker compose up -d' in src/tools/whatsapp-mcp if needed)")

@@ -48,9 +48,9 @@ class WhatsAppAdapter:
         store_path: Optional[Union[str, Path]] = None,
     ):
         raw_url = (api_url or os.getenv("WHATSAPP_MCP_API_URL") or os.getenv("WHATSAPP_API_URL") or "http://localhost:8180").rstrip("/")
-        # Normalize: if provided base URL without /api, append /api for REST endpoints
-        self.base_url = raw_url if raw_url.endswith("/api") else f"{raw_url}/api"
-        self.root_url = raw_url[:-4] if raw_url.endswith("/api") else raw_url
+        # Store root base_url without trailing /api (all REST endpoints use /api/ via _request)
+        self.base_url = raw_url[:-4] if raw_url.endswith("/api") else raw_url
+        self.root_url = self.base_url
         self.api_key = api_key if api_key is not None else os.getenv("WHATSAPP_MCP_API_KEY", os.getenv("API_KEY", ""))
         self.timeout = float(timeout or os.getenv("WHATSAPP_MCP_TIMEOUT", 30.0))
 
@@ -119,8 +119,10 @@ class WhatsAppAdapter:
         params: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """Execute HTTP request against the WhatsApp bridge REST API."""
-        url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        clean_ep = endpoint.lstrip("/")
+        if not clean_ep.startswith("api/"):
+            clean_ep = f"api/{clean_ep}"
+        url = f"{self.base_url.rstrip('/')}/{clean_ep}"
         if params:
             query_str = urllib.parse.urlencode({k: str(v) for k, v in params.items() if v is not None})
             url = f"{url}?{query_str}"
@@ -147,6 +149,14 @@ class WhatsAppAdapter:
                 except json.JSONDecodeError:
                     return {"success": True, "data": raw_bytes.decode("utf-8")}
         except urllib.error.HTTPError as exc:
+            # Special handling: /api/health returns HTTP 503 when daemon is alive but awaiting QR/phone pairing
+            if clean_ep == "api/health":
+                try:
+                    err_data = json.loads(exc.read().decode("utf-8"))
+                    if isinstance(err_data, dict) and ("needs_pairing" in err_data or "connected" in err_data):
+                        return err_data
+                except Exception:
+                    pass
             err_msg = f"HTTP {exc.code} on {method} {url}"
             try:
                 err_data = json.loads(exc.read().decode("utf-8"))
@@ -169,11 +179,20 @@ class WhatsAppAdapter:
         """Probes the bridge health and connection status."""
         try:
             res = self._request("health", method="GET", timeout=4.0)
-            is_ok = bool(res.get("status") in ("ok", "healthy") or res.get("success", False))
+            is_online = bool(
+                res.get("status") in ("ok", "healthy")
+                or res.get("success", False)
+                or "connected" in res
+                or "needs_pairing" in res
+            )
+            needs_pairing = bool(res.get("needs_pairing", False))
+            connected = bool(res.get("connected", False))
             return {
-                "status": "ok" if is_ok else "degraded",
+                "status": "ok" if (is_online and not needs_pairing) else ("needs_pairing" if needs_pairing else "degraded"),
                 "bridge_url": self.base_url,
-                "online": True,
+                "online": is_online,
+                "connected": connected,
+                "needs_pairing": needs_pairing,
                 "health": res,
                 "store_available": bool(self.store_path and (self.store_path / "messages.db").exists()),
             }
@@ -182,7 +201,10 @@ class WhatsAppAdapter:
                 "status": "error",
                 "bridge_url": self.base_url,
                 "online": False,
+                "connected": False,
+                "needs_pairing": False,
                 "error": str(exc),
+                "store_available": bool(self.store_path and (self.store_path / "messages.db").exists()),
             }
 
     # --------------------------------------------------------------------------

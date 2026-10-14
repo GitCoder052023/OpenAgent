@@ -205,7 +205,10 @@ def main():
             whatsapp_adapter = get_default_whatsapp_adapter()
             st = whatsapp_adapter.status()
             if st.get("online"):
-                print("WhatsApp Protocol Engine: ENABLED (headless multi-device bridge online).")
+                if st.get("needs_pairing"):
+                    print("WhatsApp Protocol Engine: ONLINE (needs pairing — open http://localhost:8090 or run 'make pair' in src/tools/whatsapp-mcp).")
+                else:
+                    print("WhatsApp Protocol Engine: ENABLED (headless multi-device bridge online & authenticated).")
             else:
                 print("WhatsApp Protocol Engine: STANDBY (bridge container or daemon offline).")
         except Exception as exc:
