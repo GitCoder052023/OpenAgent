@@ -184,3 +184,27 @@ def test_mic_mute_and_unmute_sounds():
     with patch.dict(os.environ, {"OPENAGENT_FORCE_SOUND": "1"}), patch("subprocess.run") as mock_sub:
         assert engine.play(SoundEvent.MIC_MUTE) is True
         assert engine.play(SoundEvent.MIC_UNMUTE) is True
+
+
+def test_diagnostics_event_sound_suppressed_by_default():
+    """Ensure diagnostics.event() does not play sound by default."""
+    from OpenAgent.diagnostics import event as diag_event
+    with patch("OpenAgent.sound.play") as mock_play:
+        diag_event("test_event", level="info")
+        mock_play.assert_not_called()
+
+
+def test_diagnostics_event_sound_opt_in():
+    """Ensure diagnostics.event() plays sound only when OPENAGENT_AUDIBLE_LOGS is explicitly enabled."""
+    from OpenAgent.diagnostics import event as diag_event
+    with patch.dict(os.environ, {"OPENAGENT_AUDIBLE_LOGS": "true"}), patch("OpenAgent.sound.play") as mock_play:
+        diag_event("test_event", level="info")
+        mock_play.assert_called_once_with(SoundEvent.LOG_EVENT)
+
+
+def test_no_ink_sound_strokes():
+    """Verify no scratchy ink stroke audio files are mapped in _SOUND_MAP."""
+    for event, paths in _SOUND_MAP.items():
+        for path in paths:
+            assert "InkSoundStroke" not in path
+

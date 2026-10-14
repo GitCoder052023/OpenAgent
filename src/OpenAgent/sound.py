@@ -52,9 +52,9 @@ _SOUND_MAP: Dict[SoundEvent, List[str]] = {
         "/System/Library/Sounds/Ping.aiff",
     ],
     SoundEvent.TOOL_START: [
-        "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/ink/InkSoundStroke1.aif",
         "/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Popcorn.m4r",
         "/System/Library/Sounds/Tink.aiff",
+        "/System/Library/Sounds/Pop.aiff",
     ],
     SoundEvent.TOOL_SUCCESS: [
         "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/payment_success.aif",
@@ -125,8 +125,8 @@ _SOUND_MAP: Dict[SoundEvent, List[str]] = {
         "/System/Library/Sounds/Tink.aiff",
     ],
     SoundEvent.LOG_EVENT: [
-        "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/ink/InkSoundStroke4.aif",
         "/System/Library/Sounds/Tink.aiff",
+        "/System/Library/Sounds/Pop.aiff",
     ],
     SoundEvent.BOOT: [
         "/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Complete.m4r",
