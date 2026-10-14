@@ -1,5 +1,3 @@
-https://github.com/user-attachments/assets/627ceeab-4194-4f79-a7d5-c98e72197949
-
 <div align="center">
 
 # OpenAgent ⌘
@@ -7,12 +5,7 @@ https://github.com/user-attachments/assets/627ceeab-4194-4f79-a7d5-c98e72197949
 **Say "Wake up, Jarvis." Then just talk.**<br/>
 OpenAgent is an integrated, local macOS execution environment providing **85+ callable tools** that allow [Instinct AI](https://instinct.com/) to operate your Mac, your browser, social media, WhatsApp, and digital workflows on your behalf—an always-listening, hands-free assistant while you get on with your day.
 
-[![macOS](https://img.shields.io/badge/platform-macOS%20Darwin-lightgrey.svg?style=flat-square&logo=apple)](https://apple.com)
-[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
-[![uv](https://img.shields.io/badge/package%20manager-uv-blueviolet.svg?style=flat-square)](https://astral.sh/uv)
-[![Bun](https://img.shields.io/badge/runtime-bun-black.svg?style=flat-square&logo=bun)](https://bun.sh)
-[![Tools](https://img.shields.io/badge/tools-85%2B%20callable-success.svg?style=flat-square)](#tool-suite)
-[![Tests](https://img.shields.io/badge/tests-260%20passing-brightgreen.svg?style=flat-square)]()
+[![macOS Tahoe](https://img.shields.io/badge/Platform-macOS%20Tahoe-8E8E93?style=flat-square&logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-purple.svg?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20beta-orange.svg?style=flat-square)]()
 
