@@ -138,7 +138,7 @@ export function launchChromeDetached(
     const targetApp = appMatch ? appMatch[1] : chromeBin
     try {
       const openProc = Bun.spawnSync(
-        ['open', '-g', '-a', targetApp, '--args', ...finalArgs],
+        ['open', '-n', '-g', '-a', targetApp, '--args', ...finalArgs],
         { stdout: 'ignore', stderr: 'ignore' }
       )
       if (openProc.exitCode === 0) {
