@@ -38,20 +38,6 @@ except ImportError:
     LocoError = Exception  # type: ignore[assignment,misc]
 
 try:
-    from .guard import get_default_guard, EFFECT_ALLOW, EFFECT_ASK, EFFECT_DENY
-except ImportError:
-    get_default_guard = None
-    EFFECT_ALLOW, EFFECT_ASK, EFFECT_DENY = "allow", "ask", "deny"
-
-try:
-    from .audit import log_event as log_audit_event, get_recent_events as get_recent_audit_events
-except ImportError:
-    def log_audit_event(*args, **kwargs):  # type: ignore
-        pass
-    def get_recent_audit_events(*args, **kwargs):  # type: ignore
-        return []
-
-try:
     from .skills_adapter import get_default_skills_adapter
 except ImportError:
     get_default_skills_adapter = None
@@ -71,11 +57,6 @@ try:
 except ImportError:
     get_default_mcp_adapter = None
 
-try:
-    from .experience import get_default_experience
-except ImportError:
-    get_default_experience = None
-
 _DEFAULT_MAC_ADAPTER: Optional[Any] = None
 _DEFAULT_BROWSER_ADAPTER: Optional[Any] = None
 _DEFAULT_FIRECRAWL_ADAPTER: Optional[Any] = None
@@ -84,8 +65,6 @@ _DEFAULT_SKILLS_ADAPTER: Optional[Any] = None
 _DEFAULT_OFFICE_ADAPTER: Optional[Any] = None
 _DEFAULT_WACLI_ADAPTER: Optional[Any] = None
 _DEFAULT_MCP_ADAPTER: Optional[Any] = None
-_DEFAULT_GUARD: Optional[Any] = None
-_DEFAULT_EXPERIENCE: Optional[Any] = None
 
 
 def get_default_mac_adapter() -> Optional[Any]:
@@ -167,25 +146,6 @@ def get_default_mcp() -> Optional[Any]:
             logger.warning("Could not initialize default McpAdapter: %s", exc)
     return _DEFAULT_MCP_ADAPTER
 
-
-def get_guard() -> Optional[Any]:
-    global _DEFAULT_GUARD
-    if _DEFAULT_GUARD is None and get_default_guard is not None:
-        try:
-            _DEFAULT_GUARD = get_default_guard()
-        except Exception as exc:
-            logger.warning("Could not initialize default GuardEngine: %s", exc)
-    return _DEFAULT_GUARD
-
-
-def get_experience() -> Optional[Any]:
-    global _DEFAULT_EXPERIENCE
-    if _DEFAULT_EXPERIENCE is None and get_default_experience is not None:
-        try:
-            _DEFAULT_EXPERIENCE = get_default_experience()
-        except Exception as exc:
-            logger.warning("Could not initialize default ExperienceEngine: %s", exc)
-    return _DEFAULT_EXPERIENCE
 
 
 logger = logging.getLogger("openagent.dispatcher")
@@ -482,14 +442,12 @@ def execute_tool_call(
     office_adapter: Optional[Any] = None,
     wacli_adapter: Optional[Any] = None,
     mcp_adapter: Optional[Any] = None,
-    guard: Optional[Any] = None,
-    experience: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Execute a parsed tool call using the headless harness, native macOS adapter,
     browser adapter, Firecrawl, LocoAgent, Skills, Office, Wacli, or MCP.
 
     Returns a standardized dictionary:
-    {"status": "ok" | "error" | "ask", "tool": name, "result": ..., "error": ...}
+    {"status": "ok" | "error", "tool": name, "result": ..., "error": ...}
     """
     tool = str(call.get("tool", "")).strip().lower()
     args = call.get("args", {})
@@ -525,85 +483,6 @@ def execute_tool_call(
 
     if mcp_adapter is None:
         mcp_adapter = get_default_mcp()
-
-    if guard is None:
-        guard = get_guard()
-
-    if experience is None:
-        experience = get_experience()
-
-    # --- Approval confirmation keywords ---
-    if tool in ("confirm", "approve", "confirm_action", "yes"):
-        token = args.get("token") or args.get("code") or args.get("id") or "CONFIRM"
-        pending = guard.approve_pending(str(token)) if guard else None
-        if pending:
-            # Re-execute the approved pending tool call with approval bypass
-            res = execute_tool_call(
-                harness=harness,
-                call={"tool": pending.tool, "args": pending.args},
-                mac_adapter=mac_adapter,
-                browser_adapter=browser_adapter,
-                firecrawl_adapter=firecrawl_adapter,
-                loco_adapter=loco_adapter,
-                skills_adapter=skills_adapter,
-                office_adapter=office_adapter,
-                wacli_adapter=wacli_adapter,
-                mcp_adapter=mcp_adapter,
-                guard=None,  # Bypass guard for approved execution
-                experience=experience,
-            )
-            return {"status": "ok", "tool": "confirm", "result": {"approved_action": pending.tool, "execution_result": res}}
-        return {"status": "error", "tool": "confirm", "error": f"No pending action found matching token '{token}'."}
-
-    elif tool in ("cancel", "reject", "cancel_action", "deny"):
-        token = args.get("token") or args.get("code") or args.get("id") or "CANCEL"
-        cancelled = guard.cancel_pending(str(token)) if guard else False
-        return {"status": "ok", "tool": "cancel", "result": {"cancelled": cancelled, "message": "Pending action cancelled."}}
-
-    # --- Safety Guard Policy Evaluation ---
-    if guard is not None:
-        eval_res = guard.evaluate(tool, args, subject="instinct")
-        if eval_res.effect == EFFECT_DENY:
-            log_audit_event(
-                event_type="tool_execution",
-                tool=tool,
-                arguments_length=len(str(args)),
-                outcome="denied",
-                duration_ms=0.0,
-                effect=EFFECT_DENY,
-                rule=eval_res.rule_name,
-                reason=eval_res.reason,
-                error=eval_res.message,
-            )
-            return {
-                "status": "error",
-                "tool": tool,
-                "error": eval_res.message,
-                "blocked": True,
-                "rule": eval_res.rule_name,
-            }
-        elif eval_res.effect == EFFECT_ASK:
-            log_audit_event(
-                event_type="tool_execution",
-                tool=tool,
-                arguments_length=len(str(args)),
-                outcome="pending_approval",
-                duration_ms=0.0,
-                effect=EFFECT_ASK,
-                rule=eval_res.rule_name,
-                reason=eval_res.reason,
-            )
-            return {
-                "status": "ask",
-                "tool": tool,
-                "token": eval_res.token,
-                "message": eval_res.message,
-                "requires_approval": True,
-                "rule": eval_res.rule_name,
-            }
-
-    import time
-    t0 = time.time()
 
     try:
         # --- Native macOS Computer-Use Primitives (macos-harness) ---
@@ -1457,31 +1336,6 @@ def execute_tool_call(
             res = wacli_adapter.status()
             return {"status": res.get("status", "ok"), "tool": tool, "result": res}
 
-        # --- Experience & Mistake Notebook ('错题本') ---
-        elif tool in ("record_experience", "record_mistake", "learn_rule"):
-            if experience is None:
-                raise RuntimeError("Experience engine is not available")
-            exp = experience.record(
-                question=args.get("question", ""),
-                wrong_action=args.get("wrong_action") or args.get("mistake", ""),
-                correction=args.get("correction") or args.get("fix", ""),
-                rule=args.get("rule", ""),
-                category=args.get("category", "Fact"),
-            )
-            return {"status": "ok", "tool": tool, "result": {"experience_id": exp.id, "rule": exp.rule}}
-
-        elif tool in ("search_experiences", "get_experiences"):
-            if experience is None:
-                raise RuntimeError("Experience engine is not available")
-            exps = experience.search(query=args.get("query", ""), limit=int(args.get("limit", 5)))
-            return {"status": "ok", "tool": tool, "result": {"results": [e.__dict__ for e in exps], "total": len(exps)}}
-
-        elif tool in ("active_rules", "get_rules"):
-            if experience is None:
-                raise RuntimeError("Experience engine is not available")
-            rules = experience.get_active_rules(context_query=args.get("query", ""))
-            return {"status": "ok", "tool": tool, "result": {"rules": rules, "count": len(rules)}}
-
         # --- Universal Model Context Protocol (MCP) ---
         elif tool in ("mcp_call", "mcp_tool"):
             if mcp_adapter is None:
@@ -1499,39 +1353,14 @@ def execute_tool_call(
             tools_list = mcp_adapter.list_all_tools()
             return {"status": "ok", "tool": tool, "result": {"mcp_tools": tools_list, "total": len(tools_list)}}
 
-        # --- Audit Activity Trail & Guard Policies ---
-        elif tool in ("audit_events", "audit_log", "activity_log"):
-            events = get_recent_audit_events(limit=int(args.get("limit", 20)))
-            return {"status": "ok", "tool": tool, "result": {"events": events, "count": len(events)}}
-
-        elif tool in ("guard_rules", "list_policies"):
-            rules = guard.list_rules() if guard else []
-            return {"status": "ok", "tool": tool, "result": {"rules": rules, "count": len(rules)}}
-
         else:
             raise ValueError(f"Unknown harness tool: '{tool}'")
 
     except (HarnessError, FirecrawlError, LocoError) as err:
         logger.warning("Execution error for tool '%s': %s", tool, err)
-        log_audit_event(
-            event_type="tool_execution",
-            tool=tool,
-            arguments_length=len(str(args)),
-            outcome="error",
-            duration_ms=(time.time() - t0) * 1000,
-            error=str(err),
-        )
         return {"status": "error", "tool": tool, "error": str(err)}
     except Exception as exc:
         logger.exception("Unexpected execution error for tool '%s': %s", tool, exc)
-        log_audit_event(
-            event_type="tool_execution",
-            tool=tool,
-            arguments_length=len(str(args)),
-            outcome="error",
-            duration_ms=(time.time() - t0) * 1000,
-            error=str(exc),
-        )
         return {"status": "error", "tool": tool, "error": str(exc)}
 
 
@@ -1542,9 +1371,6 @@ def format_tool_response(response: Dict[str, Any], max_length: int = MAX_WHATSAP
     status = response.get("status", "unknown")
 
     header = prefix_header or f"[Jarvis Tool Response: {tool} | status: {status}]"
-
-    if status == "ask":
-        return response.get("message", "⚠️ [Jarvis Guard] Action requires user confirmation.")
 
     if status == "error":
         error_msg = response.get("error", "Unknown error")
@@ -1866,9 +1692,6 @@ def format_tool_response(response: Dict[str, Any], max_length: int = MAX_WHATSAP
 
     elif tool in ("apple_reminders", "reminders", "remindctl", "imsg", "imessage", "things_mac", "things", "things3", "spotify", "spogo", "1password", "op", "peekaboo", "apple_notes", "notes", "wacli_send", "wacli_search", "wacli_chats", "wacli_status"):
         body = result.get("output") or result.get("stdout") or json.dumps(result, indent=2)
-
-    elif tool in ("record_experience", "learn_rule"):
-        body = f"🧠 Learned Rule Recorded [{result.get('experience_id')}]: \"{result.get('rule')}\""
 
     elif tool in ("system_info", "instructions", "system_prompt", "mac_ax", "ax", "mac_browser", "browser", "mac_doctor", "doctor"):
         body = json.dumps(result, indent=2)

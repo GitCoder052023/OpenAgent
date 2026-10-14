@@ -1,6 +1,5 @@
 """Native Enterprise Office Suite Adapter for OpenAgent.
 
-Modeled after openagent/tool/office.go, office_word.go, office_excel.go, and office_ppt_*.go.
 Empowers Commercial Instinct over WhatsApp to inspect, generate, and edit:
 - Word documents (.docx)
 - Excel spreadsheets (.xlsx)

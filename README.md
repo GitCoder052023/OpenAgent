@@ -120,13 +120,10 @@ sequenceDiagram
 | **Real Browser Control** | Your authenticated Chrome: background tabs, compositor clicks through iframes and shadow DOM, framework-safe form filling, 97 site-specific domain skills | Browser Harness (CDP) |
 | **Web Ingestion** | Scrape to Markdown, search with full-content results, recursive crawl, site mapping, schema-based JSON extraction | Self-hosted Firecrawl (Docker) |
 | **Social Automation** | Posting, replies, likes, search and scheduled workflows on Threads and Reddit (plus X, LinkedIn, Instagram, Facebook, YouTube, TikTok, GitHub) in isolated, persistent Chrome profiles | LocoAgent (CDP) |
-| **Safety Guard Engine** | Fine-grained policy evaluation (`ALLOW` / `ASK` / `DENY`), protected path globbing (SSH keys, root wipes), WhatsApp approval tokens (`CONFIRM <token>`) | `guard.py` (Rule Matrix) |
-| **Experience Memory ("错题本")** | Cross-session human feedback learning, mistake capture, and derived negative rules permanently persisted to disk | `experience.py` (JSONL Ledger) |
 | **macOS Daily Life Skills** | Native executive assistant skills: Reminders, iMessage, Things 3, Spotify, 1Password, Apple Notes, Camsnap, Nano-PDF, Tmux | `skills_adapter.py` (CLI Suite) |
 | **Enterprise Office Suite** | Standalone Microsoft Word (`.docx`), Excel (`.xlsx`), and PowerPoint (`.pptx`) inspection, formatting, and template filling without MS Office | `office_adapter.py` (`python-docx`, `openpyxl`, `python-pptx`) |
 | **Headless WhatsApp Transport** | Background WhatsApp message delivery, contact lookup, and cross-chat message search without stealing foreground window focus | `wacli_adapter.py` (`wacli`) |
 | **Universal MCP Client** | Dynamic discovery and execution of any external MCP tool across Stdio subprocesses and remote SSE/StreamableHTTP endpoints | `mcp_adapter.py` (Model Context Protocol) |
-| **Activity Audit Trail** | Thread-safe, non-blocking append-only JSONL event logging capturing tool names, execution duration, and security guard verdicts | `audit.py` (JSONL Audit Stream) |
 
 **Self-healing runtime.** `boot.py` provisions its own environment, installs missing dependencies, downloads speech models, restarts the agent (and its listening session) with exponential backoff and keeps WhatsApp Desktop alive in the background. `./boot.py --doctor` runs a full preflight audit.
 
@@ -134,30 +131,9 @@ sequenceDiagram
 
 ## 🚀 Enterprise Subsystems for Instinct AI
 
-To make OpenAgent an enterprise-grade execution body for **Instinct AI** ([instinct.com](https://instinct.com)), seven battle-tested subsystems were integrated directly into the core Python architecture. This guarantees that your cloud AI chief-of-staff operates with bank-grade safety, persistent learning, and executive-level software capabilities:
+To make OpenAgent an enterprise-grade execution body for **Instinct AI** ([instinct.com](https://instinct.com)), four battle-tested subsystems are integrated directly into the core Python architecture. This guarantees that your cloud AI chief-of-staff operates with executive-level software capabilities:
 
-### 1. Fine-Grained Safety Guard Engine (`src/OpenAgent/guard.py`)
-Cloud AI models executing shell commands on your physical Mac require deterministic safety boundaries. The Guard Engine replaces crude all-or-nothing flags with a capability-based authorization matrix:
-* **Three Effects:**
-  * `ALLOW`: Safe, idempotent read operations run friction-free (sub-50ms).
-  * `ASK`: High-impact actions generate a secure 4-character token (e.g., `B4K2`). OpenAgent pauses execution and asks on WhatsApp:
-    ```text
-    ⚠️ [SAFETY GUARD CONFIRMATION NEEDED]
-    Instinct requested high-impact action: [bash]
-    Resource: git push origin main --force
-    Reason: Force-pushing git branches can overwrite remote work. Confirmation required.
-    To execute, reply 'CONFIRM B4K2' (or 'CONFIRM'). To abort, reply 'CANCEL'.
-    ```
-    Once you reply `CONFIRM`, OpenAgent retrieves the cached pending call and executes it immediately.
-  * `DENY`: Hard-coded deny rules instantly block catastrophic commands (e.g. `rm -rf /`, `rm -rf ~/*`, accessing `~/.ssh/id_*`, `/etc/shadow`).
-* **Resource Matching:** Glob-pattern matching against paths, URLs, and shell commands.
-
-### 2. Experience Memory & Mistake Notebook ("错题本") (`src/OpenAgent/experience.py`)
-Instinct sessions can reset context or suffer attention drift over weeks. The Experience Engine provides persistent local learning:
-* **Structured Correction Capture:** Captures `question`, `wrong_action`, `correction`, and `derived_rule`, categorized into `Fact`, `Style`, `Format`, or `Scope`.
-* **Zero Repeat Errors:** Every correction is saved to `.openagent/experience/experiences.jsonl`. When Instinct starts a new task, matching rules are injected or queried via `active_rules`, ensuring your personal preferences persist permanently across machine reboots.
-
-### 3. Native macOS Daily Life Skills Suite (`src/OpenAgent/skills_adapter.py`)
+### 1. Native macOS Daily Life Skills Suite (`src/OpenAgent/skills_adapter.py`)
 Instinct can directly manage your personal daily life through native macOS CLI integrations:
 * **`apple_reminders` (`remindctl`):** *"Jarvis, remind me to call Mom at 6pm"* → instantly syncs to your iPhone Reminders.
 * **`imsg` (`imsg`):** Read iMessage threads and send SMS/iMessages to contacts from the command line.
@@ -170,26 +146,23 @@ Instinct can directly manage your personal daily life through native macOS CLI i
 * **`nano_pdf` (`nano-pdf`):** Edit PDF pages using natural language prompts.
 * **`tmux` (`tmux`):** Manage persistent background terminal sessions and capture panes.
 
-### 4. Enterprise Office Suite Automation (`src/OpenAgent/office_adapter.py`)
+### 2. Enterprise Office Suite Automation (`src/OpenAgent/office_adapter.py`)
 Instinct acts as an executive assistant that generates and inspects Microsoft Office documents without needing Microsoft Office installed:
 * **Microsoft Word (`.docx`):** `word_read` parses headings, body text, and tables; `word_write` generates polished documents with custom headings and table styling.
 * **Microsoft Excel (`.xlsx`):** `excel_read` inspects workbook sheets, column headers, and data rows; `excel_write` creates styled spreadsheets with navy header fills and auto-calculated column widths.
 * **Microsoft PowerPoint (`.pptx`):** `pptx_read` extracts deck hierarchy and bullet points; `pptx_write` generates complete keynote slide decks; `pptx_template_fill` replaces template placeholder tags (`{{TITLE}}`, `{{METRICS}}`) with dynamic values.
 
-### 5. Headless WhatsApp CLI Adapter (`src/OpenAgent/wacli_adapter.py`)
+### 3. Headless WhatsApp CLI Adapter (`src/OpenAgent/wacli_adapter.py`)
 While OpenAgent controls WhatsApp Desktop via Accessibility APIs for primary foreground voice chat, `wacli` provides a non-intrusive headless channel:
 * Send messages and attachments silently in the background without stealing window focus.
 * Search historical messages across any chat using `wacli_search`.
 * List chats and contacts via `wacli_chats`.
 
-### 6. Universal Model Context Protocol (MCP) Client (`src/OpenAgent/mcp_adapter.py`)
+### 4. Universal Model Context Protocol (MCP) Client (`src/OpenAgent/mcp_adapter.py`)
 Instinct AI is not restricted to hardcoded tools. Through the dynamic **MCP Client**:
 * Declare any MCP-compliant server (PostgreSQL, GitHub, Slack, Linear, Memory, Supabase) in `.openagent/mcp.json`.
 * Supports both **Stdio** subprocesses and **StreamableHTTP / SSE** remote endpoints.
 * Tools are discovered dynamically via `mcp_tools` and executed via `mcp_call`.
-
-### 7. Non-Blocking Activity Audit Trail (`src/OpenAgent/audit.py`)
-Every tool invocation, argument byte length, execution duration in milliseconds, safety guard decision, and execution status is recorded to an append-only JSON Lines stream (`.openagent/audit/audit_YYYYMMDD.jsonl`). Thread-safe, non-blocking, and perfect for real-time monitoring.
 
 ## Quick Start
 
@@ -417,24 +390,20 @@ Operate real social accounts with primary focus on **Threads (`threads.net`) and
 </details>
 
 <details>
-<summary><b>Headless WhatsApp, Security Guard, Experience & Universal MCP Tools</b> (10 tools)</summary>
+<summary><b>Headless WhatsApp & Universal MCP Tools</b> (6 tools)</summary>
 
 | Tool | Description | Key Arguments |
 | --- | --- | --- |
 | `wacli_send` | Headless background WhatsApp message or document delivery | `to`, `message`, `file` |
 | `wacli_search` | Search historical WhatsApp messages across chats without GUI | `query`, `chat`, `limit` |
 | `wacli_chats` | List recent WhatsApp conversations and contacts | `query`, `limit` |
-| `record_experience` | Save human corrections and learned rules ("错题本") permanently | `question`, `wrong_action`, `correction`, `rule` |
-| `search_experiences`| Search learned user rules to prevent repeat mistakes | `query`, `limit` |
-| `guard_rules` | Inspect active safety authorization policies and categories | *(none)* |
-| `audit_events` | Tail recent tool invocations, durations, and guard verdicts | `limit` |
 | `mcp_call` | Invoke any dynamic Model Context Protocol (MCP) server tool | `server`, `tool`, `arguments` |
 | `mcp_tools` | List all discovered tools from active Stdio & SSE MCP servers | `server` |
 | `mcp_status` | Inspect registered MCP servers and connection status | *(none)* |
 
 </details>
 
-> Full schema specifications, tool calling envelopes, and architecture blueprints are documented in [`COMMERCIAL_INSTINCT_INTEGRATION.md`](COMMERCIAL_INSTINCT_INTEGRATION.md) and [`docs/JARVIS_INSTRUCTIONS.md`](docs/JARVIS_INSTRUCTIONS.md).
+> Full schema specifications and tool calling envelopes are documented in [`docs/JARVIS_INSTRUCTIONS.md`](docs/JARVIS_INSTRUCTIONS.md).
 
 ## Configuration
 
@@ -523,7 +492,6 @@ For advanced Accessibility tree inspection and calibration, see [`docs/CALIBRATI
 ## Documentation
 
 - [Setup Prompt & Tool Instructions](docs/JARVIS_INSTRUCTIONS.md) — Initialization block to connect Instinct AI. *(Note: Author's personal operational configuration — edit according to your own name, handles, and requirements.)*
-- [Instinct AI Integration Specification](COMMERCIAL_INSTINCT_INTEGRATION.md) — Deep architectural specification of the 7 enterprise subsystems.
 - [Offline Terminal Mode Spec (OpenInstinct)](OPENINSTINCT_BRAIN_SPEC.md) — Architectural notes and feasibility analysis for local offline models.
 - [Social Media Automation Guide](docs/SOCIAL_MEDIA_AUTOMATION.md) — Architecture, platform ports, and operational guide for Threads & Reddit.
 - [Accessibility & Calibration Guide](docs/CALIBRATION.md) — Deep calibration for AX trees, audio routing, and debug states.
@@ -552,7 +520,7 @@ Not a glorified autocomplete, not a fragile browser extension, and not a passive
    We are not building this infrastructure merely to run small 7B parameter models for shallow, toy tasks. We are preparing this unified infrastructure for **frontier-tier beast models** to aggressively compete with cloud and commercial solutions—heavyweight local models running on tens of millions of dollars of home servers, multi-GPU rigs, and unified-memory Apple Silicon hardware clusters that have the raw reasoning capacity to handle **real-world complex jobs**, not just simple commands. *(Yeah guys, really.)*
 
 4. **Sovereignty on Bare Metal:**  
-   Your personal assistant should work for you and only you. By keeping execution local on bare metal with deterministic guardrails and append-only activity auditing, your secrets, tokens, private chats, and files stay strictly within your sovereign boundary.
+   Your personal assistant should work for you and only you. By keeping execution local on bare metal, your secrets, tokens, private chats, and files stay strictly within your sovereign boundary.
 
 ---
 
@@ -564,7 +532,7 @@ Contributions are welcome. High-impact areas include:
 - Voice pipeline latency and wake-word accuracy
 - Browser domain skills for additional sites
 - LocoAgent workflows and platform playbooks
-- Safety guards, auditing and sandboxing
+- Sandboxing and isolation
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development workflow and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for community guidelines.
 
@@ -572,7 +540,6 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development workflow and [`CODE
 
 OpenAgent is built with gratitude on the shoulders of the open-source agent tooling community:
 - **[OpenCode](https://github.com/anomalyco/opencode)** — Inspiring open-source agentic coding architectures.
-- **[OpenAgent (Go)](https://github.com/openagent-io/openagent)** — For pioneering multi-tool enterprise dispatch architecture, the "错题本" experience learning memory, standalone Office suite automation primitives, and rich macOS CLI integrations.
 - **[Browser Use](https://github.com/browser-use/browser-use)** — Directly integrating **[Browser Harness](https://github.com/browser-use/browser-harness)** for high-speed Chrome CDP automation and domain skills, alongside **[macOS Harness](https://github.com/browser-use/macos-harness)** for pioneering native macOS computer-use foundations.
 - **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** & **[Vosk](https://alphacephei.com/vosk/)** — Lightweight, local, low-latency audio intelligence.
 - **[Firecrawl](https://github.com/firecrawl/firecrawl)** — Pioneering open-source web scraping, crawling, and clean LLM markdown extraction engine.

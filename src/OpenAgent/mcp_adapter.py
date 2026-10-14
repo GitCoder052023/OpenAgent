@@ -1,6 +1,5 @@
 """Universal Model Context Protocol (MCP) Client Adapter for OpenAgent.
 
-Modeled after openagent/mcp.
 Enables Commercial Instinct to dynamically discover and execute tools from any
 local or remote MCP server (Stdio, SSE, or StreamableHTTP) configured in .openagent/mcp.json.
 

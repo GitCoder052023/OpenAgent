@@ -1,6 +1,5 @@
 """Native macOS and Daily Life Skills Adapter for OpenAgent.
 
-Modeled after the 54 modular skills in openagent/skills.
 Exposes high-leverage macOS CLI tools to Commercial Instinct over WhatsApp:
 1. apple-reminders via remindctl CLI (list, add, complete, delete)
 2. imsg via imsg CLI (list chats, search history, send iMessage/SMS)

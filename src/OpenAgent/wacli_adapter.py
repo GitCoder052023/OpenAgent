@@ -1,6 +1,5 @@
 """Headless WhatsApp CLI (wacli) Adapter for OpenAgent.
 
-Modeled after openagent/skills/wacli/SKILL.md.
 Enables Commercial Instinct to interact with WhatsApp contacts, groups, and search
 chat history directly from the terminal without requiring foreground GUI window manipulation.
 

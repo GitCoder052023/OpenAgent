@@ -9,7 +9,6 @@ from OpenAgent.dispatcher import (
     encode_tool_call,
     parse_tool_calls,
 )
-from OpenAgent.guard import GuardEngine, EFFECT_ASK, EFFECT_DENY
 
 
 def test_instinct_envelope_encoding_and_parsing():
@@ -22,36 +21,6 @@ def test_instinct_envelope_encoding_and_parsing():
     assert len(parsed) == 1
     assert parsed[0]["tool"] == "word_write"
     assert parsed[0]["args"]["title"] == "Doc"
-
-
-def test_instinct_guard_intercepts_sensitive_ssh():
-    call = {"tool": "read", "args": {"path": "~/.ssh/id_rsa"}}
-    res = execute_tool_call(None, call)
-    assert res["status"] == "error"
-    assert res.get("blocked") is True
-    assert "restricted" in res["error"].lower() or "blocked" in res["error"].lower()
-
-    formatted = format_tool_response(res)
-    assert "⛔" in formatted or "blocked" in formatted.lower() or "error" in formatted.lower()
-
-
-def test_instinct_guard_ask_and_confirm_flow():
-    # 1. Dispatch dangerous command that triggers ASK
-    call = {"tool": "bash", "args": {"command": "git push origin main --force"}}
-    res = execute_tool_call(None, call)
-    assert res["status"] == "ask"
-    token = res.get("token")
-    assert token is not None
-
-    formatted = format_tool_response(res)
-    assert "CONFIRM" in formatted
-    assert token in formatted
-
-    # 2. User confirms with token
-    confirm_call = {"tool": "confirm", "args": {"token": token}}
-    confirm_res = execute_tool_call(None, confirm_call)
-    assert confirm_res["status"] == "ok"
-    assert confirm_res["result"]["approved_action"] == "bash"
 
 
 def test_instinct_office_word_dispatch():
@@ -73,6 +42,39 @@ def test_instinct_office_word_dispatch():
         assert "Word document created" in formatted or doc_path in formatted
 
 
+def test_instinct_office_excel_dispatch():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        xlsx_path = str(Path(tmpdir) / "metrics.xlsx")
+        call = {
+            "tool": "excel_write",
+            "args": {
+                "path": xlsx_path,
+                "sheet_name": "KPIs",
+                "headers": ["Metric", "Value"],
+                "rows": [["NPS", 82], ["Uptime", "99.99%"]],
+            },
+        }
+        res = execute_tool_call(None, call)
+        assert res["status"] == "ok"
+        assert Path(xlsx_path).exists()
+
+
+def test_instinct_office_pptx_dispatch():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        pptx_path = str(Path(tmpdir) / "deck.pptx")
+        call = {
+            "tool": "pptx_write",
+            "args": {
+                "path": pptx_path,
+                "title": "Quarterly Deck",
+                "slides": [{"title": "Slide 1", "bullets": ["Point A", "Point B"]}],
+            },
+        }
+        res = execute_tool_call(None, call)
+        assert res["status"] == "ok"
+        assert Path(pptx_path).exists()
+
+
 def test_instinct_skills_catalog_dispatch():
     call = {"tool": "skills_list", "args": {}}
     res = execute_tool_call(None, call)
@@ -81,24 +83,18 @@ def test_instinct_skills_catalog_dispatch():
     assert res["result"]["total"] >= 10
 
 
-def test_instinct_experience_recording():
-    call = {
-        "tool": "record_experience",
-        "args": {
-            "question": "Build project",
-            "wrong_action": "Used yarn",
-            "correction": "Use bun instead",
-            "rule": "Never use yarn; always use bun for building OpenAgent",
-            "category": "Fact",
-        },
-    }
+def test_instinct_wacli_dispatch():
+    call = {"tool": "wacli_status", "args": {}}
+    res = execute_tool_call(None, call)
+    assert "status" in res
+    assert res["tool"] == "wacli_status"
+
+
+def test_instinct_mcp_dispatch():
+    call = {"tool": "mcp_list", "args": {}}
     res = execute_tool_call(None, call)
     assert res["status"] == "ok"
-    assert "rule" in res["result"]
-
-    formatted = format_tool_response(res)
-    assert "🧠" in formatted
-    assert "Never use yarn" in formatted
+    assert "mcp_tools" in res["result"]
 
 
 def test_whatsapp_length_truncation():
