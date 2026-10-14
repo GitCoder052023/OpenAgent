@@ -118,6 +118,43 @@ export function launchChromeDetached(
     )
     return
   }
+  if (host === 'macos') {
+    const headless = process.env.OPENAGENT_HEADLESS === '1' || process.env.LOCO_HEADLESS === '1'
+    const finalArgs = headless && !args.includes('--headless=new')
+      ? ['--headless=new', ...args]
+      : args
+
+    if (headless) {
+      const child = spawn(chromeBin, finalArgs, {
+        detached: true,
+        stdio: 'ignore',
+      })
+      child.unref()
+      return
+    }
+
+    // On macOS, launch via `open -g` to start in background without stealing foreground/focus from games
+    const appMatch = chromeBin.match(/(.+\.app)/)
+    const targetApp = appMatch ? appMatch[1] : chromeBin
+    try {
+      const openProc = Bun.spawnSync(
+        ['open', '-g', '-a', targetApp, '--args', ...finalArgs],
+        { stdout: 'ignore', stderr: 'ignore' }
+      )
+      if (openProc.exitCode === 0) {
+        return
+      }
+    } catch {
+      // Fall through to direct detached spawn
+    }
+
+    const child = spawn(chromeBin, finalArgs, {
+      detached: true,
+      stdio: 'ignore',
+    })
+    child.unref()
+    return
+  }
   const child = spawn(chromeBin, args, {
     detached: true,
     stdio: 'ignore',

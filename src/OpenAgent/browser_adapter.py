@@ -150,6 +150,19 @@ class BrowserAdapter:
     # -----------------------------------------------------------------------
     # 1. Navigation & Page Information
     # -----------------------------------------------------------------------
+    def set_focus_emulation(self, enabled: bool = True) -> Dict[str, Any]:
+        """Emulate page-level window focus via CDP so backgrounded pages function fully.
+
+        Allows social media feeds, video players, and focus-gated websites to operate,
+        render, and receive simulated inputs as if they were the frontmost focused window,
+        without ever stealing macOS OS-level window focus from the user's active game.
+        """
+        try:
+            self.helpers.cdp("Emulation.setFocusEmulationEnabled", enabled=bool(enabled))
+            return {"status": "ok", "focus_emulated": bool(enabled)}
+        except Exception as exc:
+            return {"status": "error", "error": f"Failed to set focus emulation: {exc}"}
+
     def open(self, url: str, new_tab: bool = False) -> Dict[str, Any]:
         """Navigate to a URL or open a new background tab."""
         _check_url_allowed(url)
@@ -157,6 +170,12 @@ class BrowserAdapter:
             nav_res = self.helpers.new_tab(url)
         else:
             nav_res = self.helpers.goto_url(url)
+
+        # Ensure page treats itself as focused in background without stealing macOS OS focus
+        try:
+            self.set_focus_emulation(True)
+        except Exception:
+            pass
 
         try:
             info = self.page_info()
@@ -169,6 +188,7 @@ class BrowserAdapter:
             "url": info.get("url", url),
             "title": info.get("title", ""),
             "navigation": nav_res,
+            "background_isolated": True,
         }
 
     def page_info(self) -> Dict[str, Any]:
@@ -310,7 +330,11 @@ class BrowserAdapter:
             if not target:
                 raise ValueError("'target' tab ID, index, or URL substring is required to switch")
             switched = self.helpers.switch_tab(target)
-            return {"status": "ok", "action": "switch", "target": target, "tab": switched}
+            try:
+                self.set_focus_emulation(True)
+            except Exception:
+                pass
+            return {"status": "ok", "action": "switch", "target": target, "tab": switched, "background_isolated": True}
 
         elif action == "close":
             closed = self.helpers.close_tab(target)

@@ -39,21 +39,43 @@ class Desktop:
             )
         return True
 
+    def _capture_frontmost(self):
+        try:
+            from AppKit import NSWorkspace
+            return NSWorkspace.sharedWorkspace().frontmostApplication()
+        except Exception:
+            return None
+
+    def _restore_frontmost(self, app):
+        if not getattr(self.cfg, "restore_focus", True) or app is None:
+            return
+        try:
+            from AppKit import NSWorkspace, NSApplicationActivateIgnoringOtherApps
+            cur = NSWorkspace.sharedWorkspace().frontmostApplication()
+            if cur is not None and cur.processIdentifier() != app.processIdentifier():
+                app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
+        except Exception:
+            pass
+
     def send(self, text):
         if not text.strip() or len(text) > 1000 or "\n" in text:
             raise ValueError("Message must be nonempty, under 1000 chars, single line")
         with self._lock:
-            activate_whatsapp()
-            if not self.is_locked():
-                ensure_whatsapp_ready(self.cfg.number, hide_after=False)
-            self.assert_locked()
-            focus_composer()
-            self.assert_locked(quick=True)
-            subprocess.run(["osascript", str(SCRIPTS / "send.scpt"), self.cfg.number, text], check=True)
-            self.assert_locked(quick=True)
-            subprocess.run(["osascript", str(SCRIPTS / "commit.scpt")], check=True)
-            time.sleep(0.3)
-            hide_whatsapp()
+            front_before = self._capture_frontmost()
+            try:
+                activate_whatsapp()
+                if not self.is_locked():
+                    ensure_whatsapp_ready(self.cfg.number, hide_after=False)
+                self.assert_locked()
+                focus_composer()
+                self.assert_locked(quick=True)
+                subprocess.run(["osascript", str(SCRIPTS / "send.scpt"), self.cfg.number, text], check=True)
+                self.assert_locked(quick=True)
+                subprocess.run(["osascript", str(SCRIPTS / "commit.scpt")], check=True)
+                time.sleep(0.15)
+            finally:
+                hide_whatsapp()
+                self._restore_frontmost(front_before)
 
     def send_tool_response(self, text: str):
         """Send a multiline tool execution response back to Jarvis on WhatsApp with minimal latency.
@@ -66,33 +88,37 @@ class Desktop:
         if len(text) > 4000:
             text = text[:3900] + "\n... [Truncated for WhatsApp]"
         with self._lock:
-            activate_whatsapp()
-            # If WhatsApp is on a different chat (e.g. opened by mac_* tool), switch back now
-            if not self.is_locked():
-                ensure_whatsapp_ready(self.cfg.number, hide_after=False)
-            self.assert_locked()
+            front_before = self._capture_frontmost()
+            try:
+                activate_whatsapp()
+                # If WhatsApp is on a different chat (e.g. opened by mac_* tool), switch back now
+                if not self.is_locked():
+                    ensure_whatsapp_ready(self.cfg.number, hide_after=False)
+                self.assert_locked()
 
-            focus_composer()
+                focus_composer()
 
-            max_attempts = 2
-            for attempt in range(max_attempts):
-                try:
-                    self.assert_locked(quick=True)
-                    subprocess.run(["osascript", str(SCRIPTS / "send.scpt"), self.cfg.number, text], check=True)
-                    self.assert_locked(quick=True)
-                    subprocess.run(["osascript", str(SCRIPTS / "commit.scpt")], check=True)
-                    break
-                except (subprocess.CalledProcessError, RuntimeError):
-                    if attempt < max_attempts - 1:
-                        activate_whatsapp()
-                        ensure_whatsapp_ready(self.cfg.number, hide_after=False)
-                        self.assert_locked()
-                        focus_composer()
-                        time.sleep(0.2)
-                    else:
-                        raise
-            time.sleep(0.05)
-            hide_whatsapp()
+                max_attempts = 2
+                for attempt in range(max_attempts):
+                    try:
+                        self.assert_locked(quick=True)
+                        subprocess.run(["osascript", str(SCRIPTS / "send.scpt"), self.cfg.number, text], check=True)
+                        self.assert_locked(quick=True)
+                        subprocess.run(["osascript", str(SCRIPTS / "commit.scpt")], check=True)
+                        break
+                    except (subprocess.CalledProcessError, RuntimeError):
+                        if attempt < max_attempts - 1:
+                            activate_whatsapp()
+                            ensure_whatsapp_ready(self.cfg.number, hide_after=False)
+                            self.assert_locked()
+                            focus_composer()
+                            time.sleep(0.2)
+                        else:
+                            raise
+                time.sleep(0.05)
+            finally:
+                hide_whatsapp()
+                self._restore_frontmost(front_before)
 
     def _stage_clipboard(self, path):
         """Put the file on macOS clipboard as both file URL and legacy filenames flavor."""
@@ -142,6 +168,7 @@ class Desktop:
             send_btn = self.cfg.attachment_send_label
 
         with self._lock:
+            front_before = self._capture_frontmost()
             # Dismiss any stale modal/preview from an earlier attempt
             if click_element_by_description("Cancel"):
                 time.sleep(0.05)
@@ -201,10 +228,10 @@ class Desktop:
                     click_element_by_description("Cancel")
                 except Exception:
                     pass
-                hide_whatsapp()
                 raise
             finally:
                 hide_whatsapp()
+                self._restore_frontmost(front_before)
 
     def send_audio(self, path):
         """Prepare an M4A as a document attachment, dispatch it, then immediately hide WhatsApp."""

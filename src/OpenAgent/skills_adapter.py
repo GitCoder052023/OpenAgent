@@ -207,6 +207,25 @@ class SkillsAdapter:
     # -------------------------------------------------------------------------
     # 4. Spotify Player (spogo / spotify_player)
     # -------------------------------------------------------------------------
+    def _run_applescript(self, script: str, timeout: float = 5.0) -> Dict[str, Any]:
+        """Execute an AppleScript snippet silently via osascript without activating any window."""
+        try:
+            res = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=timeout)
+            output = res.stdout.strip()
+            err_output = res.stderr.strip()
+            return {
+                "status": "ok" if res.returncode == 0 else "error",
+                "exit_code": res.returncode,
+                "stdout": output,
+                "stderr": err_output,
+                "output": output or err_output,
+                "background_isolated": True,
+            }
+        except subprocess.TimeoutExpired:
+            return {"status": "error", "error": f"AppleScript timed out after {timeout}s"}
+        except Exception as exc:
+            return {"status": "error", "error": f"Failed to execute AppleScript: {exc}"}
+
     def spotify(self, action: str = "status", **kwargs) -> Dict[str, Any]:
         """Control Spotify music playback. Actions: play, pause, next, prev, status, search."""
         action = action.lower()
@@ -214,9 +233,39 @@ class SkillsAdapter:
         spot_bin = spogo_bin or shutil.which("spotify_player")
 
         if not spot_bin:
+            # Native macOS AppleScript fallback over Apple Events (Zero Focus Steal)
+            if action in ("play", "start"):
+                return self._run_applescript('tell application "Spotify" to play')
+            elif action in ("pause", "stop"):
+                return self._run_applescript('tell application "Spotify" to pause')
+            elif action in ("toggle", "playpause"):
+                return self._run_applescript('tell application "Spotify" to playpause')
+            elif action in ("next", "skip"):
+                return self._run_applescript('tell application "Spotify" to next track')
+            elif action in ("prev", "previous", "back"):
+                return self._run_applescript('tell application "Spotify" to previous track')
+            elif action == "status":
+                script = (
+                    'tell application "System Events"\n'
+                    '    if not (exists (first process whose name is "Spotify")) then return "Spotify is not running"\n'
+                    'end tell\n'
+                    'tell application "Spotify"\n'
+                    '    if player state is playing then\n'
+                    '        return "Playing: " & name of current track & " by " & artist of current track\n'
+                    '    else\n'
+                    '        return "Paused"\n'
+                    '    end if\n'
+                    'end tell'
+                )
+                return self._run_applescript(script)
+            elif action == "search":
+                return {
+                    "status": "error",
+                    "error": "Advanced search requires 'spogo' or 'spotify_player'. Run: brew install steipete/tap/spogo. Standard playback (play, pause, next, prev, status) is active via native Apple Events.",
+                }
             return {
                 "status": "error",
-                "error": "Neither 'spogo' nor 'spotify_player' is installed. Run: brew install steipete/tap/spogo",
+                "error": f"Action '{action}' requires spogo CLI or standard playback actions (play, pause, next, prev, status).",
             }
 
         is_spogo = bool(spogo_bin)
@@ -234,6 +283,35 @@ class SkillsAdapter:
         elif action == "device":
             return self._run_cli(["spogo" if is_spogo else "spotify_player", "device", "list"])
         return {"status": "error", "error": f"Unknown spotify action '{action}'."}
+
+    def music(self, action: str = "status", **kwargs) -> Dict[str, Any]:
+        """Control Apple Music (Music.app) playback silently via Apple Events without focus loss."""
+        action = action.lower()
+        if action in ("play", "start"):
+            return self._run_applescript('tell application "Music" to play')
+        elif action in ("pause", "stop"):
+            return self._run_applescript('tell application "Music" to pause')
+        elif action in ("toggle", "playpause"):
+            return self._run_applescript('tell application "Music" to playpause')
+        elif action in ("next", "skip"):
+            return self._run_applescript('tell application "Music" to next track')
+        elif action in ("prev", "previous", "back"):
+            return self._run_applescript('tell application "Music" to previous track')
+        elif action == "status":
+            script = (
+                'tell application "System Events"\n'
+                '    if not (exists (first process whose name is "Music")) then return "Music is not running"\n'
+                'end tell\n'
+                'tell application "Music"\n'
+                '    if player state is playing then\n'
+                '        return "Playing: " & name of current track & " by " & artist of current track\n'
+                '    else\n'
+                '        return "Paused"\n'
+                '    end if\n'
+                'end tell'
+            )
+            return self._run_applescript(script)
+        return {"status": "error", "error": f"Unknown music action '{action}'."}
 
     # -------------------------------------------------------------------------
     # 5. 1Password (op)

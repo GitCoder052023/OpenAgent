@@ -1,20 +1,20 @@
 import React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, Check, ShieldAlert, Cpu } from "lucide-react";
+import { ArrowLeft, Check, ShieldAlert, Cpu, Ghost, Gamepad2, EyeOff } from "lucide-react";
 import { JsonLd } from "@/components/JsonLd";
 
 export const metadata: Metadata = {
   title: "Architecture & Transport Protocol",
   description:
-    "Technical deep dive into OpenAgent's zero-API-key WhatsApp Desktop bridge, macOS Accessibility (AX) observer, base64 protocol envelopes, and offline speech pipeline.",
+    "Technical deep dive into OpenAgent's zero-API-key WhatsApp Desktop bridge, macOS Accessibility (AX) observer, base64 protocol envelopes, zero-focus Ghost Mode background execution, and offline speech pipeline.",
   alternates: {
     canonical: "https://openagent.sh/architecture",
   },
   openGraph: {
     title: "OpenAgent Architecture & Transport Protocol",
     description:
-      "How OpenAgent executes local tools on macOS via WhatsApp Desktop without API keys or open ports.",
+      "How OpenAgent executes local tools, headless browsing, and social media automation on macOS in the background without stealing foreground focus.",
     url: "https://openagent.sh/architecture",
   },
 };
@@ -228,6 +228,65 @@ export default function ArchitecturePage() {
                 <div className="text-[#777169] text-[11px] mt-0.5">Process Isolation</div>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* Deep Dive 5: Zero-Focus Ghost Execution (Gaming Invariant) */}
+        <section className="space-y-6">
+          <div className="flex items-center gap-2">
+            <Ghost className="w-6 h-6 text-black" />
+            <h2 className="text-[28px] font-display text-black">
+              Zero-Focus Ghost Execution (&quot;Gaming Invariant&quot;)
+            </h2>
+          </div>
+          <p className="text-[16px] leading-relaxed text-[#777169]">
+            Traditional computer-use and browser automation agents hijack your desktop: windows steal focus, cursors warp across the screen, tabs force themselves into the foreground, and fullscreen games or media players drop out of immersion. OpenAgent is architected from the ground up with a strict <strong>Zero-Focus Background Invariant</strong>.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-6 rounded-[20px] bg-[#f5f3f1] space-y-3">
+              <Gamepad2 className="w-5 h-5 text-black" />
+              <h3 className="text-[17px] font-medium text-black">
+                Uninterrupted Fullscreen Gaming
+              </h3>
+              <p className="text-[13px] text-[#777169] leading-relaxed">
+                Play graphics-intensive games in Metal, Steam, or Wine. The agent executes web browsing, social posts, comments, music playback, and desktop tasks underneath without dropping fullscreen focus or stealing key events.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-[20px] bg-[#f5f3f1] space-y-3">
+              <EyeOff className="w-5 h-5 text-black" />
+              <h3 className="text-[17px] font-medium text-black">
+                CDP Focus Emulation &amp; Offscreen AX
+              </h3>
+              <p className="text-[13px] text-[#777169] leading-relaxed">
+                Chrome instances run offscreen with <code className="text-[12px] bg-white px-1.5 py-0.5 rounded border border-[#ebe8e4]">open -g</code> or <code className="text-[12px] bg-white px-1.5 py-0.5 rounded border border-[#ebe8e4]">--headless=new</code>. CDP spoofing tricks web apps into believing the tab is frontmost, allowing offscreen DOM, screenshot, and AX tree perception.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-[20px] bg-[#f5f3f1] space-y-3">
+              <Cpu className="w-5 h-5 text-black" />
+              <h3 className="text-[17px] font-medium text-black">
+                AXPress &amp; Focus Preservation
+              </h3>
+              <p className="text-[13px] text-[#777169] leading-relaxed">
+                macOS UI elements are manipulated via direct Accessibility <code className="text-[12px] bg-white px-1.5 py-0.5 rounded border border-[#ebe8e4]">AXPress</code> actions without mouse cursor warps. AppKit wrappers instantly restore frontmost PID focus in milliseconds if any system blip occurs.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-6 rounded-[16px] bg-[#fdfcfc] border border-[#ebe8e4] shadow-whisper font-mono text-[13px] space-y-3">
+            <div className="text-[12px] text-[#a59f97] uppercase">Environment Configuration</div>
+            <pre className="p-4 rounded-[8px] bg-[#f5f3f1] text-[#44403b] overflow-x-auto text-[12px]">
+{`# Enable Zero-Focus Ghost Mode (default: true)
+OPENAGENT_BACKGROUND_MODE=true
+
+# Run browser automation 100% headless (no dock icon, no window)
+OPENAGENT_HEADLESS=true
+
+# Instantly restore frontmost game/app if an OS-level focus blip occurs
+OPENAGENT_RESTORE_FOCUS=true`}
+            </pre>
           </div>
         </section>
 

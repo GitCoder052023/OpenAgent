@@ -11,7 +11,7 @@ OpenAgent is the local macOS body for [Instinct AI](https://instinct.com/). It's
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
 [![uv](https://img.shields.io/badge/package%20manager-uv-blueviolet.svg?style=flat-square)](https://astral.sh/uv)
 [![Bun](https://img.shields.io/badge/runtime-bun-black.svg?style=flat-square&logo=bun)](https://bun.sh)
-[![Tests](https://img.shields.io/badge/tests-241%20passing-brightgreen.svg?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/tests-248%20passing-brightgreen.svg?style=flat-square)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-purple.svg?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20beta-orange.svg?style=flat-square)]()
 
@@ -124,6 +124,15 @@ sequenceDiagram
 | **Enterprise Office Suite** | Standalone Microsoft Word (`.docx`), Excel (`.xlsx`), and PowerPoint (`.pptx`) inspection, formatting, and template filling without MS Office | `office_adapter.py` (`python-docx`, `openpyxl`, `python-pptx`) |
 | **Headless WhatsApp Transport** | Background WhatsApp message delivery, contact lookup, and cross-chat message search without stealing foreground window focus | `wacli_adapter.py` (`wacli`) |
 | **Universal MCP Client** | Dynamic discovery and execution of any external MCP tool across Stdio subprocesses and remote SSE/StreamableHTTP endpoints | `mcp_adapter.py` (Model Context Protocol) |
+| **Zero-Focus Ghost Mode** | Pure background execution while you game or work: CDP offscreen perception, AX tree queries, PID input targeting, and instant focus restoration | `browser_adapter`, `mac_adapter`, `desktop` |
+
+### 👻 Zero-Focus Background Operation (Ghost Mode)
+You can play immersive fullscreen games (Metal, Steam, Wine/CrossOver) or work in your editor with exclusive mouse capture and keyboard focus while Jarvis works in the background:
+- **Offscreen Web & Social Media**: Jarvis opens tabs, reads feeds, posts updates, upvotes, and comments via Chrome DevTools Protocol (CDP) without ever raising a window or moving your physical cursor.
+- **Background Vision & Perception**: Captures screenshots using offscreen compositor buffers and `/usr/sbin/screencapture -l <window_id>` without bringing background windows forward.
+- **Background Accessibility Tree**: Queries full Accessibility trees (`browser_ax` and `mac_ax`) offscreen without activation.
+- **Silent Music Playback**: Controls Spotify and Apple Music playback via native Apple Events and CLI daemons without focus loss.
+- **Fail-Safe Focus Restoration**: Any background operation captures the user's active application PID and instantly restores focus in milliseconds.
 
 **Self-healing runtime.** `boot.py` provisions its own environment, installs missing dependencies, downloads speech models, restarts the agent (and its listening session) with exponential backoff and keeps WhatsApp Desktop alive in the background. `./boot.py --doctor` runs a full preflight audit.
 

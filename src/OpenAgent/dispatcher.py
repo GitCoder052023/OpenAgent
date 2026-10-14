@@ -512,20 +512,31 @@ def execute_tool_call(
             )
             return {"status": "ok", "tool": tool, "result": res}
 
-        elif tool in ("mac_click", "click"):
+        elif tool in ("mac_click", "click", "mac_smart_click", "smart_click"):
             if mac_adapter is None:
                 raise RuntimeError("macOS Harness adapter is not available on this system")
+            target_text = args.get("text") or args.get("target") or args.get("label")
             x = args.get("x")
             y = args.get("y")
-            if x is None or y is None:
-                raise ValueError("Missing 'x' or 'y' coordinates for mac_click")
-            res = mac_adapter.click(
-                x=float(x),
-                y=float(y),
-                app=args.get("app"),
-                button=args.get("button", "left"),
-                click_count=int(args.get("click_count", 1)),
-            )
+            if target_text and hasattr(mac_adapter, "smart_click"):
+                res = mac_adapter.smart_click(
+                    target_text=str(target_text),
+                    x=float(x) if x is not None else None,
+                    y=float(y) if y is not None else None,
+                    app=args.get("app"),
+                    button=args.get("button", "left"),
+                    click_count=int(args.get("click_count", 1)),
+                )
+            else:
+                if x is None or y is None:
+                    raise ValueError("Missing 'x' or 'y' coordinates for mac_click")
+                res = mac_adapter.click(
+                    x=float(x),
+                    y=float(y),
+                    app=args.get("app"),
+                    button=args.get("button", "left"),
+                    click_count=int(args.get("click_count", 1)),
+                )
             return {"status": "ok", "tool": tool, "result": res}
 
         elif tool in ("mac_move", "move"):
@@ -748,6 +759,13 @@ def execute_tool_call(
                 selector=args.get("selector"),
                 timeout=float(args.get("timeout", 15.0)),
             )
+            return {"status": "ok", "tool": tool, "result": res}
+
+        elif tool in ("browser_focus_emulation", "browser_focus", "focus_emulation"):
+            if browser_adapter is None:
+                raise RuntimeError("Browser Harness adapter is not available on this system")
+            enabled = bool(args.get("enabled", True))
+            res = browser_adapter.set_focus_emulation(enabled=enabled)
             return {"status": "ok", "tool": tool, "result": res}
 
         elif tool in ("browser_python", "browser_run", "browser_script"):
@@ -1202,6 +1220,12 @@ def execute_tool_call(
             if skills_adapter is None:
                 raise RuntimeError("Skills adapter is not available")
             res = skills_adapter.spotify(action=args.get("action", "status"), **args)
+            return {"status": res.get("status", "ok"), "tool": tool, "result": res}
+
+        elif tool in ("music", "apple_music", "music_player"):
+            if skills_adapter is None:
+                raise RuntimeError("Skills adapter is not available")
+            res = skills_adapter.music(action=args.get("action", "status"), **args)
             return {"status": res.get("status", "ok"), "tool": tool, "result": res}
 
         elif tool in ("1password", "onepassword", "op"):
@@ -1690,7 +1714,7 @@ def format_tool_response(response: Dict[str, Any], max_length: int = MAX_WHATSAP
             slides = result.get('slides', [])
             body = f"PowerPoint Deck ({result.get('total_slides', 0)} slides):\n" + "\n".join(f"- Slide {s.get('slide_number')}: {s.get('title')}" for s in slides[:5])
 
-    elif tool in ("apple_reminders", "reminders", "remindctl", "imsg", "imessage", "things_mac", "things", "things3", "spotify", "spogo", "1password", "op", "peekaboo", "apple_notes", "notes", "wacli_send", "wacli_search", "wacli_chats", "wacli_status"):
+    elif tool in ("apple_reminders", "reminders", "remindctl", "imsg", "imessage", "things_mac", "things", "things3", "spotify", "spogo", "music", "apple_music", "1password", "op", "peekaboo", "apple_notes", "notes", "wacli_send", "wacli_search", "wacli_chats", "wacli_status"):
         body = result.get("output") or result.get("stdout") or json.dumps(result, indent=2)
 
     elif tool in ("system_info", "instructions", "system_prompt", "mac_ax", "ax", "mac_browser", "browser", "mac_doctor", "doctor"):

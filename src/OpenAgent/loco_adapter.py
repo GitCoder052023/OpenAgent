@@ -187,8 +187,14 @@ class LocoAdapter:
     # -----------------------------------------------------------------------
     # 2. Chrome Setup & Management
     # -----------------------------------------------------------------------
-    def setup_chrome(self, target: str = "x", reset: bool = False, all_targets: bool = False) -> Dict[str, Any]:
-        """Launch isolated, persistent Chrome for one or all platforms."""
+    def setup_chrome(
+        self,
+        target: str = "x",
+        reset: bool = False,
+        all_targets: bool = False,
+        headless: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """Launch isolated, persistent Chrome for one or all platforms in the background without stealing focus."""
         args = ["run", "scripts/setup-chrome.ts"]
         if all_targets:
             args.append("--all")
@@ -197,6 +203,8 @@ class LocoAdapter:
             args.extend(["--target", target_clean])
         if reset:
             args.append("--reset")
+        if headless is True or (headless is None and os.getenv("OPENAGENT_HEADLESS", "").lower() in ("true", "1", "yes", "on")):
+            args.append("--headless")
 
         res = self._run_bun(args, timeout=30.0)
         target_name = "all" if all_targets else target
@@ -205,6 +213,7 @@ class LocoAdapter:
             "status": "ok" if res["exit_code"] == 0 or up else "error",
             "target": target_name,
             "cdp_online": up,
+            "background_isolated": True,
             "output": res["stdout"] or res["stderr"],
         }
 

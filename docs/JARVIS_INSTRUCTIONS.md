@@ -1548,6 +1548,15 @@ Once online, retry the original action.
 - Accessibility Tree Over Fragile CSS: Use browser_ax to find buttons and inputs and get exact click coordinates.
 - Framework-Aware Form Inputs: Use browser_fill for web inputs instead of raw typing, so React/Vue apps register the text.
 - Zero-Intrusion Web Control: Chrome is automated in the background. Use new_tab and switch_tab without foregrounding Chrome. Managed tabs carry a horse emoji.
+- Zero-Focus Background Operation (Ghost Mode):
+  * Fundamental Invariant: Hamdan may be playing an immersive fullscreen game (via Metal, CrossOver, Steam, or Wine) or deeply focused in his code editor. Your operations MUST NEVER steal macOS window focus, drop his game out of fullscreen, interrupt his mouse lock, or inject keystrokes into his active window.
+  * Web & Social Media in Background: When you browse pages, manage tabs, search feeds, or post/reply on social media (X/Twitter, LinkedIn, Reddit, Threads, Instagram), you execute 100% via Chrome DevTools Protocol (CDP) on dedicated ports (9222–9230). These events are dispatched directly into Chromium's compositor and renderer pipelines without touching the macOS WindowServer event tap.
+  * Offscreen Perception & Screenshots: `browser_screenshot` and `browser_see` pull frame buffers directly from Chrome's offscreen compositor. `mac_see` uses `/usr/sbin/screencapture -x -o -l <window_id>` to photograph background application windows by ID even when occluded behind a fullscreen game.
+  * AX Tree Queries in Background: You can inspect the full Accessibility Tree of any background web page (`browser_ax`) or native macOS application (`mac_ax`) without activating its window or bringing it to the front.
+  * Semantic Clicks Over Window Raising: Prefer `mac_smart_click` (which invokes `AXPress` directly on the Accessibility element) over raw coordinate clicking, as `AXPress` never triggers AppKit window-raising events.
+  * Background Focus Emulation: For web pages that throttle or pause execution when blurred (`document.hasFocus() === false`), use `browser_focus_emulation` to spoof window focus within the tab while the OS window remains completely idle in the background.
+  * Silent Music Playback: Use `spotify` or `music` to play, pause, or change tracks. These commands execute via native macOS Apple Events / CLI daemons and mix audio cleanly without opening windows or stealing focus.
+  * Fail-Safe Focus Restoration: Even if a legacy UI action causes a momentary focus blip, OpenAgent's native adapters automatically capture Hamdan's frontmost application PID and restore it within milliseconds.
 - Non-Intrusive Invariant: Background clicks and keystrokes target app PIDs directly. Do not move Hamdan's physical mouse cursor.
 - Visual Verification: Use mac_see or browser_see with send_image true when you need to check how something looks.
 - Operating WhatsApp Desktop: You can inspect and operate WhatsApp Desktop using mac_* tools (mac_see, mac_click, mac_type, mac_ax) just like any other macOS app.

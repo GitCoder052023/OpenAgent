@@ -49,6 +49,38 @@ def _check_target_allowed(app: Optional[str]) -> None:
         )
 
 
+@contextlib.contextmanager
+def preserve_user_focus(enabled: bool = True):
+    """Context manager ensuring that the user's frontmost application (e.g. game or active work)
+    retains focus if an underlying background API momentarily triggers a focus blip.
+    """
+    if not enabled:
+        yield None
+        return
+
+    front_before = None
+    try:
+        from AppKit import NSWorkspace
+        front_before = NSWorkspace.sharedWorkspace().frontmostApplication()
+    except Exception:
+        pass
+
+    try:
+        yield front_before
+    finally:
+        if front_before is not None:
+            try:
+                from AppKit import NSWorkspace, NSApplicationActivateIgnoringOtherApps
+                current_front = NSWorkspace.sharedWorkspace().frontmostApplication()
+                if (
+                    current_front is not None
+                    and current_front.processIdentifier() != front_before.processIdentifier()
+                ):
+                    front_before.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
+            except Exception:
+                pass
+
+
 class MacAdapter:
     """High-level adapter wrapping MacOS and BrowserHarness for OpenAgent."""
 
@@ -261,9 +293,10 @@ class MacAdapter:
         button: str = "left",
         click_count: int = 1,
     ) -> Dict[str, Any]:
-        """Send a click directly to an application's PID without moving the physical cursor."""
+        """Send a click directly to an application's PID without moving the physical cursor or stealing focus."""
         _check_target_allowed(app)
-        self.mac.click(float(x), float(y), app=app, button=button, click_count=int(click_count))
+        with preserve_user_focus():
+            self.mac.click(float(x), float(y), app=app, button=button, click_count=int(click_count))
         return {
             "status": "ok",
             "action": "click",
@@ -272,25 +305,63 @@ class MacAdapter:
             "app": app,
             "button": button,
             "click_count": click_count,
+            "background_isolated": True,
         }
+
+    def smart_click(
+        self,
+        target_text: Optional[str] = None,
+        x: Optional[float] = None,
+        y: Optional[float] = None,
+        app: Optional[str] = None,
+        button: str = "left",
+        click_count: int = 1,
+    ) -> Dict[str, Any]:
+        """Click an element semantically via Accessibility (AXPress) without raising window focus,
+        falling back to coordinate click if needed."""
+        _check_target_allowed(app)
+        if target_text and app:
+            try:
+                matches = self.mac.ax.query(app=app, text=target_text, limit=5)
+                pressable = [m for m in matches if "AXPress" in m.get("actions", []) or "press" in m.get("actions", [])]
+                if pressable:
+                    best = pressable[0]
+                    self.mac.perform_action(best["element_index"], action="AXPress")
+                    return {
+                        "status": "ok",
+                        "action": "smart_click",
+                        "method": "ax_press",
+                        "element_index": best["element_index"],
+                        "title": best.get("title", target_text),
+                        "app": app,
+                        "background_isolated": True,
+                    }
+            except Exception as exc:
+                logger.debug("smart_click AXPress attempt failed, falling back: %s", exc)
+
+        if x is not None and y is not None:
+            return self.click(float(x), float(y), app=app, button=button, click_count=click_count)
+        raise ValueError("smart_click requires either matching AX 'target_text' in 'app' or ('x', 'y') coordinates")
 
     def move(self, x: float, y: float, app: Optional[str] = None) -> Dict[str, Any]:
         """Move the virtual pointer overlay without moving the physical cursor."""
         _check_target_allowed(app)
         self.mac.move(float(x), float(y), app=app)
-        return {"status": "ok", "action": "move", "x": float(x), "y": float(y), "app": app}
+        return {"status": "ok", "action": "move", "x": float(x), "y": float(y), "app": app, "background_isolated": True}
 
     def type(self, text: str, app: Optional[str] = None) -> Dict[str, Any]:
         """Send keystrokes directly to the target application's PID."""
         _check_target_allowed(app)
-        self.mac.type(str(text), app=app)
-        return {"status": "ok", "action": "type", "length": len(text), "app": app}
+        with preserve_user_focus():
+            self.mac.type(str(text), app=app)
+        return {"status": "ok", "action": "type", "length": len(text), "app": app, "background_isolated": True}
 
     def key(self, key: str, app: Optional[str] = None) -> Dict[str, Any]:
         """Send a keyboard shortcut (e.g. 'cmd+k', 'cmd+space', 'enter') to the app PID."""
         _check_target_allowed(app)
-        self.mac.key(str(key), app=app)
-        return {"status": "ok", "action": "key", "key": key, "app": app}
+        with preserve_user_focus():
+            self.mac.key(str(key), app=app)
+        return {"status": "ok", "action": "key", "key": key, "app": app, "background_isolated": True}
 
     def drag(
         self,
@@ -304,21 +375,23 @@ class MacAdapter:
     ) -> Dict[str, Any]:
         """Perform a drag operation from start to end coordinates."""
         _check_target_allowed(app)
-        self.mac.drag(
-            float(start_x),
-            float(start_y),
-            float(end_x),
-            float(end_y),
-            app=app,
-            duration=float(duration),
-            button=button,
-        )
+        with preserve_user_focus():
+            self.mac.drag(
+                float(start_x),
+                float(start_y),
+                float(end_x),
+                float(end_y),
+                app=app,
+                duration=float(duration),
+                button=button,
+            )
         return {
             "status": "ok",
             "action": "drag",
             "from": (start_x, start_y),
             "to": (end_x, end_y),
             "app": app,
+            "background_isolated": True,
         }
 
     def scroll(
@@ -331,8 +404,9 @@ class MacAdapter:
     ) -> Dict[str, Any]:
         """Send a scroll wheel event at coordinates (x, y)."""
         _check_target_allowed(app)
-        self.mac.scroll(float(x), float(y), dx=int(dx), dy=int(dy), app=app)
-        return {"status": "ok", "action": "scroll", "x": x, "y": y, "dx": dx, "dy": dy, "app": app}
+        with preserve_user_focus():
+            self.mac.scroll(float(x), float(y), dx=int(dx), dy=int(dy), app=app)
+        return {"status": "ok", "action": "scroll", "x": x, "y": y, "dx": dx, "dy": dy, "app": app, "background_isolated": True}
 
     # -----------------------------------------------------------------------
     # 4. Applications and Windows Inspection

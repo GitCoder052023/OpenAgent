@@ -168,16 +168,21 @@ async function setupTarget(t: ResolvedTarget): Promise<{ fresh: boolean; ok: boo
   // Must be DETACHED — on Windows a Bun-spawned child dies when this script
   // exits, tearing down the CDP endpoint the moment setup finishes (which sends
   // agent-browser back to its bundled Chrome for Testing). See launchChromeDetached.
+  const chromeArgs = [
+    `--remote-debugging-port=${t.cdpPort}`,
+    `--user-data-dir=${t.profile}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-default-apps',
+  ]
+  if (process.env.OPENAGENT_HEADLESS === '1' || process.env.LOCO_HEADLESS === '1' || process.argv.includes('--headless')) {
+    chromeArgs.push('--headless=new')
+  }
+  chromeArgs.push(PLATFORM_URLS[t.platform] ?? 'about:blank')
+
   launchChromeDetached(
     cfg.chromeBin,
-    [
-      `--remote-debugging-port=${t.cdpPort}`,
-      `--user-data-dir=${t.profile}`,
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-default-apps',
-      PLATFORM_URLS[t.platform] ?? 'about:blank',
-    ],
+    chromeArgs,
     cfg.host,
   )
 

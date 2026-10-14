@@ -154,8 +154,19 @@ Jarvis calls these tools directly through WhatsApp via the standard `JARVIS_CALL
 
 ---
 
+## 👻 Zero-Focus Background Operation (Ghost Mode)
+
+OpenAgent and LocoAgent are engineered for **Zero-Focus Ghost Execution**:
+- **Zero Interruption While Gaming or Working**: When Jarvis operates your social media accounts (posting updates, searching feeds, reading replies, upvoting posts), Chrome runs silently in the background without stealing macOS window focus, without popping over fullscreen games (Metal, Wine, CrossOver, Steam), and without moving your physical mouse cursor.
+- **Headless Mode Support**: Set `OPENAGENT_HEADLESS=1` or `LOCO_HEADLESS=1` in `.env` to run Chrome CDP profiles with `--headless=new` (completely invisible without dock or window artifacts).
+- **Background Heuristic Launching**: When headed Chrome is launched on macOS, it is spawned with `open -g -a` (the macOS `-g` background flag), ensuring the OS does not grant it foreground focus.
+- **Offscreen Visual Verification**: Screenshots (`social_screenshot`) capture directly from the offscreen compositor and send proof directly to your WhatsApp without ever raising the Chrome window.
+
+---
+
 ## 📖 Operational Playbooks for Jarvis
 
 For complete step-by-step playbooks, persona voice guidelines, and exact `JARVIS_CALL` payload examples for WhatsApp:
 👉 See **[docs/JARVIS_INSTRUCTIONS.md (Section 4: How to Operate Hamdan's Social Media)](JARVIS_INSTRUCTIONS.md)**.
+
 

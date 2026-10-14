@@ -59,6 +59,9 @@ class Config:
     locoagent_timeout: float = 120.0
     sound_enabled: bool = True
     sound_volume: float = 1.0
+    background_mode: bool = True
+    headless_browser: bool = False
+    restore_focus: bool = True
 
     @classmethod
     def from_env(cls):
@@ -105,6 +108,15 @@ class Config:
         except (ValueError, TypeError):
             sound_volume = 1.0
 
+        bg_env = os.getenv("OPENAGENT_BACKGROUND_MODE", os.getenv("BRIDGE_BACKGROUND_MODE", "true")).strip().lower()
+        background_mode = bg_env not in ("false", "0", "no", "off", "disable")
+
+        headless_env = os.getenv("OPENAGENT_HEADLESS", os.getenv("LOCO_HEADLESS", "false")).strip().lower()
+        headless_browser = headless_env in ("true", "1", "yes", "on", "enable")
+
+        restore_focus_env = os.getenv("OPENAGENT_RESTORE_FOCUS", "true").strip().lower()
+        restore_focus = restore_focus_env not in ("false", "0", "no", "off", "disable")
+
         return cls(number=os.getenv("BRIDGE_WHATSAPP_NUMBER", cls.number),
                    model=os.getenv("BRIDGE_WHISPER_MODEL", cls.model),
                    whisper_cli=os.getenv("BRIDGE_WHISPER_CLI", cls.whisper_cli),
@@ -133,5 +145,8 @@ class Config:
                    locoagent_default_platform=locoagent_default_platform,
                    locoagent_timeout=locoagent_timeout,
                    sound_enabled=sound_enabled,
-                   sound_volume=sound_volume)
+                   sound_volume=sound_volume,
+                   background_mode=background_mode,
+                   headless_browser=headless_browser,
+                   restore_focus=restore_focus)
 

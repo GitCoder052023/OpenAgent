@@ -73,6 +73,23 @@ export const TOOLS_DATA: ToolDefinition[] = [
     exampleCall: '{"tool": "system_info", "args": {}}',
     category: "Development"
   },
+  {
+    name: "music",
+    engine: "Developer Harness",
+    description: "Control native Apple Music playback (play, pause, next, prev, current track) 100% in background via AppleScript",
+    keyArguments: "action, playlist, search",
+    exampleCall: '{"tool": "music", "args": {"action": "play"}}',
+    category: "Development"
+  },
+  {
+    name: "spotify",
+    engine: "Developer Harness",
+    description: "Control Spotify playback (play, pause, next, prev, status) via native Apple Events or spogo CLI in background",
+    keyArguments: "action, query, volume",
+    exampleCall: '{"tool": "spotify", "args": {"action": "status"}}',
+    category: "Development"
+  },
+
 
   // Native macOS Computer Use
   {
@@ -153,6 +170,14 @@ export const TOOLS_DATA: ToolDefinition[] = [
     description: "Run compound, multi-step UI workflows locally in Python for ultra-low latency bursts",
     keyArguments: "code",
     exampleCall: '{"tool": "mac_python", "args": {"code": "import pyautogui; pyautogui.alert(\'Ready\')"}}',
+    category: "macOS UI"
+  },
+  {
+    name: "mac_smart_click",
+    engine: "Native Computer Use",
+    description: "Click an interactive UI element using native macOS AXPress directly without moving the mouse pointer or raising the window",
+    keyArguments: "action, app, text, role, x, y",
+    exampleCall: '{"tool": "mac_smart_click", "args": {"action": "find_button", "app": "Notes", "text": "New Note"}}',
     category: "macOS UI"
   },
 
@@ -267,6 +292,14 @@ export const TOOLS_DATA: ToolDefinition[] = [
     description: "Retrieve pre-built deterministic automation recipes for 80+ top web platforms",
     keyArguments: "host",
     exampleCall: '{"tool": "domain_skills", "args": {"host": "notion.so"}}',
+    category: "Web Browsing"
+  },
+  {
+    name: "browser_focus_emulation",
+    engine: "Browser Harness CDP",
+    description: "Emulate tab-level focus via CDP Emulation.setFocusEmulationEnabled so pages believe they are frontmost without stealing OS window focus",
+    keyArguments: "enabled",
+    exampleCall: '{"tool": "browser_focus_emulation", "args": {"enabled": true}}',
     category: "Web Browsing"
   },
 

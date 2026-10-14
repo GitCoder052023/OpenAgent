@@ -1311,11 +1311,15 @@ def _launch_browser():
     profile_args = _profile_directory_args(base)
     try:
         if system == "Darwin":
-            cmd = ["open", "-a", mac_app] + (["--args"] + profile_args if profile_args else [])
+            headless = os.getenv("OPENAGENT_HEADLESS", "").lower() in ("true", "1", "yes", "on") or os.getenv("BH_HEADLESS", "").lower() in ("true", "1", "yes", "on")
+            extra_args = list(profile_args)
+            if headless and "--headless=new" not in extra_args:
+                extra_args.append("--headless=new")
+            cmd = ["open", "-g", "-a", mac_app] + (["--args"] + extra_args if extra_args else [])
             r = subprocess.run(cmd, timeout=10, check=False, capture_output=True)
             if r.returncode != 0 and mac_app != "Google Chrome":
                 # Different app → its profile dir may not match; launch plain
-                r = subprocess.run(["open", "-a", "Google Chrome"], timeout=10, check=False, capture_output=True)
+                r = subprocess.run(["open", "-g", "-a", "Google Chrome"] + (["--args"] + extra_args if extra_args else []), timeout=10, check=False, capture_output=True)
             return (None, base) if r.returncode == 0 else None
         if system == "Windows":
             # `start <name>` resolves browsers via App Paths without knowing the install dir
