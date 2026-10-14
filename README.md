@@ -11,7 +11,7 @@ OpenAgent is the local macOS body for [Instinct AI](https://instinct.com/). It's
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg?style=flat-square&logo=python)](https://www.python.org/)
 [![uv](https://img.shields.io/badge/package%20manager-uv-blueviolet.svg?style=flat-square)](https://astral.sh/uv)
 [![Bun](https://img.shields.io/badge/runtime-bun-black.svg?style=flat-square&logo=bun)](https://bun.sh)
-[![Tests](https://img.shields.io/badge/tests-248%20passing-brightgreen.svg?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/tests-260%20passing-brightgreen.svg?style=flat-square)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-purple.svg?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20beta-orange.svg?style=flat-square)]()
 
@@ -35,11 +35,11 @@ You (making coffee):  "Wake up, Jarvis."
 
 You:       "Run the test suite on OpenAgent. If it's green, post a Threads update
             about what I shipped today."
-             bash               ./test.py                              241 passed
+             bash               ./test.py                              260 passed
              bash               git log --since=midnight --oneline     6 commits
              social_dedup_check threads / post                         not yet posted
              social_post        threads.net (authenticated profile)    published
-Jarvis:    "All 241 tests passed. The update is live on Threads."
+Jarvis:    "All 260 tests passed. The update is live on Threads."
 
 You (from the couch):  "Show me what it looks like."
              social_screenshot  live Chrome session                    delivered to WhatsApp
@@ -122,7 +122,7 @@ sequenceDiagram
 | **Social Automation** | Posting, replies, likes, search and scheduled workflows on Threads and Reddit (plus X, LinkedIn, Instagram, Facebook, YouTube, TikTok, GitHub) in isolated, persistent Chrome profiles | LocoAgent (CDP) |
 | **macOS Daily Life Skills** | Native executive assistant skills: Reminders, iMessage, Things 3, Spotify, 1Password, Apple Notes, Camsnap, Nano-PDF, Tmux | `skills_adapter.py` (CLI Suite) |
 | **Enterprise Office Suite** | Standalone Microsoft Word (`.docx`), Excel (`.xlsx`), and PowerPoint (`.pptx`) inspection, formatting, and template filling without MS Office | `office_adapter.py` (`python-docx`, `openpyxl`, `python-pptx`) |
-| **Headless WhatsApp Transport** | Background WhatsApp message delivery, contact lookup, and cross-chat message search without stealing foreground window focus | `wacli_adapter.py` (`wacli`) |
+| **Native WhatsApp Protocol Engine** | Full multi-device headless WhatsApp operations (chats, messages, voice notes, media, polls, contacts, webhooks, anti-ban) | `whatsapp-mcp-extended` (Go `whatsmeow` + MCP) |
 | **Universal MCP Client** | Dynamic discovery and execution of any external MCP tool across Stdio subprocesses and remote SSE/StreamableHTTP endpoints | `mcp_adapter.py` (Model Context Protocol) |
 | **Zero-Focus Ghost Mode** | Pure background execution while you game or work: CDP offscreen perception, AX tree queries, PID input targeting, and instant focus restoration | `browser_adapter`, `mac_adapter`, `desktop` |
 
@@ -170,6 +170,13 @@ Instinct AI is not restricted to hardcoded tools. Through the dynamic **MCP Clie
 * Declare any MCP-compliant server (PostgreSQL, GitHub, Slack, Linear, Memory, Supabase) in `.openagent/mcp.json`.
 * Supports both **Stdio** subprocesses and **StreamableHTTP / SSE** remote endpoints.
 * Tools are discovered dynamically via `mcp_tools` and executed via `mcp_call`.
+
+### 5. Native WhatsApp Protocol Engine (`whatsapp-mcp-extended`)
+OpenAgent natively embeds an enterprise-grade Go `whatsmeow` multi-device engine and Python MCP server (`src/tools/whatsapp-mcp/`), allowing Instinct AI to operate your WhatsApp account 100% headlessly:
+* **Rich Protocol Operations**: Send and read messages, retrieve contact CRM context, send voice notes/audio, share PDFs/images, react with emoji, edit/delete messages, and create interactive polls.
+* **Autonomous Docker Orchestration**: Integrated into `boot.py` via `./boot.py --start-whatsapp-mcp`. Spins up the Go bridge (`http://localhost:8180`) and Web UI (`http://localhost:8090`).
+* **Instant Device Pairing**: Link your WhatsApp account via 8-digit phone code on `http://localhost:8090` (no camera/QR needed) or scan live ASCII QR codes in the container logs (`docker logs -f whatsapp-mcp-whatsapp-bridge-1`). Sessions automatically persist in SQLite across reboots.
+* **Fault-Tolerant Pairing Recovery**: Features automatic 15-minute handshake timeouts, digits-only phone normalization, auto-expiring locks, and manual state reset (`POST /api/pair/reset`).
 
 ## Quick Start
 
@@ -222,6 +229,7 @@ cd OpenAgent
 ./boot.py                           # Push-to-talk mode (hold F8 to speak)
 ./boot.py --doctor                  # Run preflight health check without starting agent
 ./boot.py --voice --send-mode text  # Wake-word mode with local Whisper STT transcription
+./boot.py --start-whatsapp-mcp      # Spin up native WhatsApp multi-device bridge & MCP server
 ./boot.py --start-firecrawl         # Auto-spinup Firecrawl Docker scraper engine
 ./boot.py --start-chrome            # Auto-launch Chrome with remote debugging on port 9222
 ./calibrate.py --dump               # Dump sanitized AX UI tree for deep debugging
