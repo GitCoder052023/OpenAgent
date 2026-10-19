@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="OpenAgent">
+  <title>OpenAgent</title>
+  <rect width="100" height="100" rx="22" fill="#0d0c0b"/>
+  <path d="M35 24 H65 A11 11 0 1 1 76 35 V65 A11 11 0 1 1 65 76 H35 A11 11 0 1 1 24 65 V35 A11 11 0 1 1 35 24 Z"
+        fill="none" stroke="#fdfcfc" stroke-width="8.5" stroke-linejoin="round"/>
+</svg>

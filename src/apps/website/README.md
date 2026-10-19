@@ -54,12 +54,82 @@ output. `generate-demo.py` asserts its encoder against the worked example in
 `docs/JARVIS_INSTRUCTIONS.md`, so every `JARVIS_CALL:…:END` string rendered on
 the page is a genuine base64 encoding of the JSON printed beside it.
 
+## Routes
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Product overview: definition, the gap, the request loop, engines, ghost mode, voice, install, vision, top questions |
+| `/tools` | Every callable tool with its arguments, grouped by engine, filterable |
+| `/faq` | 18 self-contained answers across four topics, with `FAQPage` structured data |
+| `/privacy` | What stays local, what crosses the wire, what is written to disk, the six safeguards, the risks |
+| `/sitemap.xml`, `/robots.txt`, `/manifest.webmanifest` | Generated from `lib/seo.tsx` |
+| `/llms.txt` | Factual project overview for AI crawlers, generated from the same data |
+| `/opengraph-image` and one per route | Share cards rendered at build time by `lib/og.tsx` |
+
+## SEO and AI discoverability
+
+Everything below is generated from the same source of truth, so metadata,
+structured data, `llms.txt` and visible copy cannot drift apart.
+
+- **`lib/seo.tsx`** holds `productSummary` (the one-paragraph definition every
+  surface derives from), the route table that drives the sitemap, the
+  `pageMetadata()` helper, and the JSON-LD builders.
+- **Structured data** is emitted as a single `@graph` per page. Site-wide
+  nodes — `WebSite`, `SoftwareApplication`, `SoftwareSourceCode`, `Person` —
+  come from the root layout; `BreadcrumbList` and `FAQPage` come from the
+  pages. Only properties the repository can support are set: no ratings, no
+  review counts, no adoption numbers. `offers` states the one price fact that
+  is true — it is free.
+- **FAQ answers are single self-contained paragraphs.** The same strings render
+  as visible `<h3>` + `<p>` and feed the `FAQPage` schema, so what a crawler
+  reads and what a person reads are identical. The five most common questions
+  are repeated in full on `/`; the schema lives only on `/faq` so the two URLs
+  do not compete for the same rich result.
+- **`openGraph` is replaced, not merged**, by the deepest segment that defines
+  it, which drops the file-based share card. Every page therefore names its own
+  image, and each route has an `opengraph-image.tsx` beside its `page.tsx`.
+- **Canonical and robots directives live on pages, not the layout**, so the 404
+  response carries Next's injected `noindex` alone, with no canonical pointing
+  at the home page.
+- **No client-side rendering is required to read anything.** All 14 routes are
+  statically prerendered; the animated replay is `aria-hidden` with a complete
+  transcript in the markup beside it.
+
+### Verifying
+
+`scripts/` has no SEO tooling — these were one-off checks run against a
+production build. Re-run them with any HTTP client:
+
+```bash
+NEXT_PUBLIC_SITE_URL=https://your-domain pnpm build && pnpm start
+curl -s localhost:3000/robots.txt
+curl -s localhost:3000/sitemap.xml
+curl -s localhost:3000/llms.txt
+curl -s localhost:3000/ | grep -o '<link rel="canonical"[^>]*>'
+```
+
+Paste a page's JSON-LD into the [Rich Results Test](https://search.google.com/test/rich-results)
+and the [Schema Markup Validator](https://validator.schema.org/) before a
+release that changes it.
+
 ## Deployment
 
 Set `NEXT_PUBLIC_SITE_URL` to the origin the site is served from. It backs the
-canonical URLs, Open Graph tags, `sitemap.xml` and `robots.txt`; without it
-those fall back to `http://localhost:3000`.
+canonical URLs, Open Graph tags, `sitemap.xml`, `robots.txt` and `llms.txt`;
+without it those fall back to `http://localhost:3000`. It is read at build
+time, so it must be set for the build, not only the runtime.
 
 ```bash
 NEXT_PUBLIC_SITE_URL=https://example.com pnpm build
 ```
+
+After the first deploy to a real domain:
+
+1. Verify the property in [Google Search Console](https://search.google.com/search-console)
+   and [Bing Webmaster Tools](https://www.bing.com/webmasters), then submit
+   `https://your-domain/sitemap.xml` in both.
+2. Add the repository's `Website` field in GitHub so the two canonical
+   destinations point at each other.
+3. Confirm the host serves `/_next/static/*` with a long immutable
+   `Cache-Control` and HTML with a short TTL. `next start` does this already;
+   a CDN in front of it may not.

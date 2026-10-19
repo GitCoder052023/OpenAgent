@@ -3,13 +3,23 @@ import { Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { repoUrl, siteUrl } from "@/lib/content";
-import { toolCount } from "@/lib/tools";
+import { siteUrl } from "@/lib/content";
+import {
+  JsonLd,
+  personJsonLd,
+  productSummary,
+  siteName,
+  softwareApplicationJsonLd,
+  softwareSourceCodeJsonLd,
+  tagline,
+  websiteJsonLd,
+} from "@/lib/seo";
 
 /**
  * DESIGN.md calls for Waldenburg at weight 300 for display type with Inter
  * underneath; Inter Light is the documented substitute, so one family covers
- * both roles. Geist Mono carries technical micro-copy only.
+ * both roles. Geist Mono carries technical micro-copy only. Both are
+ * self-hosted by next/font at build time — no runtime request leaves the page.
  */
 const inter = Inter({
   variable: "--font-inter",
@@ -25,68 +35,64 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
-const description = `OpenAgent is an open-source, local macOS execution environment with ${toolCount} callable tools. It gives a cloud assistant hands-free voice control of your Mac: shell and code edits, native app control, your authenticated Chrome, social automation and WhatsApp — all running on your own hardware.`;
-
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "OpenAgent — Instinct thinks. OpenAgent acts.",
-    template: "%s — OpenAgent",
+    default: `${siteName} — ${tagline}`,
+    template: `%s — ${siteName}`,
   },
-  description,
-  applicationName: "OpenAgent",
+  description: productSummary,
+  applicationName: siteName,
   keywords: [
     "OpenAgent",
+    "open source AI agent",
     "macOS AI agent",
     "local AI assistant",
-    "computer use",
+    "computer use agent",
+    "desktop automation",
+    "voice controlled assistant",
     "Jarvis",
-    "Instinct AI",
-    "open source",
-    "self-hosted",
+    "self-hosted AI",
+    "privacy-focused AI assistant",
     "Model Context Protocol",
-    "Whisper",
+    "MCP client",
+    "Whisper Large V3 Turbo",
     "browser automation",
+    "Chrome DevTools Protocol",
+    "OpenInstinct",
+    "Instinct AI",
   ],
-  authors: [{ name: "OpenAgent contributors", url: repoUrl }],
-  creator: "OpenAgent contributors",
-  alternates: { canonical: "/" },
+  authors: [{ name: "Hamdan Khubaib", url: "https://github.com/GitCoder052023" }],
+  creator: "Hamdan Khubaib",
+  publisher: "OpenAgent",
   openGraph: {
     type: "website",
-    siteName: "OpenAgent",
+    siteName,
     url: "/",
-    title: "OpenAgent — Instinct thinks. OpenAgent acts.",
-    description,
+    title: `${siteName} — ${tagline}`,
+    description: productSummary,
     locale: "en",
   },
   twitter: {
     card: "summary_large_image",
-    title: "OpenAgent — Instinct thinks. OpenAgent acts.",
-    description,
+    title: `${siteName} — ${tagline}`,
+    description: productSummary,
   },
-  robots: {
-    index: true,
-    follow: true,
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
+  manifest: "/manifest.webmanifest",
   category: "technology",
 };
 
 export const viewport: Viewport = {
   themeColor: "#fdfcfc",
   colorScheme: "light",
-};
-
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: "OpenAgent",
-  applicationCategory: "DeveloperApplication",
-  operatingSystem: "macOS 14+",
-  license: "https://opensource.org/licenses/MIT",
-  url: siteUrl,
-  codeRepository: repoUrl,
-  description,
-  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -96,10 +102,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-eggshell text-ink">
-        <script
-          type="application/ld+json"
-          // Static, author-controlled structured data.
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        {/* Site-wide entities. Page-specific nodes (FAQPage, BreadcrumbList)
+            are emitted by the pages themselves and join this graph by @id. */}
+        <JsonLd
+          graph={[
+            websiteJsonLd(),
+            softwareApplicationJsonLd(),
+            softwareSourceCodeJsonLd(),
+            personJsonLd(),
+          ]}
         />
         <a
           href="#main"

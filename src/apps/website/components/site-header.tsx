@@ -5,10 +5,11 @@ import { useEffect, useState } from "react";
 import { repoUrl } from "@/lib/content";
 
 const nav = [
-  { label: "Watch a request", href: "/#transport" },
+  { label: "How it works", href: "/#architecture" },
   { label: "Engines", href: "/#engines" },
-  { label: "Architecture", href: "/#architecture" },
   { label: "Tools", href: "/tools" },
+  { label: "Privacy", href: "/privacy" },
+  { label: "FAQ", href: "/faq" },
   { label: "Vision", href: "/#vision" },
 ];
 

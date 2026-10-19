@@ -27,12 +27,12 @@ export function Hero() {
             </h1>
 
             <p className="mt-8 max-w-[52ch] text-body-lg text-smoke">
-              A personal AI assistant that lives in your messages can reach your
-              accounts. It cannot reach your machine. OpenAgent is the local
-              macOS execution environment that closes that gap —{" "}
-              {toolCount} callable tools driving your shell, your authenticated
-              Chrome, your native apps and your WhatsApp, from a sentence you
-              said out loud while doing something else.
+              OpenAgent is an open-source execution environment for macOS. It
+              hands an AI assistant {toolCount} callable tools on the machine in
+              front of you — your shell, your authenticated Chrome, your native
+              apps, your WhatsApp — behind a voice interface that runs
+              on-device. A sentence you said out loud while doing something else
+              becomes real work here, not in somebody&rsquo;s cloud.
             </p>
 
             <div className="mt-10 flex flex-wrap items-center gap-3">

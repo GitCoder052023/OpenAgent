@@ -110,6 +110,21 @@ export function TheGap() {
           <p className="mt-6 font-mono text-code text-graphite">
             Instinct thinks. OpenAgent acts.
           </p>
+
+          <p className="mt-5 max-w-[62ch] text-body-sm text-smoke">
+            Not using Instinct, or want your own model?{" "}
+            <a
+              href="https://github.com/GitCoder052023/OpenHarness"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-graphite underline decoration-stone underline-offset-4 transition-colors duration-200 hover:text-ink hover:decoration-graphite"
+            >
+              OpenHarness
+            </a>{" "}
+            is the same execution engine on its own — point Claude, Gemini,
+            Codex or a local Ollama model at these Mac tools, without the voice
+            and WhatsApp setup.
+          </p>
         </div>
       </div>
     </section>

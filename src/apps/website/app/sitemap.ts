@@ -1,9 +1,10 @@
 import type { MetadataRoute } from "next";
-import { siteUrl } from "@/lib/content";
+import { absolute, routes } from "@/lib/seo";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  return [
-    { url: `${siteUrl}/`, changeFrequency: "weekly", priority: 1 },
-    { url: `${siteUrl}/tools`, changeFrequency: "weekly", priority: 0.8 },
-  ];
+  return routes.map((route) => ({
+    url: absolute(route.path),
+    changeFrequency: route.changeFrequency,
+    priority: route.priority,
+  }));
 }

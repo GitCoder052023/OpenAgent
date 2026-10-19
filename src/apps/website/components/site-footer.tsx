@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { credits, docLinks, repoUrl } from "@/lib/content";
 
+const pages = [
+  { label: "Overview", href: "/" },
+  { label: "Tool reference", href: "/tools" },
+  { label: "FAQ", href: "/faq" },
+  { label: "Privacy & security", href: "/privacy" },
+];
+
 const project = [
   { label: "Contributing", href: `${repoUrl}/blob/main/CONTRIBUTING.md` },
   { label: "Code of conduct", href: `${repoUrl}/blob/main/CODE_OF_CONDUCT.md` },
@@ -46,7 +53,7 @@ export function SiteFooter() {
             </p>
           </div>
 
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-3">
             <h2 className="font-mono text-caption uppercase text-smoke">
               Documentation
             </h2>
@@ -60,19 +67,27 @@ export function SiteFooter() {
             </ul>
           </div>
 
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-3">
             <h2 className="font-mono text-caption uppercase text-smoke">
+              This site
+            </h2>
+            <ul className="mt-4 space-y-3">
+              {pages.map((page) => (
+                <li key={page.href}>
+                  <Link
+                    href={page.href}
+                    className="text-body-sm text-graphite transition-colors duration-200 hover:text-ink"
+                  >
+                    {page.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+
+            <h2 className="mt-10 font-mono text-caption uppercase text-smoke">
               Project
             </h2>
             <ul className="mt-4 space-y-3">
-              <li>
-                <Link
-                  href="/tools"
-                  className="text-body-sm text-graphite transition-colors duration-200 hover:text-ink"
-                >
-                  Tool reference
-                </Link>
-              </li>
               {project.map((p) => (
                 <li key={p.href}>
                   <External href={p.href}>{p.label}</External>

@@ -1,24 +1,30 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { repoUrl } from "@/lib/content";
 import { toolCategories, toolCount } from "@/lib/tools";
+import { JsonLd, breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
 import { SectionLabel } from "@/components/primitives";
 import { ToolExplorer } from "@/components/tool-explorer";
 
-export const metadata: Metadata = {
-  title: "Tool reference",
-  description: `Every one of the ${toolCount} tools OpenAgent exposes to a connected assistant, across nine engines — shell and file editing, native macOS control, browser automation, web ingestion, social media, productivity apps, Office documents, WhatsApp and external MCP servers.`,
-  alternates: { canonical: "/tools" },
-  openGraph: {
-    url: "/tools",
-    title: "OpenAgent tool reference",
-    description: `All ${toolCount} callable tools, across nine engines.`,
-  },
-};
+export const metadata = pageMetadata({
+  title: `Tool reference — ${toolCount} macOS tools`,
+  ogTitle: "OpenAgent tool reference",
+  description: `All ${toolCount} tools OpenAgent exposes to an AI assistant on macOS, with the arguments each one takes: shell and files, native app control, Chrome, web scraping, social, Office documents, WhatsApp and MCP.`,
+  imageAlt: `OpenAgent tool reference — all ${toolCount} tools across nine engines`,
+  path: "/tools",
+});
 
 export default function ToolsPage() {
   return (
     <>
+      <JsonLd
+        graph={[
+          breadcrumbJsonLd([
+            { name: "OpenAgent", path: "/" },
+            { name: "Tool reference", path: "/tools" },
+          ]),
+        ]}
+      />
+
       <section className="pt-28 sm:pt-32 lg:pt-40">
         <div className="gutter">
           <div className="grid gap-x-16 gap-y-10 pb-12 lg:grid-cols-12">
@@ -29,9 +35,11 @@ export default function ToolsPage() {
               </h1>
               <p className="mt-7 max-w-[54ch] text-body-lg text-smoke">
                 This is the complete surface a connected assistant can reach on
-                your Mac. Each entry is a real adapter in the repository, and
-                every one is invoked the same way: structured JSON, base64
-                encoded, wrapped in a transport envelope.
+                your Mac: {toolCount} callable tools spanning the shell, the
+                macOS Accessibility API, the Chrome DevTools Protocol and the
+                Model Context Protocol. Each entry is a real adapter in the
+                repository, and every one is invoked the same way: structured
+                JSON, base64 encoded, wrapped in a transport envelope.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <a
