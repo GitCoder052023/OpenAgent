@@ -51,29 +51,12 @@ export function Hero() {
                 Watch a request run
               </a>
             </div>
-
-            <p className="mt-6 font-mono text-code text-smoke">
-              ./boot.py --voice --send-mode audio
-            </p>
           </div>
 
           <div className="lg:col-span-5">
             <WakeMeter />
           </div>
         </div>
-
-        <div className="mt-20 h-px bg-stone sm:mt-24" aria-hidden="true" />
-
-        <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 py-5 font-mono text-micro text-smoke">
-          {toolCategories.map((c) => (
-            <li key={c.slug} className="flex items-center gap-2">
-              {c.label.toLowerCase()}
-              <span className="tabular text-smoke">{c.tools.length}</span>
-            </li>
-          ))}
-        </ul>
-
-        <div className="h-px bg-stone" aria-hidden="true" />
       </div>
     </section>
   );

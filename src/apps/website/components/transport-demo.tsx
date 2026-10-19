@@ -138,7 +138,7 @@ export function TransportDemo() {
           <div className="lg:col-span-7">
             <SectionLabel>One request, end to end</SectionLabel>
             <h2 className="mt-6 text-heading text-ink lg:text-display">
-              You speak. A base64 envelope comes back. Your Mac does the work.
+              You speak. Your Mac does the work.
             </h2>
           </div>
           <div className="lg:col-span-5">

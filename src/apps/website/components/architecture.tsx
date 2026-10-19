@@ -10,8 +10,7 @@ export function Architecture() {
           <div className="lg:col-span-7">
             <SectionLabel>How it works</SectionLabel>
             <h2 className="mt-6 text-heading text-ink lg:text-display">
-              No API key. No hosted backend. Six moves between a sentence and a
-              diff.
+              No API key. No hosted backend.
             </h2>
           </div>
           <div className="lg:col-span-5 lg:pt-20">

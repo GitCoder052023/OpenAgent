@@ -27,9 +27,9 @@ export default function Home() {
       <TheGap />
       <TransportDemo />
       <Architecture />
-      <Engines />
       <GhostMode />
       <Voice />
+      <Engines />
       <QuickStart />
       <Vision />
       <HomeQuestions />
