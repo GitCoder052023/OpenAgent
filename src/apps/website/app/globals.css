@@ -1,26 +1,234 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ---------------------------------------------------------------------------
+   Design tokens.
+   Source: DESIGN.md (ElevenLabs style reference) — warm eggshell canvas, black
+   ink, hairline stone borders, whisper-weight display type. The violet spark is
+   reserved for product visuals and state, never for UI chrome, per DESIGN.md.
+   --------------------------------------------------------------------------- */
+
+@theme {
+  /* Surfaces — eggshell → taupe → stone, never pure white or cold gray. */
+  --color-eggshell: #fdfcfc;
+  --color-taupe: #f5f3f1;
+  --color-stone: #ebe8e4;
+
+  /* Text */
+  --color-ink: #000000;
+  --color-graphite: #44403b;
+  --color-smoke: #777169;
+  --color-ash: #a59f97;
+
+  /* Product-visual accents. Not for buttons, links, badges or borders. */
+  --color-spark: #0447ff;
+  --color-ember: #ff4704;
+
+  /* The one inverted chapter. Warm black so it belongs to the same palette. */
+  --color-night: #0d0c0b;
+  --color-night-raised: #17150f;
+  --color-night-line: #2b2823;
+  --color-night-text: #cfc9c0;
+  --color-night-dim: #8b847a;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
+
+  /* Type scale — DESIGN.md § Type Scale. --text-display-xl extends the scale
+     for the hero only; everything else stays inside the measured ramp. */
+  --text-caption: 0.625rem;
+  --text-caption--line-height: 1.6;
+  --text-caption--letter-spacing: 0.08em;
+
+  --text-micro: 0.75rem;
+  --text-micro--line-height: 1.5;
+
+  --text-code: 0.8125rem;
+  --text-code--line-height: 1.69;
+
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.5;
+  --text-body-sm--letter-spacing: 0.01em;
+
+  --text-body: 1rem;
+  --text-body--line-height: 1.55;
+  --text-body--letter-spacing: 0.01em;
+
+  --text-subheading: 1.125rem;
+  --text-subheading--line-height: 1.6;
+
+  --text-body-lg: 1.25rem;
+  --text-body-lg--line-height: 1.45;
+
+  --text-heading-sm: 2rem;
+  --text-heading-sm--line-height: 1.13;
+  --text-heading-sm--letter-spacing: -0.02em;
+
+  --text-heading: 2.25rem;
+  --text-heading--line-height: 1.17;
+  --text-heading--letter-spacing: -0.02em;
+
+  --text-display: 3rem;
+  --text-display--line-height: 1.08;
+  --text-display--letter-spacing: -0.02em;
+
+  --text-display-xl: clamp(2.625rem, 6vw, 4.25rem);
+  --text-display-xl--line-height: 1.02;
+  --text-display-xl--letter-spacing: -0.025em;
+
+  --radius-card: 20px;
+  --radius-card-lg: 24px;
+  --radius-input: 4px;
+
+  --shadow-whisper:
+    rgba(0, 0, 0, 0.4) 0px 0px 1px 0px, rgba(0, 0, 0, 0.04) 0px 1px 1px 0px,
+    rgba(0, 0, 0, 0.04) 0px 2px 4px 0px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 6rem;
+    background: var(--color-eggshell);
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  body {
+    background: var(--color-eggshell);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: 1.55;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Whisper-weight display type is the brand's signature restraint —
+     never bold these. DESIGN.md § Do's and Don'ts. */
+  h1,
+  h2,
+  h3 {
+    font-weight: 300;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: var(--color-stone);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* Page gutter — DESIGN.md § Layout: 1280px column, generous outer gutters. */
+  .gutter {
+    width: 100%;
+    max-width: 1280px;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+  }
+
+  @media (min-width: 768px) {
+    .gutter {
+      padding-inline: 2.5rem;
+    }
+  }
+
+  @media (min-width: 1100px) {
+    .gutter {
+      padding-inline: 4rem;
+    }
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Flow lines in the architecture diagram draw themselves once, in the
+     direction the data actually travels. Paths carry pathLength="1" so the
+     dash maths is independent of their real geometry. */
+  .flow-line {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+
+  .flow-head {
+    opacity: 0;
+  }
+
+  .drawn .flow-line {
+    animation: draw-flow 760ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+    animation-delay: var(--delay, 0ms);
+  }
+
+  .drawn .flow-head {
+    animation: head-in 200ms ease-out forwards;
+    animation-delay: calc(var(--delay, 0ms) + 640ms);
+  }
+
+  @keyframes draw-flow {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes head-in {
+    to {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .flow-line {
+      stroke-dashoffset: 0;
+    }
+
+    .flow-head {
+      opacity: 1;
+    }
+  }
+}
+
+/* The hero signal trace: bars breathe only while the session is awake. */
+@keyframes wake-trace {
+  from {
+    transform: scaleY(0.12);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* Replay items arrive in the order the real loop produces them. */
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
