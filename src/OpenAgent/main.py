@@ -14,7 +14,7 @@ from .diagnostics import setup_logging, event
 from .voice import gate_pcm
 from pathlib import Path
 from pynput import keyboard
-from .audio import start_recording, speak, encode_attachment, transcribe
+from .audio import start_recording, speak, encode_attachment, transcribe, engine_status, prewarm
 from .ax import snapshot, dump
 from .config import Config
 from .desktop import Desktop
@@ -76,7 +76,7 @@ def main():
     p.add_argument("--brain", choices=["instinct", "openinstinct"], default=None, help="Brain mode: 'openinstinct' (local terminal brain via Ollama) or 'instinct' (WhatsApp Desktop)")
     p.add_argument("--text", default="")
     p.add_argument("--unlocked", action="store_true", help="Unlock system from strict safe mode")
-    p.add_argument("--send-mode", choices=["text", "audio"], default=None, help="Send mode: text (Whisper STT) or audio (M4A file)")
+    p.add_argument("--send-mode", choices=["text", "audio"], default=None, help="Send mode: text (local Whisper Large V3 Turbo) or audio (M4A file)")
     p.add_argument("--voice", action="store_true", help="Opt-in continuous mic / wake-phrase mode")
     p.add_argument("--hotkey", default=None, help="Trigger key (e.g. f8, f6, right_shift)")
     p.add_argument("--verbose", action="store_true", help="Show detailed diagnostics in terminal")
@@ -142,6 +142,12 @@ def main():
     print(f"WhatsApp: BACKGROUND / HIDDEN (screen remains clean and private).")
     sound_status = f"ENABLED (vol {cfg.sound_volume:.1f})" if cfg.sound_enabled else "MUTED"
     print(f"Sound feedback: {sound_status} (tactile terminal audio online).")
+    stt = engine_status(cfg)
+    print(f"Speech Engine: {'ENABLED' if stt['ready'] else 'DEGRADED'} ({stt['detail']}).")
+    event("stt_engine", engine=stt["engine"], model=stt["model"], ready=stt["ready"])
+    if cfg.send_mode == "text" and stt["ready"]:
+        # Load the Turbo weights while the user reads the banner, not mid-request.
+        threading.Thread(target=prewarm, args=(cfg,), daemon=True).start()
     play_sound(SoundEvent.BOOT)
     print("Say Wakeup Jarvis to enter voice mode; press F5 to mute/unmute mic; Esc quits." if args.voice else f"Hold {trigger_hint} to talk; release to send; press Esc to quit.")
 
@@ -285,7 +291,7 @@ def main():
             print("Previous request still running; dropped this recording.")
             return
         threading.Thread(target=process_recording, args=(proc, recorded_path), daemon=True).start()
-    def process_recording(proc, recorded_path):
+    def process_recording(proc, recorded_path, transcript=None):
         nonlocal last_send
         attachment = None
         try:
@@ -312,8 +318,13 @@ def main():
             sending.set()
             event("send_begin", mode=cfg.send_mode, source="voice" if recorded_path.name.startswith("openagent-voice-") else "hotkey", duration_s=round(len(pcm)/32000, 2))
             if cfg.send_mode == "text":
-                print("Transcribing audio locally with Whisper...")
-                text = transcribe(recorded_path, cfg)
+                # Voice mode already transcribed this utterance to decide what it
+                # was; reuse it instead of running Whisper over the clip twice.
+                if transcript:
+                    text = transcript.strip()
+                else:
+                    print("Transcribing audio locally with Whisper Large V3 Turbo...")
+                    text = transcribe(recorded_path, cfg)
                 print(f"Transcript: \"{text}\"")
                 if not text:
                     raise RuntimeError("Empty transcription; not sending.")
@@ -348,10 +359,8 @@ def main():
             busy.release()
 
     if args.voice:
-        if cfg.send_mode != "audio":
-            raise RuntimeError("Voice mode sends audio files; select --send-mode audio")
         muted = threading.Event()
-        def on_voice_audio(pcm):
+        def on_voice_audio(pcm, text=None):
             if muted.is_set():
                 return
             if playing.is_set():
@@ -377,7 +386,7 @@ def main():
                 def send_signal(self, sig): pass
                 def wait(self, timeout=None): return 0
                 def kill(self): pass
-            threading.Thread(target=process_recording, args=(FinishedRecording(), recorded_path), daemon=True).start()
+            threading.Thread(target=process_recording, args=(FinishedRecording(), recorded_path, text), daemon=True).start()
         from .voice import listen
         try:
             def on_voice_key(key):

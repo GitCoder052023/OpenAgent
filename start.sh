@@ -5,7 +5,7 @@
 # Delegates directly to the autonomous Python boot engine (boot.py) which handles:
 # 1. Self-bootstrapping virtual environment via uv
 # 2. Dependency auto-installation & module synchronization
-# 3. Model auto-provisioning (Whisper & Vosk)
+# 3. Model auto-provisioning (Whisper Large V3 Turbo)
 # 4. macOS Accessibility permission handling
 # 5. WhatsApp Desktop background lifecycle management
 # 6. Preflight harness verification & autonomous supervisor watchdog

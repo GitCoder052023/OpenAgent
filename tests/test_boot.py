@@ -83,12 +83,59 @@ def test_ensure_models(tmp_path: Path):
     fake_root.mkdir()
     models_dir = fake_root / "models"
     models_dir.mkdir()
-    whisper_file = models_dir / "ggml-base.bin"
+    whisper_file = models_dir / boot.GGML_TURBO_MODEL
     whisper_file.write_text("dummy")
 
     with patch.object(boot, "ROOT_DIR", fake_root):
         ok = boot.ensure_models(send_mode="audio", voice_mode=False)
         assert ok is True
+
+
+def test_ensure_models_skips_whisper_for_plain_audio_hotkey(tmp_path: Path):
+    # Push-to-talk in audio mode ships the voice note itself; no model needed.
+    fake_root = tmp_path / "repo"
+    fake_root.mkdir()
+    with patch.object(boot, "ROOT_DIR", fake_root), \
+            patch.object(boot, "ensure_whisper_turbo") as fetch:
+        assert boot.ensure_models(send_mode="audio", voice_mode=False) is True
+    fetch.assert_not_called()
+
+
+def test_ensure_models_provisions_whisper_for_voice_mode(tmp_path: Path):
+    # The wake phrase is recognized by Whisper, so voice mode needs the model.
+    fake_root = tmp_path / "repo"
+    fake_root.mkdir()
+    with patch.object(boot, "ROOT_DIR", fake_root), \
+            patch.object(boot, "ensure_whisper_turbo", return_value=True) as fetch:
+        assert boot.ensure_models(send_mode="audio", voice_mode=True) is True
+    fetch.assert_called_once()
+
+
+def test_ensure_whisper_turbo_prefers_mlx(tmp_path: Path):
+    fake_root = tmp_path / "repo"
+    fake_root.mkdir()
+    snapshot = MagicMock()
+    hub = type(sys)("huggingface_hub")
+    hub.snapshot_download = snapshot
+
+    with patch.object(boot, "ROOT_DIR", fake_root), \
+            patch.object(boot, "mlx_whisper_available", return_value=True), \
+            patch.dict(sys.modules, {"huggingface_hub": hub}):
+        assert boot.ensure_whisper_turbo() is True
+    assert snapshot.call_args.kwargs["repo_id"] == boot.WHISPER_REPO
+
+
+def test_ensure_whisper_turbo_downloads_ggml_without_mlx(tmp_path: Path):
+    fake_root = tmp_path / "repo"
+    (fake_root / "models").mkdir(parents=True)
+    (fake_root / "models" / boot.GGML_TURBO_MODEL).write_text("dummy")
+
+    with patch.object(boot, "ROOT_DIR", fake_root), \
+            patch.object(boot, "mlx_whisper_available", return_value=False), \
+            patch("subprocess.run") as run:
+        assert boot.ensure_whisper_turbo() is True
+    # Already on disk: nothing is re-downloaded.
+    run.assert_not_called()
 
 
 def test_manage_whatsapp_running():

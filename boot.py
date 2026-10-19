@@ -7,7 +7,7 @@ An intelligent, self-bootstrapping, auto-healing boot orchestrator for OpenAgent
 1. Self-Bootstraps virtual environment via uv (zero manual setup).
 2. Auto-Resolves system & package dependencies (Homebrew, Bun, SoX, FFmpeg, Ripgrep, Whisper).
 3. Auto-Deploys CLI harness modules & installs npm/bun packages if missing.
-4. Auto-Provisioning of speech recognition models (ggml Whisper & Vosk offline).
+4. Auto-Provisioning of the on-device speech model (Whisper Large V3 Turbo).
 5. Auto-Heals configuration (.env generation and validation).
 6. Auto-Prompts & verifies macOS Accessibility & Input permissions.
 7. Autonomously manages WhatsApp Desktop lifecycle (launches & backgrounds).
@@ -18,6 +18,7 @@ An intelligent, self-bootstrapping, auto-healing boot orchestrator for OpenAgent
 """
 
 import argparse
+import importlib.util
 import json
 import logging
 import os
@@ -29,12 +30,16 @@ import subprocess
 import sys
 import time
 import urllib.request
-import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 # Resolve repository root
 ROOT_DIR = Path(__file__).resolve().parent
+
+# On-device speech-to-text: Whisper Large V3 Turbo, mlx on Apple Silicon and
+# whisper.cpp everywhere else.
+WHISPER_REPO = "mlx-community/whisper-large-v3-turbo"
+GGML_TURBO_MODEL = "ggml-large-v3-turbo.bin"
 
 # ANSI Formatting
 class Style:
@@ -190,7 +195,7 @@ def check_and_resolve_dependencies(auto_install: bool = True) -> Dict[str, bool]
         "sox": {"brew": "sox", "check_alt": "rec", "required": True, "desc": "SoX audio recording utility"},
         "ffmpeg": {"brew": "ffmpeg", "required": True, "desc": "FFmpeg audio/video encoder"},
         "rg": {"brew": "ripgrep", "required": False, "desc": "Ripgrep fast file & code search"},
-        "whisper-cli": {"brew": "whisper-cpp", "required": False, "desc": "whisper.cpp on-device STT"},
+        "whisper-cli": {"brew": "whisper-cpp", "required": False, "desc": "whisper.cpp on-device STT fallback"},
     }
 
     for name, meta in tools.items():
@@ -316,48 +321,66 @@ def ensure_config() -> Path:
 
 
 def ensure_models(send_mode: str, voice_mode: bool) -> bool:
-    """Auto-provisions speech recognition and voice models."""
+    """Auto-provisions the on-device speech model (Whisper Large V3 Turbo)."""
     models_dir = ROOT_DIR / "models"
     models_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. Vosk offline model (for continuous wake-phrase voice mode)
-    if voice_mode:
-        vosk_dir = models_dir / "vosk-model-small-en-us-0.15"
-        if not vosk_dir.is_dir():
-            log_info("Downloading offline Vosk model for voice wake-phrase mode...")
-            zip_dest = models_dir / "vosk-model.zip"
-            url = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
-            try:
-                urllib.request.urlretrieve(url, zip_dest)
-                with zipfile.ZipFile(zip_dest, "r") as zip_ref:
-                    zip_ref.extractall(models_dir)
-                zip_dest.unlink(missing_ok=True)
-                log_ok("Vosk voice wake model installed")
-            except Exception as e:
-                log_err(f"Failed to download Vosk model: {e}")
-                return False
-        else:
-            log_ok("Vosk voice wake model operational")
-
-    # 2. Whisper ggml model (for text send mode transcription)
-    whisper_model = models_dir / "ggml-base.bin"
-    if send_mode == "text" or not whisper_model.exists():
-        if not whisper_model.exists():
-            log_info("Whisper model (models/ggml-base.bin) missing. Downloading base model...")
-            script_path = ROOT_DIR / "scripts" / "download-model.sh"
-            if script_path.exists():
-                subprocess.run(["bash", str(script_path), "base"], check=False)
-            else:
-                # Direct fallback download
-                url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
-                try:
-                    urllib.request.urlretrieve(url, whisper_model)
-                except Exception as e:
-                    log_warn(f"Could not download Whisper model automatically: {e}")
-        if whisper_model.exists():
-            log_ok("Whisper STT model ready (models/ggml-base.bin)")
+    # Whisper Large V3 Turbo is the only speech model: it recognizes the wake
+    # phrase in voice mode and transcribes requests in text send mode.
+    if voice_mode or send_mode == "text":
+        return ensure_whisper_turbo()
 
     return True
+
+
+def mlx_whisper_available() -> bool:
+    """True when the mlx engine can run here (Apple Silicon + mlx-whisper installed)."""
+    if sys.platform != "darwin" or platform.machine() != "arm64":
+        return False
+    return importlib.util.find_spec("mlx_whisper") is not None
+
+
+def ensure_whisper_turbo() -> bool:
+    """Provisions Whisper Large V3 Turbo weights for whichever engine will run.
+
+    On Apple Silicon the mlx engine wins and weights are cached under
+    ~/.cache/huggingface. Elsewhere (or without mlx-whisper) the whisper.cpp
+    ggml model file is fetched into models/.
+    """
+    if mlx_whisper_available():
+        try:
+            from huggingface_hub import snapshot_download
+            snapshot_download(repo_id=WHISPER_REPO, allow_patterns=["*.json", "*.safetensors", "*.txt"])
+            log_ok(f"Whisper Large V3 Turbo ready ({WHISPER_REPO}, Apple Silicon GPU)")
+            return True
+        except Exception as e:
+            log_warn(f"Could not prefetch {WHISPER_REPO}: {e}. It will download on first transcription.")
+            return False
+
+    models_dir = ROOT_DIR / "models"
+    models_dir.mkdir(parents=True, exist_ok=True)
+    whisper_model = models_dir / GGML_TURBO_MODEL
+    if whisper_model.exists():
+        log_ok(f"Whisper Large V3 Turbo ready (models/{GGML_TURBO_MODEL}, whisper.cpp)")
+        return True
+
+    log_info(f"Whisper model (models/{GGML_TURBO_MODEL}) missing. Downloading Large V3 Turbo (~1.6 GB)...")
+    script_path = ROOT_DIR / "scripts" / "download-model.sh"
+    if script_path.exists():
+        subprocess.run(["bash", str(script_path), "large-v3-turbo"], check=False)
+    if not whisper_model.exists():
+        # Direct fallback download
+        url = f"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{GGML_TURBO_MODEL}"
+        try:
+            urllib.request.urlretrieve(url, whisper_model)
+        except Exception as e:
+            whisper_model.unlink(missing_ok=True)
+            log_warn(f"Could not download Whisper model automatically: {e}")
+    if whisper_model.exists():
+        log_ok(f"Whisper Large V3 Turbo ready (models/{GGML_TURBO_MODEL}, whisper.cpp)")
+        return True
+    log_warn("Whisper Large V3 Turbo unavailable; text send mode will fail until it is installed.")
+    return False
 
 
 def check_macos_permissions(timeout_seconds: int = 20) -> bool:
@@ -697,6 +720,18 @@ def run_preflight_checks(verbose: bool = False) -> bool:
     except Exception as e:
         log_warn(f"LocoAgent adapter check warning: {e}")
 
+    # 6. On-device speech-to-text engine (Whisper Large V3 Turbo)
+    try:
+        from OpenAgent.audio import engine_status
+        from OpenAgent.config import Config
+        stt = engine_status(Config.from_env())
+        if stt["ready"]:
+            log_ok(f"Speech-to-text engine operational ({stt['detail']})")
+        else:
+            log_warn(f"Speech-to-text engine degraded: {stt['detail']}")
+    except Exception as e:
+        log_warn(f"Speech-to-text engine check warning: {e}")
+
     return all_ok
 
 
@@ -792,7 +827,7 @@ def parse_args():
 
     # OpenAgent Pass-Through Flags
     parser.add_argument("--voice", action="store_true", help="Opt-in continuous mic / wake-phrase mode")
-    parser.add_argument("--send-mode", choices=["text", "audio"], default=None, help="Send mode: text (Whisper) or audio (M4A)")
+    parser.add_argument("--send-mode", choices=["text", "audio"], default=None, help="Send mode: text (local Whisper Large V3 Turbo) or audio (M4A)")
     parser.add_argument("--unlocked", action="store_true", help="Unlock system from strict safe mode")
     parser.add_argument("--hotkey", default=None, help="Trigger key (e.g. f8, f6, right_shift)")
     parser.add_argument("--verbose", action="store_true", help="Show detailed diagnostics and debug logs")

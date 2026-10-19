@@ -1,17 +1,23 @@
-"""Local voice-message transcription via mlx-whisper.
+"""Local voice-message transcription on Whisper Large V3 Turbo via mlx-whisper.
 
 Optional feature — install with `uv sync --extra transcribe`. Apple Silicon only.
 The mlx-whisper dependency is gated behind a platform marker in pyproject.toml,
 so it's a no-op on non-arm64-Darwin machines.
 
+Shares OpenAgent's speech-to-text configuration: `BRIDGE_WHISPER_REPO` selects
+the model and `BRIDGE_LANGUAGE` the default language, so the bridge and the MCP
+server always transcribe with the same engine.
+
 On first call per model the underlying library downloads weights to
-~/.cache/huggingface (~1.5 GB for whisper-large-v3-turbo). Subsequent calls
+~/.cache/huggingface (~1.6 GB for whisper-large-v3-turbo). Subsequent calls
 are local.
 """
 
+import os
 from typing import Any
 
-WHISPER_MODEL = "mlx-community/whisper-large-v3-turbo"
+DEFAULT_WHISPER_MODEL = "mlx-community/whisper-large-v3-turbo"
+WHISPER_MODEL = os.getenv("BRIDGE_WHISPER_REPO", DEFAULT_WHISPER_MODEL).strip() or DEFAULT_WHISPER_MODEL
 
 _INSTALL_HINT = (
     "mlx-whisper is not installed. Install with `uv sync --extra transcribe` "
@@ -41,6 +47,10 @@ def transcribe_file(file_path: str, language: str | None = None) -> dict[str, An
     mlx_whisper = _load_mlx_whisper()
     if mlx_whisper is None:
         return {"success": False, "message": _INSTALL_HINT}
+
+    if language is None:
+        configured = os.getenv("BRIDGE_LANGUAGE", "auto").strip().lower()
+        language = None if configured in ("", "auto") else configured
 
     try:
         result = mlx_whisper.transcribe(

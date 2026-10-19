@@ -17,6 +17,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Local Whisper Large V3 Turbo transcription of voice messages. Platform-gated:
+# a no-op away from Apple Silicon.
+transcribe = ["mlx-whisper>=0.4.3; sys_platform == 'darwin' and platform_machine == 'arm64'"]
 dev = [
     "ruff>=0.8.0",
     "mypy>=1.13.0",

@@ -12,7 +12,7 @@ OpenAgent interacts directly with macOS system APIs, audio subsystems, and Whats
 * **Python**: 3.11 or newer.
 * **uv**: Astral Python package and project manager ([astral.sh/uv](https://astral.sh/uv)).
 * **Bun**: Modern JavaScript/TypeScript runtime ([bun.sh](https://bun.sh)).
-* **Homebrew Utilities**: `sox`, `ffmpeg`, `ripgrep`, and `whisper-cpp`.
+* **Homebrew Utilities**: `sox`, `ffmpeg`, `ripgrep`, and `whisper-cpp` (the whisper.cpp fallback engine; Apple Silicon transcribes with `mlx-whisper`, installed by `uv sync --all-extras`).
 * **Node.js & npm**: Used solely for repository-level Git hooks (Husky + Commitlint). Do not install Husky or Commitlint globally.
 * **macOS Permissions**: Accessibility, Input Monitoring, Microphone, and Automation granted to your terminal application.
 
@@ -76,7 +76,7 @@ When adding features or modifying existing code, you **must preserve the followi
   * `dispatcher.py`: Envelope decoding, tool schema normalization, and Markdown formatting.
   * `mac_adapter.py`: Adapter connecting native macOS harness primitives to the bridge.
   * `harness.py`: Stdio JSON-RPC client managing the Bun execution process.
-  * `audio.py` / `voice.py`: SoX recording, silence gating, ffmpeg encoding, Whisper STT, and Vosk wake word.
+  * `audio.py` / `voice.py`: SoX recording, energy-based utterance endpointing, ffmpeg encoding, and on-device Whisper Large V3 Turbo STT (MLX or whisper.cpp) for both the wake phrase and requests.
   * `desktop.py` / `ax.py`: AppleScript automation, pasteboard staging, and macOS Accessibility wrappers.
 * **`src/tools/cli-harness/` (Bun / TypeScript)**:
   * `harness-bridge.ts`: Stdio runner implementing `bash`, `read`, `write`, `edit`, `grep`, `glob`, and `applescript`.

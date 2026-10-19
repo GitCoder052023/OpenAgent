@@ -1,5 +1,5 @@
 """Regression checks: awake capture must not drop real messages that mention Jarvis."""
-from OpenAgent.voice import VoiceState, _bare_wake_or_confirm, normalized
+from OpenAgent.voice import VoiceState, _bare_wake_or_confirm, normalized, request_after_wake
 
 
 def awake_state():
@@ -24,8 +24,8 @@ def test_message_mentioning_jarvis_is_sent():
 
 
 def test_merged_wake_phrase_and_message_is_sent():
-    # Vosk can return the wake phrase and the request as one result; the
-    # request must survive.
+    # Whisper can return the wake phrase and the request in one utterance;
+    # the request must survive.
     st = awake_state()
     assert st.accept("wake up jarvis tell me a story about space", now=2.0) == "send"
     st2 = awake_state()
@@ -66,3 +66,15 @@ def test_wake_from_sleep():
     st = VoiceState()
     assert st.accept("hello there", now=1.0) == "ignore"
     assert st.accept("wakeup jarvis", now=2.0) == "wake"
+
+
+def test_request_spoken_with_the_wake_phrase_is_recovered():
+    # Whisper returns a whole utterance, so waking must not swallow the ask.
+    assert request_after_wake("wake up jarvis run the test suite") == "run the test suite"
+    assert request_after_wake("Hey Jarvis, post the results to Threads.") == "post the results to threads"
+
+
+def test_bare_wake_phrase_carries_no_request():
+    assert request_after_wake("wake up jarvis") == ""
+    assert request_after_wake("hey jarvis") == ""
+    assert request_after_wake("wake up jarvis uh") == ""

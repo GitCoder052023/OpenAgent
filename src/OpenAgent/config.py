@@ -27,13 +27,16 @@ def load_env_file(path=None):
 @dataclass(frozen=True)
 class Config:
     number: str = "+16508702892"
-    model: str = "models/ggml-base.bin"
+    model: str = "models/ggml-large-v3-turbo.bin"
+    whisper_repo: str = "mlx-community/whisper-large-v3-turbo"
+    stt_engine: str = "auto"
     whisper_cli: str = "whisper-cli"
     recorder: str = "rec"
     min_send_interval: float = 2.0
     max_record_seconds: int = 1000
     reply_timeout: int = 90
     language: str = "auto"
+    wake_language: str = "en"
     header_path: str = ""
     message_list_path: str = ""
     incoming_marker: str = ""
@@ -47,7 +50,6 @@ class Config:
     send_mode: str = "audio"
     send_route: str = "picker"
     hotkey: str = "f8"
-    voice_model: str = "models/vosk-model-small-en-us-0.15"
     voice_silence_seconds: float = 2.0
     ledger_path: str = ""
     firecrawl_api_url: str = "http://localhost:3002"
@@ -83,6 +85,11 @@ class Config:
         send_mode = os.getenv("BRIDGE_SEND_MODE", "audio").strip().lower()
         if send_mode not in ("text", "audio"):
             send_mode = "audio"
+
+        stt_engine = os.getenv("BRIDGE_STT_ENGINE", cls.stt_engine).strip().lower()
+        if stt_engine not in ("auto", "mlx", "whisper.cpp"):
+            stt_engine = {"mlx-whisper": "mlx", "whisper-cpp": "whisper.cpp",
+                          "cpp": "whisper.cpp", "ggml": "whisper.cpp"}.get(stt_engine, "auto")
 
         send_route = os.getenv("BRIDGE_SEND_ROUTE", "picker").strip().lower()
         if send_route not in ("auto", "clipboard", "picker"):
@@ -134,9 +141,12 @@ class Config:
 
         return cls(number=os.getenv("BRIDGE_WHATSAPP_NUMBER", cls.number),
                    model=os.getenv("BRIDGE_WHISPER_MODEL", cls.model),
+                   whisper_repo=os.getenv("BRIDGE_WHISPER_REPO", cls.whisper_repo),
+                   stt_engine=stt_engine,
                    whisper_cli=os.getenv("BRIDGE_WHISPER_CLI", cls.whisper_cli),
                    recorder=os.getenv("BRIDGE_RECORDER", cls.recorder),
                    language=os.getenv("BRIDGE_LANGUAGE", cls.language),
+                   wake_language=os.getenv("BRIDGE_WAKE_LANGUAGE", cls.wake_language),
                    header_path=os.getenv("BRIDGE_HEADER_PATH", ""),
                    message_list_path=os.getenv("BRIDGE_MESSAGE_LIST_PATH", ""),
                    incoming_marker=os.getenv("BRIDGE_INCOMING_MARKER", ""),
@@ -149,7 +159,6 @@ class Config:
                    send_mode=send_mode,
                    send_route=send_route,
                    hotkey=hotkey,
-                   voice_model=os.getenv("BRIDGE_VOICE_MODEL", cls.voice_model),
                    voice_silence_seconds=float(os.getenv("BRIDGE_VOICE_SILENCE_SECONDS", cls.voice_silence_seconds)),
                    ledger_path=ledger_path,
                    firecrawl_api_url=firecrawl_api_url,

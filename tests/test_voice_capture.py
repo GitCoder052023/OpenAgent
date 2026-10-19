@@ -1,7 +1,7 @@
-"""Capture guard regression tests. No mic, WhatsApp, or Vosk required."""
+"""Capture guard regression tests. No mic, WhatsApp, or speech model required."""
 import struct
 from OpenAgent.config import Config
-from OpenAgent.voice import RATE, prepare_clip, gate_pcm
+from OpenAgent.voice import RATE, has_speech_energy, prepare_clip, gate_pcm
 
 
 def pcm(seconds, level=0):
@@ -39,7 +39,7 @@ def test_keyboard_typing_clicks_rejected_even_with_phantom_word():
             raw[pos:pos + len(click)] = click
     typing_pcm = bytes(raw)
 
-    # Must reject even if Vosk hallucinated 1 word ("the")
+    # Must reject even if Whisper hallucinated 1 word ("the")
     assert not gate_pcm(typing_pcm, source="voice", recognized=["the"])
     assert prepare_clip(typing_pcm, ["the"]) is None
     # Must also reject on hotkey mode
@@ -77,3 +77,17 @@ def test_voice_muted_event_state():
     assert muted.is_set()
     muted.clear()
     assert not muted.is_set()
+
+
+def test_speech_energy_prefilter_rejects_room_tone():
+    # Idle audio must never reach Whisper: the wake listener only transcribes
+    # segments with sustained voicing.
+    assert has_speech_energy(pcm(1, 60)) is False
+    assert has_speech_energy(pcm(0.1, 3000)) is False
+
+
+def test_speech_energy_prefilter_accepts_a_short_wake_phrase():
+    vowel = struct.pack('<h', 1500) * int(RATE * 0.4)
+    raw = bytearray(struct.pack('<h', 30) * int(RATE * 1.2))
+    raw[int(RATE * 0.2 * 2):int(RATE * 0.2 * 2) + len(vowel)] = vowel
+    assert has_speech_energy(bytes(raw)) is True

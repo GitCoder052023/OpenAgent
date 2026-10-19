@@ -103,31 +103,41 @@ BRIDGE_ATTACHMENT_SEND_LABEL="Send"
 
 ## 6. Voice Models & Transcription
 
-### Whisper (Speech-to-Text)
-Download models using the helper script:
+### Whisper Large V3 Turbo (Speech-to-Text)
+Transcription runs entirely on this Mac. Two engines serve the same model:
+
+| Engine | Runs on | Weights |
+| --- | --- | --- |
+| `mlx` (default on Apple Silicon) | Apple Silicon GPU via `mlx-whisper` | `mlx-community/whisper-large-v3-turbo`, cached in `~/.cache/huggingface` |
+| `whisper.cpp` | Any Mac via the `whisper-cli` binary | `models/ggml-large-v3-turbo.bin` |
+
+`./install.py` and `./boot.py` provision whichever one applies. To fetch them by hand:
+
 ```bash
-bash scripts/download-model.sh base       # Multilingual (recommended)
-bash scripts/download-model.sh base.en    # English-only optimized
+uv sync --all-extras                              # mlx engine (Apple Silicon)
+bash scripts/download-model.sh large-v3-turbo     # whisper.cpp ggml model (~1.6 GB)
 ```
 
 Configure in `.env`:
 ```env
-BRIDGE_WHISPER_MODEL=models/ggml-base.bin
+BRIDGE_STT_ENGINE=auto                                     # auto | mlx | whisper.cpp
+BRIDGE_WHISPER_REPO=mlx-community/whisper-large-v3-turbo   # mlx engine weights
+BRIDGE_WHISPER_MODEL=models/ggml-large-v3-turbo.bin        # whisper.cpp engine model
 BRIDGE_LANGUAGE=auto
 ```
 
-### Vosk (Offline Wake-Word Detection)
-Download and extract the lightweight Vosk model:
-```bash
-mkdir -p models
-curl -L https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip -o models/vosk.zip
-unzip models/vosk.zip -d models/
-rm models/vosk.zip
-```
+`./boot.py --doctor` reports which engine is live and why, so a missing binary or
+model file shows up before a request is dropped.
+
+### Wake Word (one model, no second engine)
+The wake phrase runs on the same local Whisper model. The microphone stream is
+segmented by energy and only a finished utterance is transcribed, so idle room
+audio is never written to disk or sent anywhere.
 
 Configure in `.env`:
 ```env
-BRIDGE_VOICE_MODEL=models/vosk-model-small-en-us-0.15
+BRIDGE_VOICE_SILENCE_SECONDS=2.0   # quiet gap that ends a request and sends it
+BRIDGE_WAKE_LANGUAGE=en            # wake phrases are English; pinning beats auto-detection
 ```
 
 ---

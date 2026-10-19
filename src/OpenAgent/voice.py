@@ -1,7 +1,9 @@
 """Opt-in local, continuous microphone command mode.
 
-No idle audio is saved. Commands require standalone wake phrases.
-Real-time partial and final recognition with visible audio feedback.
+Wake phrases and requests are both recognized by on-device Whisper Large V3
+Turbo ([`audio.py`](audio.py)): the stream is segmented by energy, and only a
+finished utterance is transcribed. No idle audio is saved, and nothing leaves
+the Mac until a request is sent.
 """
 try:
     import audioop
@@ -36,15 +38,29 @@ except ImportError:
 
         audioop = _AudioOpFallback()
 
-import json
 import queue
+from collections import deque
 from .diagnostics import event
 from .sound import SoundEvent, play as play_sound
 import re
 import time
-from pathlib import Path
 
 RATE = 16000
+
+# Utterance endpointing. Speech starts after ONSET_CHUNKS loud chunks and ends
+# on a quiet gap: short while asleep, since wake phrases are brief, and the
+# configured silence window once awake.
+CHUNK_MS = 100
+CHUNK_FRAMES = RATE * CHUNK_MS // 1000
+ONSET_CHUNKS = 2
+PREROLL_SECONDS = 1.0
+MIN_UTTERANCE_SECONDS = 0.35
+WAKE_GAP_SECONDS = 0.7
+WAKE_MAX_SECONDS = 8.0
+AWAKE_MAX_SECONDS = 120.0
+MIN_ONSET_LEVEL = 200
+MIN_RELEASE_LEVEL = 140
+NOISE_FLOOR_ALPHA = 0.05
 
 WAKE_WORDS = (
     "wake up jarvis",
@@ -59,7 +75,7 @@ WAKE_WORDS = (
     "wakeup",
     "jarvis wake up",
     "jarvis",
-    # Common Vosk phonetic misrecognitions for "jarvis"
+    # Common phonetic misrecognitions of "jarvis"
     "wake up service",
     "wake up travis",
     "wake up drivers",
@@ -113,8 +129,8 @@ def _bare_wake_or_confirm(norm: str) -> bool:
 
     While awake, substring-matching short wake words like "jarvis" anywhere in a
     long message must NOT discard the message: people naturally say "Jarvis"
-    mid-sentence when talking to Jarvis, and Vosk can merge the wake phrase and
-    the real request into one result. Only ignore results that are the bare
+    mid-sentence when talking to Jarvis, and one utterance can carry both the
+    wake phrase and the real request. Only ignore results that are the bare
     phrase itself, plus at most one extra filler token.
     """
     if norm in WAKE_WORDS or norm in CONFIRM_WORDS:
@@ -126,6 +142,26 @@ def _bare_wake_or_confirm(norm: str) -> bool:
         if phrase in norm and len(words) - len(phrase.split()) <= 1:
             return True
     return False
+
+
+def request_after_wake(text):
+    """What was asked in the same breath as the wake phrase, if anything.
+
+    Whisper hears a whole utterance at once, so "Wake up Jarvis, run the tests"
+    arrives as one result. Waking and discarding it would lose the request.
+    """
+    norm = normalized(text)
+    best = None
+    for phrase in WAKE_WORDS:
+        idx = norm.find(phrase)
+        if idx == -1:
+            continue
+        # Prefer the match that consumes the most of the wake phrase: "wake up"
+        # also matches "wake up jarvis", and only the longer one leaves the ask.
+        rest = norm[idx + len(phrase):].strip()
+        if best is None or len(rest.split()) < len(best.split()):
+            best = rest
+    return best if best and len(best.split()) >= 2 else ""
 
 
 def gate_pcm(pcm, source="voice", recognized=None):
@@ -231,38 +267,68 @@ class VoiceState:
         return "send"
 
 
+def has_speech_energy(pcm):
+    """Cheap pre-filter: is there sustained voicing worth transcribing?
+
+    Keeps room hiss, key clicks and chair creaks away from Whisper so the
+    model only runs on things a person actually said.
+    """
+    seconds = len(pcm) / (RATE * 2)
+    if seconds < 0.3 or len(pcm) % 2:
+        return False
+    window = RATE // 50 * 2
+    levels = [audioop.rms(pcm[i:i + window], 2) for i in range(0, len(pcm) - window + 1, window)]
+    peak = max(levels, default=0)
+    if peak < 400:
+        return False
+    threshold = max(180, min(650, int(peak * 0.13)))
+    run = sustained = 0
+    for level in levels:
+        if level >= threshold:
+            run += 1
+        else:
+            if run >= 4:
+                sustained += run
+            run = 0
+    if run >= 4:
+        sustained += run
+    return sustained / 50 >= 0.15
+
+
 def listen(cfg, on_audio, stop, playing=None, user_recording=None, muted=None):
-    """Listen continuously; group recognized speech until a sustained quiet gap."""
+    """Listen continuously and transcribe each utterance with Whisper Large V3 Turbo.
+
+    Speech is segmented by energy: an utterance starts on sustained voicing and
+    ends after a quiet gap — short while asleep (wake phrases are brief), the
+    configured silence window once awake. Only completed utterances reach
+    Whisper, and nothing is written to disk until a request is actually sent.
+    """
     try:
         import sounddevice as sd
-        from vosk import Model, KaldiRecognizer, SetLogLevel
     except ImportError as exc:
-        raise RuntimeError("Voice mode needs uv sync --extra voice (vosk and sounddevice)") from exc
+        raise RuntimeError("Voice mode needs uv sync --all-extras (sounddevice)") from exc
 
-    model_path = Path(cfg.voice_model).expanduser()
-    if not model_path.is_absolute() and not model_path.is_dir():
-        here = Path(__file__).resolve()
-        repo_root = here.parents[2] if len(here.parents) > 2 and here.parents[1].name == "src" else here.parents[1]
-        if (repo_root / model_path).is_dir():
-            model_path = repo_root / model_path
-    if not model_path.is_dir():
-        raise RuntimeError(f"Voice model directory missing: {model_path}. Set BRIDGE_VOICE_MODEL.")
+    from .audio import engine_status, prewarm, transcribe_pcm
 
     silence_seconds = cfg.voice_silence_seconds
     if not 1 <= silence_seconds <= 30:
         raise ValueError("BRIDGE_VOICE_SILENCE_SECONDS must be between 1 and 30")
 
-    SetLogLevel(-1)
-    model = Model(str(model_path))
-    recognizer = KaldiRecognizer(model, RATE)
+    status = engine_status(cfg)
+    if not status["ready"]:
+        raise RuntimeError(f"Voice mode needs on-device speech recognition: {status['detail']}")
+    print(f"[Voice mode] Loading {status['detail']}...")
+    prewarm(cfg)
+
     state = VoiceState()
-    phrase = []
-    phrase_frames = 0
-    clip = []
-    clip_frames = 0
-    recognized = []
-    last_voice_at = 0.0
-    q = queue.Queue(maxsize=128)
+    q = queue.Queue(maxsize=256)  # ~25s of audio: enough to ride out a long transcription
+    preroll = deque(maxlen=int(PREROLL_SECONDS * 1000 / CHUNK_MS))
+    utterance = []
+    utterance_frames = 0
+    voiced_chunks = 0
+    quiet_seconds = 0.0
+    capturing = False
+    noise_floor = 120.0
 
     max_level_seen = 0
     start_time = time.monotonic()
@@ -270,9 +336,9 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None, muted=None):
     was_playing = False
     last_buffer_log = 0.0
 
-    def callback(indata, count, timestamp, status):
-        if status:
-            print(f"[Mic warning] {status}")
+    def callback(indata, count, timestamp, status_flags):
+        if status_flags:
+            print(f"[Mic warning] {status_flags}")
         # Drop mic audio at source while Jarvis voice note is playing through speakers or when muted
         if (playing is not None and playing.is_set()) or (muted is not None and muted.is_set()):
             return
@@ -286,72 +352,104 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None, muted=None):
                     break
             q.put_nowait(None)
 
-    def flush():
-        nonlocal clip, clip_frames, recognized
-        raw = b"".join(clip)
-        words = len(" ".join(recognized).split())
-        event("capture_flush", duration_s=round(len(raw)/32000, 2), recognized_words=words)
-        if not words:
-            if user_recording is not None:
-                user_recording.clear()
-            if clip_frames:
-                print("[Voice mode] Dropped quiet or unrecognized audio.")
-            clip, clip_frames, recognized = [], 0, []
-            return
-        pcm = prepare_clip(raw, recognized)
-        if pcm is not None:
-            on_audio(pcm)
-        else:
-            if user_recording is not None:
-                user_recording.clear()
-            if clip_frames:
-                print("[Voice mode] Dropped quiet or unrecognized audio.")
-        clip, clip_frames, recognized = [], 0, []
+    def reset(reason=None):
+        nonlocal utterance, utterance_frames, voiced_chunks, quiet_seconds, capturing
+        if reason and utterance_frames:
+            event("capture_drop", reason=reason, dropped_s=round(utterance_frames / RATE, 2))
+        preroll.clear()
+        utterance, utterance_frames, voiced_chunks, quiet_seconds, capturing = [], 0, 0, 0.0, False
+        if user_recording is not None:
+            user_recording.clear()
+        while not q.empty():
+            try:
+                q.get_nowait()
+            except queue.Empty:
+                break
 
-    def finish(text, now):
-        nonlocal phrase, phrase_frames, clip, clip_frames, recognizer, last_voice_at, recognized
-        text = (text or "").strip()
+    def finalize(now):
+        """Transcribe the buffered utterance and act on what was said."""
+        nonlocal utterance, utterance_frames, voiced_chunks, quiet_seconds, capturing
+        raw = b"".join(utterance)
+        seconds = utterance_frames / RATE
+        utterance, utterance_frames, voiced_chunks, quiet_seconds, capturing = [], 0, 0, 0.0, False
+        preroll.clear()
+        awake = state.awake
+
+        if seconds < MIN_UTTERANCE_SECONDS or not has_speech_energy(raw):
+            event("capture_flush", duration_s=round(seconds, 2), recognized_words=0, reason="no_speech")
+            if user_recording is not None:
+                user_recording.clear()
+            return
+
+        try:
+            # Asleep, only English wake phrases matter, and auto-detection on a
+            # two-word utterance is unreliable; awake, honour the user's setting.
+            language = None if awake else (cfg.wake_language or None)
+            text = transcribe_pcm(raw, cfg, language=language).strip()
+        except Exception as exc:
+            event("transcribe_failed", level="warning", reason=str(exc)[:180])
+            print(f"[Voice mode] Transcription failed: {exc}")
+            if user_recording is not None:
+                user_recording.clear()
+            return
+
+        event("capture_flush", duration_s=round(seconds, 2), recognized_words=len(text.split()))
         if not text:
-            return "empty"
+            if user_recording is not None:
+                user_recording.clear()
+            if awake:
+                print("[Voice mode] Dropped quiet or unrecognized audio.")
+            return
+
         action = state.accept(text, now)
         if action == "wake":
             play_sound(SoundEvent.VOICE_WAKE)
             print(f"\n[⚡ Jarvis awake] Listening to your request... ({silence_seconds:g}s of quiet sends audio)")
+            request = request_after_wake(text)
+            if request:
+                # Woken and asked in one breath: send the request rather than
+                # making the user repeat it.
+                clip = prepare_clip(raw, [request])
+                if clip is not None:
+                    print(f"[Capturing] \"{request}\"")
+                    if user_recording is not None:
+                        user_recording.set()
+                    on_audio(clip, request)
+                    return
         elif action == "sleep_prompt":
-            flush()
             if user_recording is not None:
                 user_recording.clear()
             print("\n[Sleep requested] Say 'confirm stand by Jarvis' within 8 seconds; anything else cancels it.")
         elif action == "sleep":
             play_sound(SoundEvent.VOICE_SLEEP)
-            flush()
             if user_recording is not None:
                 user_recording.clear()
             print("\n[💤 Jarvis sleeping] Listening for 'Wakeup Jarvis' or 'Hey Jarvis'.")
         elif action == "send":
+            print(f"[Capturing] \"{text}\"")
+            clip = prepare_clip(raw, [text])
+            if clip is None:
+                if user_recording is not None:
+                    user_recording.clear()
+                print("[Voice mode] Dropped quiet or unrecognized audio.")
+                return
             if user_recording is not None:
                 user_recording.set()
-            play_sound(SoundEvent.RECORDING_START)
-            clip.extend(phrase)
-            clip_frames += phrase_frames
-            recognized.append(text)
-            if not last_voice_at:
-                last_voice_at = now
-            print(f"[Capturing] \"{text}\"")
-        elif not state.awake:
+            on_audio(clip, text)
+        elif not awake:
             print(f"[Mic heard] \"{text}\"")
-            clip, clip_frames, recognized = [], 0, []
-        elif phrase_frames:
-            # Awake and the result was only a wake/confirm echo: the wake phrase
-            # itself is dropped on purpose, but never silently.
-            event("capture_drop", reason="wake_echo", dropped_s=round(phrase_frames / RATE, 2))
-            print(f"[Voice mode] Ignored wake-word echo ({phrase_frames / RATE:.1f}s).")
-        phrase, phrase_frames = [], 0
-        recognizer = KaldiRecognizer(model, RATE)
-        return action
+            if user_recording is not None:
+                user_recording.clear()
+        else:
+            # Awake, but the utterance was only a wake/confirm echo: dropped on
+            # purpose, never silently.
+            event("capture_drop", reason="wake_echo", dropped_s=round(seconds, 2))
+            print(f"[Voice mode] Ignored wake-word echo ({seconds:.1f}s).")
+            if user_recording is not None:
+                user_recording.clear()
 
     print("[Voice mode] Default microphone open. Idle audio is not saved. Press F5 to mute/unmute mic. Say 'Wakeup Jarvis'. Esc quits.")
-    with sd.RawInputStream(samplerate=RATE, blocksize=4000, dtype="int16", channels=1, callback=callback):
+    with sd.RawInputStream(samplerate=RATE, blocksize=CHUNK_FRAMES, dtype="int16", channels=1, callback=callback):
         while not stop.is_set():
             try:
                 data = q.get(timeout=0.3)
@@ -362,67 +460,31 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None, muted=None):
 
             # Hardware / software mic mute guard:
             if muted is not None and muted.is_set():
-                phrase.clear()
-                phrase_frames = 0
-                clip.clear()
-                clip_frames = 0
-                recognized.clear()
-                last_voice_at = 0.0
-                while not q.empty():
-                    try:
-                        q.get_nowait()
-                    except queue.Empty:
-                        break
-                recognizer = KaldiRecognizer(model, RATE)
+                reset()
                 continue
 
             # Echo cancellation / feedback suppression:
             # If WhatsApp is currently playing a voice note, or during echo-tail cooldown:
             if playing is not None and playing.is_set():
-                if not was_playing: event("echo_guard", state="playback_started")
+                if not was_playing:
+                    event("echo_guard", state="playback_started")
                 was_playing = True
-                phrase.clear()
-                phrase_frames = 0
-                clip.clear()
-                clip_frames = 0
-                recognized.clear()
-                last_voice_at = 0.0
-                while not q.empty():
-                    try:
-                        q.get_nowait()
-                    except queue.Empty:
-                        break
-                recognizer = KaldiRecognizer(model, RATE)
+                reset()
                 continue
 
             if was_playing:
                 event("echo_guard", state="playback_finished_queue_flushed")
                 was_playing = False
-                phrase.clear()
-                phrase_frames = 0
-                clip.clear()
-                clip_frames = 0
-                recognized.clear()
-                last_voice_at = 0.0
-                while not q.empty():
-                    try:
-                        q.get_nowait()
-                    except queue.Empty:
-                        break
-                recognizer = KaldiRecognizer(model, RATE)
+                reset()
                 continue
 
             if not data:
                 if data == b"":
                     continue
-                phrase, phrase_frames, clip, clip_frames = [], 0, [], 0
-                recognized.clear()
-                last_voice_at = 0.0
-                recognizer = KaldiRecognizer(model, RATE)
+                reset("mic_overflow")
                 print("[Mic overflow] Dropped partial audio; retry the command.")
                 continue
 
-            # Audio level calculation
             level = audioop.rms(data, 2)
             if level > max_level_seen:
                 max_level_seen = level
@@ -434,67 +496,45 @@ def listen(cfg, on_audio, stop, playing=None, user_recording=None, muted=None):
                     print("\n[Mic warning] Audio level near 0. If you are speaking, ensure Terminal has Microphone permission:")
                     print("  → macOS System Settings > Privacy & Security > Microphone > Enable Terminal/Python\n")
 
-            partial = ""
-            if state.awake:
-                phrase.append(data)
-                phrase_frames += len(data) // 2
+            # Thresholds track the room: a quiet office and a noisy cafe both work.
+            onset = max(MIN_ONSET_LEVEL, int(noise_floor * 3.0))
+            release = max(MIN_RELEASE_LEVEL, int(noise_floor * 2.0))
+            chunk_seconds = len(data) / 2 / RATE
 
-            # Speech recognition
-            if recognizer.AcceptWaveform(data):
-                res_text = json.loads(recognizer.Result()).get("text", "").strip()
-                if res_text:
-                    finish(res_text, now)
-            else:
-                try:
-                    partial = json.loads(recognizer.PartialResult()).get("partial", "").strip()
-                except Exception:
-                    partial = ""
-                if not state.awake and partial and is_wake_phrase(partial):
-                    finish(partial, now)
-
-            if state.awake:
-                # Active speech indicator: words in partial recognition or active voicing
-                is_speaking = bool(partial) or (level >= 200 and last_voice_at and (now - last_voice_at < 1.0))
-                if is_speaking:
-                    if user_recording is not None and not user_recording.is_set():
-                        user_recording.set()
-                elif not clip_frames and phrase_frames > RATE * 3:
-                    # Cap speculative pre-roll only when no speech has begun yet (pure ambient idle)
-                    target_frames = int(RATE * 2.5)
-                    while phrase and phrase_frames > target_frames:
-                        dropped = phrase.pop(0)
-                        phrase_frames -= len(dropped) // 2
-
-                if level >= 180 or partial:
-                    last_voice_at = now
-                if now - last_buffer_log >= 1.0:
-                    last_buffer_log = now
-                    event("capture_buffer", phrase_s=round(phrase_frames / RATE, 2),
-                          clip_s=round(clip_frames / RATE, 2), audio_level=level)
-
-            if not state.awake:
+            if not capturing:
+                if level < onset:
+                    noise_floor += (level - noise_floor) * NOISE_FLOOR_ALPHA
+                    voiced_chunks = 0
+                else:
+                    voiced_chunks += 1
+                preroll.append(data)
+                if voiced_chunks >= ONSET_CHUNKS:
+                    capturing = True
+                    utterance = list(preroll)
+                    utterance_frames = sum(len(chunk) // 2 for chunk in utterance)
+                    quiet_seconds = 0.0
+                    preroll.clear()
+                    if state.awake:
+                        play_sound(SoundEvent.RECORDING_START)
+                        if user_recording is not None:
+                            user_recording.set()
                 continue
 
-            # Silence threshold reached while awake: finalize speech and send
-            if (clip_frames or phrase_frames) and last_voice_at and now - last_voice_at >= silence_seconds:
-                trailing = phrase.copy()
-                trailing_frames = phrase_frames
-                final_text = json.loads(recognizer.FinalResult()).get("text", "").strip()
-                event("capture_silence", trailing_s=round(trailing_frames / RATE, 2),
-                      clip_s=round(clip_frames / RATE, 2), final_words=len(final_text.split()))
-                if final_text:
-                    action = finish(final_text, now)
-                    if action == "ignore" and trailing_frames:
-                        event("capture_drop", reason="wake_echo_flush", dropped_s=round(trailing_frames / RATE, 2))
-                if state.awake:
-                    if clip_frames:
-                        if not final_text:
-                            clip.extend(trailing)
-                            clip_frames += trailing_frames
-                        flush()
-                    else:
-                        phrase.clear()
-                        phrase_frames = 0
-                        if user_recording is not None:
-                            user_recording.clear()
-                last_voice_at = 0.0
+            utterance.append(data)
+            utterance_frames += len(data) // 2
+            if level >= release:
+                quiet_seconds = 0.0
+            else:
+                quiet_seconds += chunk_seconds
+
+            if now - last_buffer_log >= 1.0:
+                last_buffer_log = now
+                event("capture_buffer", phrase_s=round(utterance_frames / RATE, 2),
+                      clip_s=round(utterance_frames / RATE, 2), audio_level=level)
+
+            gap = silence_seconds if state.awake else WAKE_GAP_SECONDS
+            cap = AWAKE_MAX_SECONDS if state.awake else WAKE_MAX_SECONDS
+            if quiet_seconds >= gap or utterance_frames / RATE >= cap:
+                event("capture_silence", trailing_s=round(quiet_seconds, 2),
+                      clip_s=round(utterance_frames / RATE, 2), final_words=0)
+                finalize(now)

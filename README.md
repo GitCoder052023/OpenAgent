@@ -52,7 +52,7 @@ OpenAgent is built around **continuous, hands-free conversation**: the way Tony 
 - **Wake once, keep talking.** Say *"Wake up, Jarvis"* (or *"Hey Jarvis"*) and the session stays awake. Speak naturally, pause, and the request is sent after a stretch of silence.
 - **Natural turn-taking.** Instinct's voice replies play automatically through your speakers. 
 - **Freeform follow-ups.** The conversation lives in your Instinct chat, so context carries across turns. *"Now do the same for Reddit"* or *"Make it shorter"* works the way you'd expect.
-- **Private by default.** Wake-word detection (Vosk) runs fully offline, and idle audio is never saved or sent. Nothing leaves your Mac until Jarvis is awake and you've spoken a request.
+- **Private by default.** Wake-word detection runs fully offline on Whisper Large V3 Turbo, and idle audio is never saved or sent. Nothing leaves your Mac until Jarvis is awake and you've spoken a request.
 - **Push-to-talk fallback.** For quiet environments or shared spaces, hold `F8` to talk instead.
 
 ## Why OpenAgent
@@ -81,7 +81,7 @@ Because that computer use happens in Instinct's cloud environment, it can reach 
 
 OpenAgent uses **WhatsApp Desktop as the transport** between Instinct and your Mac. You don't need an API key, a hosted backend or a custom integration.
 
-1. **Input.** Once woken with *"Wake up, Jarvis"*, OpenAgent listens continuously to your speech until a natural pause, and then sends either a voice note or a local Whisper transcript to your Instinct chat.
+1. **Input.** Once woken with *"Wake up, Jarvis"*, OpenAgent listens continuously to your speech until a natural pause, and then sends either a voice note or a transcript from on-device **Whisper Large V3 Turbo** to your Instinct chat.
 2. **Tool calls.** Instinct replies with structured calls wrapped in a `JARVIS_CALL:<base64-JSON>:END` envelope. Base64 encoding protects the payload from WhatsApp's markdown formatting, which removes characters like `*`, `_` and `~`.
 3. **Observation.** OpenAgent reads incoming messages through the macOS Accessibility API.
 4. **Verification.** A fail-closed guard confirms the message came from the verified Instinct chat.
@@ -111,7 +111,7 @@ sequenceDiagram
 | Capability / Engine | What it provides | Built on |
 | :--- | :--- | :--- |
 | **Developer Harness** | Sandboxed `bash`, paginated `read`, atomic `write`, exact-match `edit`, `ripgrep` regex search, `glob`, and AppleScript | Bun + TypeScript |
-| **Voice Interface** | Offline wake word, continuous hands-free sessions, silence-based turn-taking, echo guard, automatic reply playback | Vosk, whisper.cpp, SoX |
+| **Voice Interface** | Offline wake word, continuous hands-free sessions, silence-based turn-taking, echo guard, automatic reply playback — one on-device model for both the wake phrase and transcription | Whisper Large V3 Turbo (MLX / whisper.cpp), SoX |
 | **Native Computer Use** | Window capture, Accessibility tree queries, PID-targeted clicks, keystrokes, drags and scrolls that don't steal focus | macOS Accessibility & Quartz |
 | **Browser Automation** | Authenticated Chrome: background tabs, compositor clicks through iframes and shadow DOM, framework-safe form filling, 97 domain-specific skills | Browser Harness (CDP) |
 | **Web Ingestion & Search** | Scrape to clean Markdown, search with full-content results, recursive crawl, site mapping, schema-based JSON extraction | Self-hosted Firecrawl (Docker) |
@@ -140,6 +140,7 @@ You can play immersive fullscreen games (Metal, Steam, Wine/CrossOver) or work i
 * [uv](https://astral.sh/uv) (Astral Python package and project manager)
 * [Homebrew](https://brew.sh/) & [Bun](https://bun.sh/)
 * Official **WhatsApp Desktop** installed and logged in
+* ~2 GB of free disk space for the Whisper Large V3 Turbo weights — the only speech model OpenAgent uses, for both the wake phrase and transcription (Apple Silicon runs it on the GPU through MLX; Intel Macs fall back to whisper.cpp)
 
 ### 1. One-Command Autonomous Python Scripts
 
@@ -173,7 +174,7 @@ cd OpenAgent
 `boot.py` is an autonomous, self-bootstrapping orchestrator and supervisor:
 * **Self-Bootstrapping**: Auto-detects runtime, provisions/syncs virtual environment with `uv`, and re-execs inside `.venv` without manual activation.
 * **Auto-Healing Dependencies**: Auto-resolves and installs Homebrew tools (`uv`, `bun`, `sox`, `ffmpeg`, `ripgrep`, `whisper-cpp`) and Bun harness modules.
-* **Model Provisioning**: Automatically downloads offline speech models (Whisper ggml & Vosk wake models).
+* **Model Provisioning**: Automatically downloads the on-device speech model (Whisper Large V3 Turbo).
 * **Self-Healing Supervisor Watchdog**: Supervises the agent process, re-starts OpenAgent on crashes with exponential backoff, and keeps WhatsApp Desktop backgrounded and alive.
 * **Interactive Diagnostics**: Run `./boot.py --doctor` to conduct a zero-touch preflight audit of all hardware, harnesses, and permissions.
 
@@ -182,7 +183,7 @@ cd OpenAgent
 ./boot.py --voice --send-mode audio  # Recommended: hands-free wake word ("Wake up Jarvis")
 ./boot.py                           # Push-to-talk mode (hold F8 to speak)
 ./boot.py --doctor                  # Run preflight health check without starting agent
-./boot.py --voice --send-mode text  # Wake-word mode with local Whisper STT transcription
+./boot.py --voice --send-mode text  # Wake-word mode with local Whisper Large V3 Turbo transcription
 ./boot.py --start-whatsapp-mcp      # Spin up native WhatsApp multi-device bridge & MCP server
 ./boot.py --start-firecrawl         # Auto-spinup Firecrawl Docker scraper engine
 ./boot.py --start-chrome            # Auto-launch Chrome with remote debugging on port 9222
@@ -470,10 +471,13 @@ OpenAgent is configured via `.env` in the project root:
 | `BRIDGE_WHATSAPP_NUMBER` | `+16508702892` | WhatsApp phone number for your Instinct agent |
 | `BRIDGE_SAFE_MODE` | `true` | Restrict execution strictly to the verified chat header |
 | `BRIDGE_HOTKEY` | `f8` | Push-to-talk hotkey (`f8`, `f6`, `right_shift`, etc.) |
-| `BRIDGE_SEND_MODE` | `audio` | `audio` (sends AAC/M4A voice note) or `text` (local Whisper STT) |
+| `BRIDGE_SEND_MODE` | `audio` | `audio` (sends AAC/M4A voice note) or `text` (local Whisper Large V3 Turbo transcript) |
 | `BRIDGE_SEND_ROUTE` | `picker` | Send route: `picker` (native attachment), `clipboard`, or `auto` |
-| `BRIDGE_WHISPER_MODEL` | `models/ggml-base.bin` | Path to offline Whisper model |
-| `BRIDGE_VOICE_MODEL` | `models/vosk-model-...` | Path to offline Vosk wake-word model |
+| `BRIDGE_STT_ENGINE` | `auto` | Speech engine: `auto`, `mlx` (Apple Silicon GPU) or `whisper.cpp` |
+| `BRIDGE_WHISPER_REPO` | `mlx-community/whisper-large-v3-turbo` | Whisper Large V3 Turbo weights for the `mlx` engine |
+| `BRIDGE_WHISPER_MODEL` | `models/ggml-large-v3-turbo.bin` | ggml model file for the `whisper.cpp` engine |
+| `BRIDGE_LANGUAGE` | `auto` | Transcription language (`auto` detects, or an ISO code such as `en`) |
+| `BRIDGE_WAKE_LANGUAGE` | `en` | Language the wake phrase is decoded in |
 | `BRIDGE_VOICE_SILENCE_SECONDS` | `2.0` | Silence delay before auto-submitting voice input |
 | `BH_AGENT_WORKSPACE` | `src/tools/browser-harness/agent-workspace` | Directory for agent-editable helpers and domain skills |
 | `BH_DOMAIN_SKILLS` | `1` | Enable site-specific domain skill recipes |
@@ -615,7 +619,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development workflow and [`CODE
 OpenAgent is built with gratitude on the shoulders of the open-source agent tooling community:
 - **[OpenCode](https://github.com/anomalyco/opencode)** — Inspiring open-source agentic coding architectures.
 - **[Browser Use](https://github.com/browser-use/browser-use)** — Directly integrating **[Browser Harness](https://github.com/browser-use/browser-harness)** for high-speed Chrome CDP automation and domain skills, alongside **[macOS Harness](https://github.com/browser-use/macos-harness)** for pioneering native macOS computer-use foundations.
-- **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** & **[Vosk](https://alphacephei.com/vosk/)** — Lightweight, local, low-latency audio intelligence.
+- **[Whisper](https://github.com/openai/whisper)** — OpenAI's speech recognition model; OpenAgent transcribes on **Large V3 Turbo**, locally, through **[mlx-whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper)** on the Apple Silicon GPU or **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** as a portable fallback.
 - **[Firecrawl](https://github.com/firecrawl/firecrawl)** — Pioneering open-source web scraping, crawling, and clean LLM markdown extraction engine.
 - **[LocoAgent](https://github.com/LocoreMind/locoagent)** — Autonomous social media agent by LocoreMind providing persistent real-browser sessions, operation deduplication, and platform playbooks.
 - **[whatsapp-mcp-extended](https://github.com/FelixIsaac/whatsapp-mcp-extended)** — Multi-device WhatsApp protocol transport by FelixIsaac (extending AdamRussak & lharries) powered by `whatsmeow` and FastMCP.

@@ -78,13 +78,13 @@ sudo sysctl iogpu.wired_limit_mb=13312
 Commercial Instinct accepts images, audio recordings, PDFs, and video. While local Qwen is a text/code model, modern agent architecture solves each modality natively without external cloud dependencies:
 
 ```
-User Voice Note ──► Whisper.cpp (Local Neural Engine STT) ────┐
+User Voice Note ──► Whisper Large V3 Turbo (Local GPU STT) ───┐
 PDF / Word Doc   ──► Local Text/Markdown Extractor ────────────┼──► Qwen 2.5 Coder (Brain)
 Mac Screen/Apps  ──► macOS Accessibility Tree (AX API) ────────┤    (Reasons & Executes Tools)
 Images / Photos  ──► Local Qwen2.5-VL / Cloud Vision Fallback ─┘
 ```
 
-1. **Audio & Voice Notes:** OpenAgent already includes **Whisper.cpp** running locally on Apple Silicon ([`src/OpenAgent/audio.py`](src/OpenAgent/audio.py)). Audio is transcribed to text in ~200ms before reaching the brain.
+1. **Audio & Voice Notes:** OpenAgent already transcribes with **Whisper Large V3 Turbo** running locally on Apple Silicon ([`src/OpenAgent/audio.py`](src/OpenAgent/audio.py)) — MLX on the GPU, with whisper.cpp as a portable fallback. A short request is transcribed in about a second before reaching the brain.
 2. **Documents (PDF, DOCX, CSV):** Ingested via local parsers (`pypdf` / `markitdown`) or OpenAgent's `read` and `firecrawl` engines, stripping binary data into clean Markdown.
 3. **Mac Screen & UI (AX vs. Pixels):** Rather than taking slow 4K screenshots and guessing button coordinates, OpenAgent queries the **macOS Accessibility API (AX)** ([`src/OpenAgent/ax.py`](src/OpenAgent/ax.py)). It returns exact element coordinates, labels, and roles in structured JSON with 100% pixel precision.
 4. **Photos & Visual Diagrams (Hybrid Strategy):**

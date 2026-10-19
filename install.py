@@ -7,7 +7,7 @@ A complete, autonomous zero-touch setup and installation engine:
 1. Installs/verifies macOS system dependencies (Homebrew, uv, Bun, SoX, FFmpeg, Ripgrep, Whisper).
 2. Synchronizes Python virtual environment with all extras via uv.
 3. Installs Bun CLI harness TypeScript modules (src/tools/cli-harness).
-4. Auto-provisions speech recognition models (Whisper ggml-base & Vosk offline wake model).
+4. Auto-provisions the on-device speech model (Whisper Large V3 Turbo).
 5. Initializes and verifies environment configuration (.env).
 6. Audits and prompts macOS Accessibility & Input permissions.
 7. Verifies WhatsApp Desktop integration.
@@ -16,6 +16,7 @@ A complete, autonomous zero-touch setup and installation engine:
 """
 
 import argparse
+import importlib.util
 import os
 import platform
 import shutil
@@ -23,11 +24,15 @@ import subprocess
 import sys
 import time
 import urllib.request
-import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
 ROOT_DIR = Path(__file__).resolve().parent
+
+# On-device speech-to-text: Whisper Large V3 Turbo, mlx on Apple Silicon and
+# whisper.cpp everywhere else.
+WHISPER_REPO = "mlx-community/whisper-large-v3-turbo"
+GGML_TURBO_MODEL = "ggml-large-v3-turbo.bin"
 
 
 class Style:
@@ -131,12 +136,12 @@ def install_system_dependencies(skip_brew: bool = False) -> bool:
         log_err("Could not install 'bun'. Please install manually: brew install bun")
         return False
 
-    # 3. Brew tools: sox, ffmpeg, ripgrep, whisper-cpp
+    # 3. Brew tools: sox, ffmpeg, ripgrep, whisper-cpp (whisper.cpp STT fallback)
     brew_packages = [
         ("sox", "rec", "Audio recording engine"),
         ("ffmpeg", "ffmpeg", "Audio/video media encoder"),
         ("ripgrep", "rg", "Fast file/code search engine"),
-        ("whisper-cpp", "whisper-cli", "On-device speech-to-text engine"),
+        ("whisper-cpp", "whisper-cli", "whisper.cpp on-device speech-to-text fallback"),
     ]
 
     for pkg, cmd_name, desc in brew_packages:
@@ -206,48 +211,72 @@ def install_bun_harness() -> bool:
     return True
 
 
-def download_models(all_models: bool = True) -> bool:
-    """Downloads speech recognition models: Whisper ggml-base and Vosk offline wake model."""
+def venv_python() -> str:
+    """Interpreter inside the project venv, falling back to the current one."""
+    candidate = ROOT_DIR / ".venv" / "bin" / "python"
+    return str(candidate) if candidate.exists() else sys.executable
+
+
+def mlx_whisper_available() -> bool:
+    """True when the project venv can run mlx-whisper (Apple Silicon only)."""
+    if platform.system() != "Darwin" or platform.machine() != "arm64":
+        return False
+    probe = subprocess.run(
+        [venv_python(), "-c", "import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('mlx_whisper') else 1)"],
+        capture_output=True, text=True,
+    )
+    return probe.returncode == 0
+
+
+def download_whisper_turbo() -> bool:
+    """Provisions Whisper Large V3 Turbo for whichever engine this Mac will use."""
+    if mlx_whisper_available():
+        log_info(f"Prefetching Whisper Large V3 Turbo weights ({WHISPER_REPO}, ~1.6 GB)...")
+        fetch = (
+            "from huggingface_hub import snapshot_download;"
+            f"snapshot_download(repo_id={WHISPER_REPO!r}, allow_patterns=['*.json', '*.safetensors', '*.txt'])"
+        )
+        res = subprocess.run([venv_python(), "-c", fetch], capture_output=True, text=True)
+        if res.returncode == 0:
+            log_ok(f"Whisper Large V3 Turbo installed ({WHISPER_REPO}, Apple Silicon GPU)")
+            return True
+        log_warn(f"Prefetch failed: {res.stderr.strip()[:200]}. Weights download on first transcription.")
+        return False
+
+    models_dir = ROOT_DIR / "models"
+    models_dir.mkdir(parents=True, exist_ok=True)
+    whisper_model = models_dir / GGML_TURBO_MODEL
+    if whisper_model.exists():
+        log_ok(f"Whisper model already present: models/{GGML_TURBO_MODEL}")
+        return True
+
+    log_info(f"Downloading Whisper Large V3 Turbo ggml model (~1.6 GB)...")
+    script_path = ROOT_DIR / "scripts" / "download-model.sh"
+    if script_path.exists():
+        subprocess.run(["bash", str(script_path), "large-v3-turbo"], check=False)
+    if not whisper_model.exists():
+        url = f"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{GGML_TURBO_MODEL}"
+        try:
+            urllib.request.urlretrieve(url, whisper_model)
+        except Exception as e:
+            whisper_model.unlink(missing_ok=True)
+            log_warn(f"Direct download failed: {e}")
+    if whisper_model.exists():
+        log_ok(f"Whisper model installed: models/{GGML_TURBO_MODEL}")
+        return True
+    log_warn("Whisper model could not be downloaded automatically.")
+    return False
+
+
+def download_models(whisper: bool = True) -> bool:
+    """Downloads the on-device speech model: Whisper Large V3 Turbo."""
     models_dir = ROOT_DIR / "models"
     models_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. Whisper ggml model
-    whisper_model = models_dir / "ggml-base.bin"
-    if not whisper_model.exists():
-        log_info("Downloading Whisper ggml-base model (~148 MB)...")
-        script_path = ROOT_DIR / "scripts" / "download-model.sh"
-        if script_path.exists():
-            subprocess.run(["bash", str(script_path), "base"], check=False)
-        else:
-            url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
-            try:
-                urllib.request.urlretrieve(url, whisper_model)
-            except Exception as e:
-                log_warn(f"Direct download failed: {e}")
-        if whisper_model.exists():
-            log_ok("Whisper model installed: models/ggml-base.bin")
-        else:
-            log_warn("Whisper model could not be downloaded automatically.")
+    if whisper:
+        download_whisper_turbo()
     else:
-        log_ok("Whisper model already present: models/ggml-base.bin")
-
-    # 2. Vosk offline model
-    if all_models:
-        vosk_dir = models_dir / "vosk-model-small-en-us-0.15"
-        if not vosk_dir.is_dir():
-            log_info("Downloading Vosk offline voice wake-word model (~40 MB)...")
-            zip_dest = models_dir / "vosk-model.zip"
-            url = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
-            try:
-                urllib.request.urlretrieve(url, zip_dest)
-                with zipfile.ZipFile(zip_dest, "r") as zip_ref:
-                    zip_ref.extractall(models_dir)
-                zip_dest.unlink(missing_ok=True)
-                log_ok("Vosk voice wake model installed: models/vosk-model-small-en-us-0.15")
-            except Exception as e:
-                log_warn(f"Failed to download Vosk model: {e}")
-        else:
-            log_ok("Vosk model already present: models/vosk-model-small-en-us-0.15")
+        log_info("Skipping Whisper Large V3 Turbo download (--no-whisper).")
 
     return True
 
@@ -345,7 +374,7 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--skip-brew", action="store_true", help="Skip Homebrew package installations")
-    parser.add_argument("--no-vosk", action="store_true", help="Skip downloading Vosk speech recognition model")
+    parser.add_argument("--no-whisper", action="store_true", help="Skip downloading Whisper Large V3 Turbo weights (~1.6 GB)")
     parser.add_argument("--verbose", action="store_true", help="Display full verbose output for install commands")
     return parser.parse_args()
 
@@ -376,8 +405,8 @@ def main():
     install_bun_harness()
 
     # Step 4: Speech Recognition Models
-    log_step(4, total_steps, "Downloading Speech Models (Whisper & Vosk)")
-    download_models(all_models=not args.no_vosk)
+    log_step(4, total_steps, "Downloading Speech Model (Whisper Large V3 Turbo)")
+    download_models(whisper=not args.no_whisper)
 
     # Step 5: Configuration
     log_step(5, total_steps, "Verifying Configuration (.env)")
