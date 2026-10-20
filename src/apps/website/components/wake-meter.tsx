@@ -102,15 +102,22 @@ export function WakeMeter() {
           <span
             key={i}
             aria-hidden="true"
-            className={`relative w-px origin-center bg-ink transition-[transform,opacity] duration-700 ease-out ${
+            /* Half the bars are dropped on a phone: at 320px all 64 sit 3px
+               apart and read as a smudge, and it halves the number of
+               simultaneous animations on the device least able to afford
+               them. */
+            className={`relative w-px origin-center bg-ink transition-[transform,opacity] duration-700 ease-out even:hidden sm:even:block ${
               live ? "opacity-80" : "opacity-35"
             }`}
             style={{
               height: `${Math.round(a * 72)}px`,
               transform: live ? undefined : "scaleY(0.035)",
-              animation: live
-                ? `wake-trace ${900 + (i % 7) * 110}ms ease-in-out ${i * 9}ms infinite alternate`
-                : undefined,
+              /* With motion suppressed the animation is never created at all,
+                 rather than created and then neutered by a global override. */
+              animation:
+                live && !reduced
+                  ? `wake-trace ${900 + (i % 7) * 110}ms ease-in-out ${i * 9}ms infinite alternate`
+                  : undefined,
             }}
           />
         ))}

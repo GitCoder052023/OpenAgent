@@ -25,15 +25,15 @@ export default function ToolsPage() {
         ]}
       />
 
-      <section className="pt-28 sm:pt-32 lg:pt-40">
+      <section className="pt-24 sm:pt-32 lg:pt-40">
         <div className="gutter">
-          <div className="grid gap-x-16 gap-y-10 pb-12 lg:grid-cols-12">
+          <div className="grid gap-x-16 gap-y-8 pb-10 sm:gap-y-10 sm:pb-12 lg:grid-cols-12">
             <div className="lg:col-span-7">
               <SectionLabel>Reference</SectionLabel>
-              <h1 className="mt-6 text-display text-ink">
+              <h1 className="mt-5 text-display text-ink sm:mt-6">
                 {toolCount} tools, nine engines.
               </h1>
-              <p className="mt-7 max-w-[54ch] text-body-lg text-smoke">
+              <p className="mt-6 max-w-[54ch] text-body-lg text-smoke sm:mt-7">
                 This is the complete surface a connected assistant can reach on
                 your Mac: {toolCount} callable tools spanning the shell, the
                 macOS Accessibility API, the Chrome DevTools Protocol and the
@@ -41,18 +41,18 @@ export default function ToolsPage() {
                 repository, and every one is invoked the same way: structured
                 JSON, base64 encoded, wrapped in a transport envelope.
               </p>
-              <div className="mt-8 flex flex-wrap gap-3">
+              <div className="mt-7 flex flex-wrap gap-3 sm:mt-8">
                 <a
                   href={`${repoUrl}/blob/main/docs/JARVIS_INSTRUCTIONS.md`}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-body-sm font-medium text-eggshell transition-colors duration-200 hover:bg-graphite"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-5 text-body-sm font-medium text-eggshell transition-colors duration-200 hover:bg-graphite"
                 >
                   Full schema specifications
                 </a>
                 <Link
                   href="/#architecture"
-                  className="inline-flex items-center gap-2 rounded-full border border-stone bg-eggshell px-5 py-2.5 text-body-sm font-medium text-ink transition-colors duration-200 hover:border-graphite hover:bg-taupe"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-stone bg-eggshell px-5 text-body-sm font-medium text-ink transition-colors duration-200 hover:border-graphite hover:bg-taupe"
                 >
                   How a call travels
                 </Link>
@@ -60,7 +60,7 @@ export default function ToolsPage() {
             </div>
 
             <div className="lg:col-span-5">
-              <div className="rounded-card bg-taupe p-6">
+              <div className="rounded-card bg-taupe p-5 sm:p-6">
                 <p className="font-mono text-caption uppercase text-smoke">
                   The envelope
                 </p>
@@ -92,12 +92,12 @@ export default function ToolsPage() {
 
       <div className="gutter">
         <nav aria-label="Jump to an engine" className="border-t border-stone">
-          <ul className="flex flex-wrap items-center gap-x-6 gap-y-2 py-5 font-mono text-micro">
+          <ul className="flex flex-wrap items-center gap-x-5 gap-y-0 py-1 font-mono text-micro sm:gap-x-6 lg:gap-y-2 lg:py-5">
             {toolCategories.map((c) => (
               <li key={c.slug}>
                 <a
                   href={`#${c.slug}`}
-                  className="flex items-center gap-2 text-smoke transition-colors duration-200 hover:text-ink"
+                  className="flex min-h-11 items-center gap-2 text-smoke transition-colors duration-200 hover:text-ink pointer-fine:min-h-0"
                 >
                   {c.label.toLowerCase()}
                   <span className="tabular text-ash">{c.tools.length}</span>

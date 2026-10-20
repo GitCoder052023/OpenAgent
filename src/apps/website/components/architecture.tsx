@@ -1,15 +1,26 @@
 import { loopSteps } from "@/lib/content";
 import { SectionLabel } from "@/components/primitives";
-import { FlowDiagram } from "@/components/flow-diagram";
+import { FlowDiagram, FlowDiagramCompact } from "@/components/flow-diagram";
 
+/**
+ * One list of steps, two compositions.
+ *
+ * On a laptop the wide flow diagram carries the spatial argument and the steps
+ * sit beneath it as a three-column index. Below that the diagram is rebuilt
+ * rather than shrunk: the same loop runs down the page instead of across it,
+ * in flow layout, so its labels never scale below their real size.
+ */
 export function Architecture() {
   return (
-    <section id="architecture" className="scroll-mt-24 py-24 lg:py-32">
+    <section
+      id="architecture"
+      className="scroll-mt-24 py-16 sm:py-20 lg:py-32"
+    >
       <div className="gutter">
-        <div className="grid gap-x-16 gap-y-8 lg:grid-cols-12">
+        <div className="grid gap-x-16 gap-y-6 sm:gap-y-8 lg:grid-cols-12">
           <div className="lg:col-span-7">
             <SectionLabel>How it works</SectionLabel>
-            <h2 className="mt-6 text-heading text-ink lg:text-display">
+            <h2 className="mt-5 text-heading text-ink sm:mt-6 lg:text-display">
               No API key. No hosted backend.
             </h2>
           </div>
@@ -24,20 +35,28 @@ export function Architecture() {
           </div>
         </div>
 
-        <div className="mt-16 hidden lg:block">
-          <FlowDiagram />
+        <div className="mt-10 sm:mt-14 lg:mt-16">
+          <div className="hidden xl:block">
+            <FlowDiagram />
+          </div>
+          <FlowDiagramCompact />
         </div>
 
-        <ol className="mt-16 grid gap-x-12 gap-y-9 sm:grid-cols-2 lg:mt-20 lg:grid-cols-3">
+        <ol className="mt-10 grid gap-x-12 gap-y-8 sm:mt-14 sm:grid-cols-2 sm:gap-y-9 lg:mt-20 lg:grid-cols-3">
           {loopSteps.map((step) => (
-            <li key={step.n} className="border-t border-stone pt-5">
-              <div className="flex items-baseline gap-3">
+            <li key={step.n} className="border-t border-stone pt-4 sm:pt-5">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="tabular font-mono text-code text-ash">
                   {step.n}
                 </span>
                 <h3 className="text-subheading text-ink">{step.title}</h3>
+                <span className="font-mono text-caption uppercase text-smoke sm:hidden">
+                  {step.where === "cloud" ? "cloud" : "this Mac"}
+                </span>
               </div>
-              <p className="mt-3 text-body-sm text-smoke">{step.body}</p>
+              <p className="mt-2 text-body-sm text-smoke sm:mt-3">
+                {step.body}
+              </p>
             </li>
           ))}
         </ol>

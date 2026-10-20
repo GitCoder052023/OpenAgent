@@ -13,12 +13,12 @@ const machine = [
 
 export function Voice() {
   return (
-    <section id="voice" className="scroll-mt-24 py-24 lg:py-32">
+    <section id="voice" className="scroll-mt-24 py-16 sm:py-20 lg:py-32">
       <div className="gutter">
         <div className="grid gap-x-16 gap-y-8 lg:grid-cols-12">
           <div className="lg:col-span-7">
             <SectionLabel>Talking to Jarvis</SectionLabel>
-            <h2 className="mt-6 text-heading text-ink lg:text-display">
+            <h2 className="mt-5 text-heading text-ink sm:mt-6 lg:text-display">
               Wake it once. Then stop thinking about the computer.
             </h2>
           </div>
@@ -32,7 +32,7 @@ export function Voice() {
           </div>
         </div>
 
-        <ol className="mt-14 flex flex-col items-start gap-3 border-y border-stone py-7 font-mono text-code sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
+        <ol className="mt-10 flex flex-col items-start gap-2.5 border-y border-stone py-6 font-mono text-code sm:mt-14 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-3 sm:py-7">
           {machine.map((node, i) =>
             node.state ? (
               <li
@@ -55,8 +55,8 @@ export function Voice() {
           )}
         </ol>
 
-        <div className="mt-14 grid gap-x-16 gap-y-12 lg:grid-cols-12">
-          <dl className="grid gap-x-10 gap-y-7 sm:grid-cols-2 lg:col-span-7">
+        <div className="mt-10 grid gap-x-16 gap-y-10 sm:mt-14 sm:gap-y-12 lg:grid-cols-12">
+          <dl className="grid gap-x-10 gap-y-6 sm:grid-cols-2 sm:gap-y-7 lg:col-span-7">
             {voicePoints.map((p) => (
               <div key={p.label}>
                 <dt className="text-body font-medium text-ink">{p.label}</dt>
@@ -75,7 +75,7 @@ export function Voice() {
                   key={d.key}
                   className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-stone py-3"
                 >
-                  <dt className="font-mono text-code text-graphite">
+                  <dt className="font-mono text-code text-graphite [overflow-wrap:anywhere]">
                     {d.key}
                   </dt>
                   <dd className="font-mono text-code text-ink">{d.value}</dd>

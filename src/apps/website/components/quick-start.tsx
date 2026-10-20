@@ -4,12 +4,12 @@ import { CopyButton } from "@/components/copy-button";
 
 export function QuickStart() {
   return (
-    <section id="install" className="scroll-mt-24 pb-24 lg:pb-32">
+    <section id="install" className="scroll-mt-24 pb-16 sm:pb-20 lg:pb-32">
       <div className="gutter">
         <div className="grid gap-x-16 gap-y-8 lg:grid-cols-12">
           <div className="lg:col-span-7">
             <SectionLabel>Install</SectionLabel>
-            <h2 className="mt-6 text-heading text-ink lg:text-display">
+            <h2 className="mt-5 text-heading text-ink sm:mt-6 lg:text-display">
               Four commands, then say it out loud.
             </h2>
           </div>
@@ -23,9 +23,9 @@ export function QuickStart() {
           </div>
         </div>
 
-        <div className="mt-14 grid gap-x-16 gap-y-12 lg:grid-cols-12">
+        <div className="mt-10 grid gap-x-16 gap-y-10 sm:mt-14 sm:gap-y-12 lg:grid-cols-12">
           <div className="lg:col-span-7">
-            <div className="rounded-card bg-night p-5 sm:p-7">
+            <div className="rounded-card bg-night p-4 sm:p-6 lg:p-7">
               <ol>
                 {installSteps.map((step, i) => (
                   <li
@@ -38,7 +38,7 @@ export function QuickStart() {
                       <span aria-hidden="true" className="font-mono text-code text-spark">
                         $
                       </span>
-                      <code className="flex-1 break-all font-mono text-code text-eggshell">
+                      <code className="min-w-0 flex-1 font-mono text-code text-eggshell [overflow-wrap:anywhere]">
                         {step.command}
                       </code>
                       <CopyButton value={step.command} />

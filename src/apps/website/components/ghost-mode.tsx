@@ -98,7 +98,7 @@ function FocusLanes() {
       <text
         x="204"
         y="92"
-        fontSize="10"
+        fontSize="11"
         fontFamily="var(--font-geist-mono), monospace"
         fill="#777169"
       >
@@ -120,7 +120,7 @@ function FocusLanes() {
         x="1052"
         y="92"
         textAnchor="end"
-        fontSize="10"
+        fontSize="11"
         fontFamily="var(--font-geist-mono), monospace"
         fill="#777169"
       >
@@ -130,14 +130,66 @@ function FocusLanes() {
   );
 }
 
+/**
+ * The same two tracks as FocusLanes, laid out in flow rather than in a
+ * viewBox, so the labels stay at their real size on a phone.
+ */
+function FocusLanesCompact() {
+  return (
+    <div className="mt-10 sm:mt-12 xl:hidden">
+      <p className="font-mono text-caption uppercase text-graphite">
+        Your focus
+      </p>
+      <div className="mt-3 flex items-center gap-0" aria-hidden="true">
+        <span className="h-4 w-px bg-ink" />
+        <span className="h-px flex-1 bg-ink" />
+        <span className="h-4 w-px bg-ink" />
+      </div>
+      <p className="mt-3 font-mono text-micro text-smoke">
+        fullscreen app · pointer captured · never interrupted
+      </p>
+
+      <p className="mt-6 flex items-center gap-2 font-mono text-micro text-smoke">
+        <span aria-hidden="true" className="text-ash">
+          ↓
+        </span>
+        active PID captured
+      </p>
+
+      <p className="mt-6 font-mono text-caption uppercase text-graphite">
+        Agent
+      </p>
+      <div
+        aria-hidden="true"
+        className="mt-3 h-px w-full bg-[repeating-linear-gradient(to_right,var(--color-spark)_0_1px,transparent_1px_6px)]"
+      />
+      <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 font-mono text-micro text-smoke">
+        {TICKS.map((t) => (
+          <li key={t.label} className="flex items-center gap-1.5">
+            <span aria-hidden="true" className="size-1 rounded-full bg-spark" />
+            {t.label}
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-6 flex items-center gap-2 font-mono text-micro text-smoke">
+        <span aria-hidden="true" className="text-ash">
+          ↑
+        </span>
+        focus restored in milliseconds
+      </p>
+    </div>
+  );
+}
+
 export function GhostMode() {
   return (
-    <section id="ghost" className="scroll-mt-24 bg-taupe py-24 lg:py-32">
+    <section id="ghost" className="scroll-mt-24 bg-taupe py-16 sm:py-20 lg:py-32">
       <div className="gutter">
-        <div className="grid gap-x-16 gap-y-8 lg:grid-cols-12">
+        <div className="grid gap-x-16 gap-y-6 sm:gap-y-8 lg:grid-cols-12">
           <div className="lg:col-span-6">
             <SectionLabel>Zero-focus operation</SectionLabel>
-            <h2 className="mt-6 text-heading text-ink lg:text-display">
+            <h2 className="mt-5 text-heading text-ink sm:mt-6 lg:text-display">
               It works while you are using the machine.
             </h2>
           </div>
@@ -153,11 +205,13 @@ export function GhostMode() {
           </div>
         </div>
 
-        <div className="mt-16 hidden md:block">
+        <div className="mt-16 hidden xl:block">
           <FocusLanes />
         </div>
 
-        <dl className="mt-14 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-5">
+        <FocusLanesCompact />
+
+        <dl className="mt-10 grid gap-x-10 gap-y-7 sm:mt-14 sm:grid-cols-2 lg:grid-cols-5">
           {ghostPoints.map((p) => (
             <div key={p.label} className="border-t border-stone pt-4">
               <dt className="text-body-sm font-medium text-ink">{p.label}</dt>

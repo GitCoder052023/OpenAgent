@@ -33,9 +33,15 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
 
-  /* Type scale — DESIGN.md § Type Scale. --text-display-xl extends the scale
-     for the hero only; everything else stays inside the measured ramp. */
-  --text-caption: 0.625rem;
+  /* Type scale — DESIGN.md § Type Scale gives the desktop end of every ramp.
+     Display sizes interpolate down to a phone so a headline never eats the
+     screen: at 320px the hero lands at 34px instead of 68px, and section
+     headings at 27px instead of 36px. The measured desktop values are
+     unchanged from 1280px up. --text-display-xl extends the scale for the hero
+     only; everything else stays inside the measured ramp.
+     --text-caption is redefined below lg — 10px uppercase mono is legible on a
+     laptop and not on a phone. */
+  --text-caption: 0.6875rem;
   --text-caption--line-height: 1.6;
   --text-caption--letter-spacing: 0.08em;
 
@@ -53,26 +59,26 @@
   --text-body--line-height: 1.55;
   --text-body--letter-spacing: 0.01em;
 
-  --text-subheading: 1.125rem;
-  --text-subheading--line-height: 1.6;
+  --text-subheading: clamp(1.0625rem, 1.03rem + 0.17vw, 1.125rem);
+  --text-subheading--line-height: 1.5;
 
-  --text-body-lg: 1.25rem;
-  --text-body-lg--line-height: 1.45;
+  --text-body-lg: clamp(1.0625rem, 0.99rem + 0.37vw, 1.25rem);
+  --text-body-lg--line-height: 1.5;
 
-  --text-heading-sm: 2rem;
-  --text-heading-sm--line-height: 1.13;
+  --text-heading-sm: clamp(1.5rem, 1.28rem + 1.09vw, 2rem);
+  --text-heading-sm--line-height: 1.15;
   --text-heading-sm--letter-spacing: -0.02em;
 
-  --text-heading: 2.25rem;
-  --text-heading--line-height: 1.17;
+  --text-heading: clamp(1.6875rem, 1.44rem + 1.22vw, 2.25rem);
+  --text-heading--line-height: 1.18;
   --text-heading--letter-spacing: -0.02em;
 
-  --text-display: 3rem;
-  --text-display--line-height: 1.08;
+  --text-display: clamp(1.9375rem, 1.47rem + 2.34vw, 3rem);
+  --text-display--line-height: 1.1;
   --text-display--letter-spacing: -0.02em;
 
-  --text-display-xl: clamp(2.625rem, 6vw, 4.25rem);
-  --text-display-xl--line-height: 1.02;
+  --text-display-xl: clamp(2.125rem, 1.36rem + 3.83vw, 4.25rem);
+  --text-display-xl--line-height: 1.04;
   --text-display-xl--letter-spacing: -0.025em;
 
   --radius-card: 20px;
@@ -85,6 +91,15 @@
 }
 
 @layer base {
+  /* DESIGN.md measures the caption at 10px. That is a desktop measurement, so
+     it applies to a laptop-sized viewport driven by a mouse. A tablet in
+     landscape is just as wide and held at arm's length, so it keeps 11px. */
+  @media (min-width: 1024px) and (pointer: fine) {
+    :root {
+      --text-caption: 0.625rem;
+    }
+  }
+
   html {
     scroll-behavior: smooth;
     scroll-padding-top: 6rem;
@@ -140,23 +155,44 @@
 }
 
 @layer components {
-  /* Page gutter — DESIGN.md § Layout: 1280px column, generous outer gutters. */
+  /* Page gutter — DESIGN.md § Layout: 1280px column, generous outer gutters.
+     The gutter grows with the viewport and respects the notch in landscape.
+     Above 1920px the column grows to 1440px: 1280px is the measured desktop
+     width, and holding it on an ultrawide display makes the page read as a
+     small artifact floating in space rather than a composition. The grid
+     inside still subdivides, so no single text column exceeds its measure. */
   .gutter {
     width: 100%;
     max-width: 1280px;
     margin-inline: auto;
-    padding-inline: 1.25rem;
+    padding-inline: max(1.125rem, env(safe-area-inset-left))
+      max(1.125rem, env(safe-area-inset-right));
+  }
+
+  @media (min-width: 400px) {
+    .gutter {
+      padding-inline: max(1.5rem, env(safe-area-inset-left))
+        max(1.5rem, env(safe-area-inset-right));
+    }
   }
 
   @media (min-width: 768px) {
     .gutter {
-      padding-inline: 2.5rem;
+      padding-inline: max(2.5rem, env(safe-area-inset-left))
+        max(2.5rem, env(safe-area-inset-right));
     }
   }
 
   @media (min-width: 1100px) {
     .gutter {
-      padding-inline: 4rem;
+      padding-inline: max(4rem, env(safe-area-inset-left))
+        max(4rem, env(safe-area-inset-right));
+    }
+  }
+
+  @media (min-width: 1920px) {
+    .gutter {
+      max-width: 1440px;
     }
   }
 }

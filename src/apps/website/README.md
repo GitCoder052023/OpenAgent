@@ -8,7 +8,13 @@ pnpm install
 pnpm dev                       # http://localhost:3000
 pnpm build && pnpm start       # production build
 pnpm lint
+pnpm test                      # responsive regression suite (Playwright)
 ```
+
+`pnpm test` builds the site, serves it on port 4320 and drives the Chrome
+already installed on the machine — there is no `playwright install` step and no
+bundled browser. Set `PLAYWRIGHT_CHANNEL` (for example `msedge`) to use a
+different one.
 
 ## Design
 
@@ -37,6 +43,51 @@ flow lines in the direction data travels; the replay arrives in execution
 order. All of it holds still under `prefers-reduced-motion`, which is read via
 [`lib/use-reduced-motion.ts`](lib/use-reduced-motion.ts) rather than branching
 during render.
+
+## Responsive behaviour
+
+The site is art-directed per size rather than scaled. Three rules carry most
+of it:
+
+- **Type is fluid, not stepped.** Every display size in
+  [`app/globals.css`](app/globals.css) is a `clamp()` that interpolates between
+  a phone and the measured desktop value from `DESIGN.md` — a section heading
+  is 27px at 320px and 36px at 1280px, with no jump at a breakpoint. The 10px
+  caption is the one exception: it holds at 11px until a viewport is both
+  laptop-wide **and** mouse-driven.
+- **Breakpoints follow the content.** The transport replay splits into two
+  lanes at `lg`, because below that a lane cannot hold a line of base64. The
+  tool table stacks below `sm`, because three columns cannot share 280px. The
+  comparison table stacks at the same point. Neither uses a blanket breakpoint.
+- **Touch targets key off the pointer, not the width.** A tablet in landscape
+  is 1024px wide and still driven by a finger, so the compact 10px/18px
+  treatments are gated on `pointer-fine:` rather than `lg:`.
+
+Two visualisations are **rebuilt** below `xl` rather than hidden or shrunk,
+because both use a 1120-unit `viewBox` whose 11-unit labels would resolve to
+under 9px in a narrower column:
+
+| Visual | `xl` and up | Below `xl` |
+| --- | --- | --- |
+| Request loop | wide SVG, left to right | `FlowDiagramCompact` — the same loop in flow layout, down the page |
+| Zero-focus lanes | wide SVG with tick marks | `FocusLanesCompact` — the same two tracks as HTML rules |
+
+Where a layout change strips an element of its native semantics — the tool
+table and the comparison table both become blocks below `sm` — the ARIA roles
+are stated explicitly so the accessibility tree is identical at every width.
+
+### What the suite checks
+
+[`tests/`](tests) runs 14 portrait viewports from 320px to 2560px plus three
+landscape phone sizes, across all four routes. Every one asserts: no horizontal
+scroll, nothing past the viewport edge, nothing clipped inside a box that
+offers no way to scroll it, no text below the legible floor, every touch target
+at least 44px where the pointer is coarse, and no console errors or failed
+requests. On top of that it covers the mobile menu (open, Escape, outside tap,
+link, focus return, focus trap, scroll lock, closing when the viewport grows),
+the replay tabs by pointer and by keyboard, the tool filter, the copy buttons,
+anchor offsets under the fixed header, reduced-motion behaviour, and cumulative
+layout shift after the fonts load.
 
 ## Content provenance
 

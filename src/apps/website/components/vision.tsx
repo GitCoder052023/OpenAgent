@@ -9,17 +9,17 @@ export function Vision() {
   return (
     <section
       id="vision"
-      className="scroll-mt-24 bg-night py-28 text-night-text lg:py-40"
+      className="scroll-mt-24 bg-night py-20 text-night-text sm:py-24 lg:py-40"
     >
       <div className="gutter">
-        <div className="grid gap-x-16 gap-y-10 lg:grid-cols-12">
+        <div className="grid gap-x-16 gap-y-8 sm:gap-y-10 lg:grid-cols-12">
           <div className="lg:col-span-8">
             <SectionLabel tone="dark">Directional philosophy</SectionLabel>
-            <p className="mt-8 text-body-lg text-night-dim">
+            <p className="mt-6 text-body-lg text-night-dim sm:mt-8">
               You might find it absurd, funny, or borderline delusional. The
               direction is unapologetically simple:
             </p>
-            <h2 className="mt-6 text-heading text-eggshell lg:text-display">
+            <h2 className="mt-5 text-heading text-eggshell sm:mt-6 lg:text-display">
               A unified infrastructure for a personal AI that is, quite
               literally, as close to Tony Stark&rsquo;s Jarvis as
               computationally possible.
@@ -36,7 +36,7 @@ export function Vision() {
           </div>
         </div>
 
-        <ol className="mt-20 grid gap-x-16 gap-y-12 lg:mt-28 lg:grid-cols-2">
+        <ol className="mt-14 grid gap-x-16 gap-y-10 sm:mt-16 sm:gap-y-12 lg:mt-28 lg:grid-cols-2">
           {tenets.map((tenet) => (
             <li key={tenet.n} className="border-t border-night-line pt-4">
               <div className="flex items-center justify-between gap-4">
@@ -54,9 +54,9 @@ export function Vision() {
         </ol>
 
         {/* The convergence: two halves that are meant to become one system. */}
-        <div className="mt-24 lg:mt-32">
+        <div className="mt-16 sm:mt-20 lg:mt-32">
           <SectionLabel tone="dark">The convergence</SectionLabel>
-          <div className="mt-10 grid gap-x-10 gap-y-4 sm:grid-cols-2">
+          <div className="mt-8 grid gap-x-10 gap-y-4 sm:mt-10 sm:grid-cols-2">
             <div className="rounded-card border border-night-line bg-night-raised p-6">
               <div className="flex items-center justify-between gap-4">
                 <h3 className="text-subheading text-eggshell">OpenInstinct</h3>
@@ -71,7 +71,7 @@ export function Vision() {
                 harness engines with live receipts — no WhatsApp, no closed
                 cloud API, no telemetry.
               </p>
-              <p className="mt-5 font-mono text-code text-eggshell">
+              <p className="mt-5 font-mono text-code text-eggshell [overflow-wrap:anywhere]">
                 ./boot.py --brain openinstinct
               </p>
             </div>
@@ -90,7 +90,7 @@ export function Vision() {
                 automation, documents, WhatsApp, MCP — all running on your
                 hardware, under your user account.
               </p>
-              <p className="mt-5 font-mono text-code text-night-dim">
+              <p className="mt-5 font-mono text-code text-night-dim [overflow-wrap:anywhere]">
                 ./boot.py --voice --send-mode audio
               </p>
             </div>
@@ -112,7 +112,7 @@ export function Vision() {
             <path d="M500 72 L495 60 L505 60 Z" fill="#2b2823" />
           </svg>
 
-          <div className="rounded-card border border-night-line p-7 text-center">
+          <div className="rounded-card border border-night-line p-6 text-center sm:p-7">
             <p className="text-body-lg text-eggshell">
               Plug the two together and you have a completely open-source
               personal Jarvis that no provider can shut off, paywall or censor.
@@ -125,7 +125,7 @@ export function Vision() {
             </p>
           </div>
 
-          <dl className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+          <dl className="mt-10 grid gap-x-10 gap-y-7 sm:mt-12 sm:grid-cols-2 sm:gap-y-8 lg:grid-cols-4">
             {openInstinctPoints.map((p) => (
               <div key={p.label} className="border-t border-night-line pt-4">
                 <dt className="text-body-sm font-medium text-eggshell">
@@ -137,8 +137,8 @@ export function Vision() {
           </dl>
         </div>
 
-        <div className="mt-24 border-t border-night-line pt-10 lg:mt-32">
-          <div className="flex flex-wrap items-end justify-between gap-8">
+        <div className="mt-16 border-t border-night-line pt-8 sm:mt-20 sm:pt-10 lg:mt-32">
+          <div className="flex flex-wrap items-end justify-between gap-y-8 sm:gap-8">
             <div>
               <h2 className="max-w-[20ch] text-heading text-eggshell">
                 Your assistant should work for you and only you.
@@ -154,7 +154,7 @@ export function Vision() {
                 href={repoUrl}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="inline-flex items-center gap-2 rounded-full bg-eggshell px-5 py-2.5 text-body-sm font-medium text-ink transition-colors duration-200 hover:bg-stone"
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-eggshell px-5 text-body-sm font-medium text-ink transition-colors duration-200 hover:bg-stone"
               >
                 Clone the repository
               </a>
@@ -162,7 +162,7 @@ export function Vision() {
                 href={`${repoUrl}/blob/main/OPENINSTINCT_BRAIN_SPEC.md`}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="inline-flex items-center gap-2 rounded-full border border-night-line px-5 py-2.5 text-body-sm font-medium text-night-text transition-colors duration-200 hover:border-night-dim hover:text-eggshell"
+                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-night-line px-5 text-body-sm font-medium text-night-text transition-colors duration-200 hover:border-night-dim hover:text-eggshell"
               >
                 Read the brain spec
               </a>

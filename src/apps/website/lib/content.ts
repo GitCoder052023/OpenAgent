@@ -90,6 +90,8 @@ export type LoopStep = {
   n: string;
   title: string;
   body: string;
+  /** Which side of the boundary this step happens on. */
+  where: "mac" | "cloud";
 };
 
 export const loopSteps: LoopStep[] = [
@@ -97,31 +99,37 @@ export const loopSteps: LoopStep[] = [
     n: "01",
     title: "Input",
     body: "Woken with “Wake up, Jarvis”, OpenAgent listens until a natural pause, then sends a voice note — or a transcript from on-device Whisper Large V3 Turbo — into your Instinct chat.",
+    where: "mac",
   },
   {
     n: "02",
     title: "Tool calls",
     body: "Instinct replies with structured calls wrapped in a JARVIS_CALL:<base64>:END envelope. Base64 survives WhatsApp's markdown, which would otherwise eat *, _ and ~.",
+    where: "cloud",
   },
   {
     n: "03",
     title: "Observation",
     body: "OpenAgent reads incoming messages straight off the macOS Accessibility API. No API key, no hosted backend, no custom integration.",
+    where: "mac",
   },
   {
     n: "04",
     title: "Verification",
     body: "A fail-closed guard confirms the message came from the verified Instinct chat before a single byte is decoded. Anything else is dropped.",
+    where: "mac",
   },
   {
     n: "05",
     title: "Execution",
     body: "The dispatcher routes the call to the right engine or adapter and runs it locally, on your hardware, under your user account.",
+    where: "mac",
   },
   {
     n: "06",
     title: "Response",
     body: "Results, diffs and screenshots go back into the chat. Instinct continues the loop until the task is done, and its voice replies play back automatically.",
+    where: "mac",
   },
 ];
 

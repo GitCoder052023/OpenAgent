@@ -7,12 +7,12 @@ const counts = new Map(toolCategories.map((c) => [c.slug, c.tools.length]));
 
 export function Engines() {
   return (
-    <section id="engines" className="scroll-mt-24 pb-24 lg:pb-32">
+    <section id="engines" className="scroll-mt-24 pb-16 sm:pb-20 lg:pb-32">
       <div className="gutter">
         <div className="grid gap-x-16 gap-y-8 lg:grid-cols-12">
           <div className="lg:col-span-7">
             <SectionLabel>Engines</SectionLabel>
-            <h2 className="mt-6 text-heading text-ink lg:text-display">
+            <h2 className="mt-5 text-heading text-ink sm:mt-6 lg:text-display">
               Eleven engines. {toolCount} tools. One dispatcher.
             </h2>
           </div>
@@ -25,30 +25,35 @@ export function Engines() {
           </div>
         </div>
 
-        <ul className="mt-14">
+        <ul className="mt-10 sm:mt-14">
           {engines.map((engine, i) => {
             const count = engine.categorySlug
               ? counts.get(engine.categorySlug)
               : undefined;
 
             const body = (
-              <div className="grid gap-x-10 gap-y-3 lg:grid-cols-12">
-                <div className="flex items-baseline gap-4 lg:col-span-4">
-                  <span className="tabular font-mono text-code text-ash">
-                    {String(i + 1).padStart(2, "0")}
+              <div className="grid gap-x-10 gap-y-2 sm:gap-y-3 lg:grid-cols-12">
+                <div className="flex items-baseline justify-between gap-4 lg:col-span-4 lg:justify-start">
+                  <span className="flex min-w-0 items-baseline gap-4">
+                    <span className="tabular font-mono text-code text-ash">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <h3 className="text-subheading text-ink lg:text-heading-sm">
+                      {engine.name}
+                    </h3>
                   </span>
-                  <h3 className="text-subheading text-ink lg:text-heading-sm">
-                    {engine.name}
-                  </h3>
+                  <span className="shrink-0 font-mono text-caption uppercase text-smoke lg:hidden">
+                    {count !== undefined ? `${count} tools` : (engine.note ?? "")}
+                  </span>
                 </div>
                 <p className="text-body-sm text-smoke lg:col-span-5">
                   {engine.provides}
                 </p>
-                <div className="lg:col-span-3 lg:text-right">
-                  <p className="font-mono text-code text-graphite">
+                <div className="min-w-0 lg:col-span-3 lg:text-right">
+                  <p className="font-mono text-code text-graphite [overflow-wrap:anywhere]">
                     {engine.builtOn}
                   </p>
-                  <p className="mt-1 font-mono text-caption uppercase text-smoke">
+                  <p className="mt-1 hidden font-mono text-caption uppercase text-smoke lg:block">
                     {count !== undefined
                       ? `${count} tools`
                       : (engine.note ?? "")}
@@ -67,12 +72,12 @@ export function Engines() {
                 {engine.categorySlug ? (
                   <Link
                     href={`/tools#${engine.categorySlug}`}
-                    className="group block py-7 transition-colors duration-200 hover:bg-taupe"
+                    className="group block py-5 transition-colors duration-200 hover:bg-taupe sm:py-7"
                   >
                     {body}
                   </Link>
                 ) : (
-                  <div className="py-7">{body}</div>
+                  <div className="py-5 sm:py-7">{body}</div>
                 )}
               </li>
             );
@@ -87,7 +92,7 @@ export function Engines() {
           </p>
           <Link
             href="/tools"
-            className="inline-flex items-center gap-2 rounded-full border border-stone bg-eggshell px-5 py-2.5 text-body-sm font-medium text-ink transition-colors duration-200 hover:border-graphite hover:bg-taupe"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-stone bg-eggshell px-5 text-body-sm font-medium text-ink transition-colors duration-200 hover:border-graphite hover:bg-taupe"
           >
             Full tool reference
             <span aria-hidden="true">→</span>

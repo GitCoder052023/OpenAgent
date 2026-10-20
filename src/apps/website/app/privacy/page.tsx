@@ -106,7 +106,7 @@ export default function PrivacyPage() {
         ]}
       />
 
-      <section className="pt-28 sm:pt-32 lg:pt-40">
+      <section className="pt-24 sm:pt-32 lg:pt-40">
         <div className="gutter">
           <div className="grid gap-x-16 gap-y-10 lg:grid-cols-12">
             <div className="lg:col-span-7">
@@ -134,14 +134,14 @@ export default function PrivacyPage() {
         </div>
       </section>
 
-      <section id="data-path" className="scroll-mt-24 py-20 lg:py-28">
+      <section id="data-path" className="scroll-mt-24 py-14 sm:py-20 lg:py-28">
         <div className="gutter">
           <h2 className="max-w-[26ch] text-heading text-ink">
             Three questions, answered without hedging.
           </h2>
 
-          <div className="mt-14 grid gap-x-12 gap-y-14 lg:grid-cols-3">
-            <div>
+          <div className="mt-10 grid gap-x-12 gap-y-12 sm:mt-14 sm:gap-y-14 lg:grid-cols-3">
+            <div className="min-w-0">
               <h3 className="border-t border-ink pt-4 text-subheading text-ink">
                 Never leaves this Mac
               </h3>
@@ -157,7 +157,7 @@ export default function PrivacyPage() {
               </ul>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <h3 className="border-t border-ink pt-4 text-subheading text-ink">
                 Crosses the wire, once you speak
               </h3>
@@ -173,14 +173,14 @@ export default function PrivacyPage() {
               </ul>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <h3 className="border-t border-ink pt-4 text-subheading text-ink">
                 Written to your disk
               </h3>
               <dl className="mt-5">
                 {writtenToDisk.map((item) => (
                   <div key={item.path} className="border-t border-stone py-4 first:border-0 first:pt-0">
-                    <dt className="break-words font-mono text-code text-graphite">
+                    <dt className="font-mono text-code text-graphite [overflow-wrap:anywhere]">
                       {item.path}
                     </dt>
                     <dd className="mt-1.5 text-body-sm text-smoke">
@@ -194,7 +194,7 @@ export default function PrivacyPage() {
         </div>
       </section>
 
-      <section id="safeguards" className="scroll-mt-24 bg-taupe py-24 lg:py-32">
+      <section id="safeguards" className="scroll-mt-24 bg-taupe py-16 sm:py-20 lg:py-32">
         <div className="gutter">
           <div className="grid gap-x-16 gap-y-8 lg:grid-cols-12">
             <div className="lg:col-span-7">
@@ -212,7 +212,7 @@ export default function PrivacyPage() {
             </div>
           </div>
 
-          <ol className="mt-14 grid gap-x-12 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+          <ol className="mt-10 grid gap-x-12 gap-y-8 sm:mt-14 sm:grid-cols-2 sm:gap-y-10 lg:grid-cols-3">
             {safeguards.map((s) => (
               <li key={s.n} className="border-t border-stone pt-5">
                 <div className="flex items-baseline gap-3">
@@ -228,9 +228,9 @@ export default function PrivacyPage() {
         </div>
       </section>
 
-      <section id="risk" className="scroll-mt-24 py-24 lg:py-32">
+      <section id="risk" className="scroll-mt-24 py-16 sm:py-20 lg:py-32">
         <div className="gutter">
-          <div className="rounded-card bg-night p-8 text-night-text sm:p-12">
+          <div className="rounded-card bg-night p-6 text-night-text sm:p-10 lg:p-12">
             <SectionLabel tone="dark">The part nobody likes writing</SectionLabel>
             <h2 className="mt-6 max-w-[24ch] text-heading text-eggshell">
               Giving an AI agent access to your computer introduces real risk.
@@ -259,7 +259,7 @@ export default function PrivacyPage() {
         </div>
       </section>
 
-      <section id="responsibilities" className="scroll-mt-24 pb-24 lg:pb-32">
+      <section id="responsibilities" className="scroll-mt-24 pb-16 sm:pb-20 lg:pb-32">
         <div className="gutter grid gap-x-16 gap-y-12 lg:grid-cols-12">
           <div className="lg:col-span-5">
             <SectionLabel>Your side of it</SectionLabel>
@@ -275,13 +275,13 @@ export default function PrivacyPage() {
                 href={`${repoUrl}/blob/main/SECURITY.md`}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-body-sm font-medium text-eggshell transition-colors duration-200 hover:bg-graphite"
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-5 text-body-sm font-medium text-eggshell transition-colors duration-200 hover:bg-graphite"
               >
                 Full security policy
               </a>
               <Link
                 href="/faq"
-                className="inline-flex items-center gap-2 rounded-full border border-stone bg-eggshell px-5 py-2.5 text-body-sm font-medium text-ink transition-colors duration-200 hover:border-graphite hover:bg-taupe"
+                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-stone bg-eggshell px-5 text-body-sm font-medium text-ink transition-colors duration-200 hover:border-graphite hover:bg-taupe"
               >
                 Read the FAQ
               </Link>
@@ -304,7 +304,7 @@ export default function PrivacyPage() {
         </div>
       </section>
 
-      <section id="reporting" className="pb-24 lg:pb-32">
+      <section id="reporting" className="pb-16 sm:pb-20 lg:pb-32">
         <div className="gutter border-t border-stone pt-8">
           <div className="flex flex-wrap items-baseline justify-between gap-6">
             <h2 className="text-subheading text-ink">
@@ -325,7 +325,7 @@ export default function PrivacyPage() {
             href={`${repoUrl}/security/advisories/new`}
             target="_blank"
             rel="noreferrer noopener"
-            className="mt-5 inline-flex items-center gap-2 font-mono text-code text-graphite transition-colors duration-200 hover:text-ink"
+            className="mt-4 inline-flex min-h-11 items-center gap-2 font-mono text-code text-graphite transition-colors duration-200 hover:text-ink lg:mt-5 pointer-fine:min-h-0"
           >
             Report a vulnerability privately ↗
           </a>

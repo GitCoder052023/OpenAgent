@@ -22,7 +22,7 @@ function External({ href, children }: { href: string; children: string }) {
       href={href}
       target="_blank"
       rel="noreferrer noopener"
-      className="text-body-sm text-graphite transition-colors duration-200 hover:text-ink"
+      className="flex min-h-11 items-center text-body-sm text-graphite transition-colors duration-200 hover:text-ink pointer-fine:inline-block pointer-fine:min-h-0 pointer-fine:py-0.5"
     >
       {children}
     </a>
@@ -31,13 +31,13 @@ function External({ href, children }: { href: string; children: string }) {
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-stone py-16 lg:py-20">
+    <footer className="border-t border-stone py-12 sm:py-16 lg:py-20">
       <div className="gutter">
-        <div className="grid gap-x-12 gap-y-12 lg:grid-cols-12">
+        <div className="grid gap-x-10 gap-y-10 sm:grid-cols-2 sm:gap-y-12 lg:grid-cols-12">
           <div className="lg:col-span-3">
             <Link
               href="/"
-              className="flex items-baseline gap-1.5 text-body font-medium tracking-tight text-ink"
+              className="-my-2 flex min-h-11 items-baseline gap-1.5 py-2 text-body font-medium tracking-tight text-ink"
             >
               OpenAgent
               <span aria-hidden="true" className="text-body-sm text-ash">
@@ -57,7 +57,7 @@ export function SiteFooter() {
             <h2 className="font-mono text-caption uppercase text-smoke">
               Documentation
             </h2>
-            <ul className="mt-4 space-y-3">
+            <ul className="mt-3 space-y-1 lg:mt-4 lg:space-y-3">
               {docLinks.map((d) => (
                 <li key={d.href}>
                   <External href={d.href}>{d.label}</External>
@@ -71,12 +71,12 @@ export function SiteFooter() {
             <h2 className="font-mono text-caption uppercase text-smoke">
               This site
             </h2>
-            <ul className="mt-4 space-y-3">
+            <ul className="mt-3 space-y-0 lg:mt-4 lg:space-y-3">
               {pages.map((page) => (
                 <li key={page.href}>
                   <Link
                     href={page.href}
-                    className="text-body-sm text-graphite transition-colors duration-200 hover:text-ink"
+                    className="flex min-h-11 items-center text-body-sm text-graphite transition-colors duration-200 hover:text-ink pointer-fine:inline-block pointer-fine:min-h-0 pointer-fine:py-0.5"
                   >
                     {page.label}
                   </Link>
@@ -87,7 +87,7 @@ export function SiteFooter() {
             <h2 className="mt-10 font-mono text-caption uppercase text-smoke">
               Project
             </h2>
-            <ul className="mt-4 space-y-3">
+            <ul className="mt-3 space-y-0 lg:mt-4 lg:space-y-3">
               {project.map((p) => (
                 <li key={p.href}>
                   <External href={p.href}>{p.label}</External>
@@ -100,7 +100,7 @@ export function SiteFooter() {
             <h2 className="font-mono text-caption uppercase text-smoke">
               Built with
             </h2>
-            <ul className="mt-4 space-y-3">
+            <ul className="mt-3 space-y-1 lg:mt-4 lg:space-y-3">
               {credits.map((c) => (
                 <li key={c.href}>
                   <External href={c.href}>{c.name}</External>
@@ -111,12 +111,12 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <div className="mt-14 flex flex-wrap items-center justify-between gap-x-8 gap-y-3 border-t border-stone pt-6">
+        <div className="mt-12 flex flex-wrap items-center justify-between gap-x-8 gap-y-2 border-t border-stone pt-6 sm:mt-14">
           <p className="text-micro text-smoke">
             OpenAgent integrates with Instinct AI, a separate product, and runs
             entirely on your own machine.
           </p>
-          <p className="font-mono text-caption uppercase text-smoke">
+          <p className="font-mono text-caption uppercase text-smoke [overflow-wrap:anywhere]">
             github.com/GitCoder052023/OpenAgent
           </p>
         </div>

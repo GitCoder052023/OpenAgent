@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { usePrefersReducedMotion } from "@/lib/use-reduced-motion";
 
 /**
  * The transport loop, drawn to scale with the README's sequence.
@@ -129,7 +130,11 @@ function Label({
 
 export function FlowDiagram() {
   const ref = useRef<SVGSVGElement>(null);
-  const [drawn, setDrawn] = useState(false);
+  const [inView, setInView] = useState(false);
+  const reduced = usePrefersReducedMotion();
+  // With motion suppressed the lines are simply drawn by the stylesheet; the
+  // keyframes are never started, so nothing is left animating off screen.
+  const drawn = inView && !reduced;
 
   useEffect(() => {
     const el = ref.current;
@@ -137,7 +142,7 @@ export function FlowDiagram() {
     const io = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setDrawn(true);
+          setInView(true);
           io.disconnect();
         }
       },
@@ -296,5 +301,95 @@ export function FlowDiagram() {
         06 result
       </Label>
     </svg>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Compact variant                                                             */
+/*                                                                             */
+/* The wide diagram's labels are 11 units in a 1120-unit viewBox; below a      */
+/* laptop that resolves to around 7px, so it is replaced rather than shrunk.   */
+/* This version says the same thing down the page instead of across it, in     */
+/* flow layout, so nothing scales with the viewport but the line lengths.      */
+/* -------------------------------------------------------------------------- */
+
+function CompactNode({
+  title,
+  sub,
+  emphasis = false,
+}: {
+  title: string;
+  sub: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <div
+      className={`flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-[10px] border border-stone px-4 py-3 ${
+        emphasis ? "bg-taupe" : "bg-eggshell"
+      }`}
+    >
+      <span className="text-body-sm text-ink">{title}</span>
+      <span className="font-mono text-caption uppercase text-smoke">{sub}</span>
+    </div>
+  );
+}
+
+function CompactLink({ down, up }: { down: string; up?: string }) {
+  return (
+    <div className="ml-5 flex flex-col gap-1 border-l border-stone py-2.5 pl-4">
+      <span className="flex items-baseline gap-2 font-mono text-micro text-smoke">
+        <span aria-hidden="true" className="text-ash">
+          ↓
+        </span>
+        {down}
+      </span>
+      {up ? (
+        <span className="flex items-baseline gap-2 font-mono text-micro text-smoke">
+          <span aria-hidden="true" className="text-spark">
+            ↑
+          </span>
+          {up}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+export function FlowDiagramCompact() {
+  return (
+    <div
+      role="img"
+      aria-label="Diagram of the request loop: speech enters OpenAgent on your Mac, leaves as a voice note through WhatsApp Desktop to Instinct in the cloud, returns as a base64 JARVIS_CALL envelope, passes a fail-closed verification, is dispatched to one of nine local engines, and the result travels back to the same chat thread."
+      className="max-w-[38rem] xl:hidden"
+    >
+      <p className="font-mono text-caption uppercase text-smoke">This Mac</p>
+      <div className="mt-3">
+        <CompactNode title="You" sub="speech" />
+        <CompactLink down="01 wake phrase, then speech" />
+        <CompactNode title="OpenAgent" sub="verify · dispatch" emphasis />
+        <CompactLink down="02 voice note" up="04 verified chat · fail-closed" />
+        <CompactNode title="WhatsApp Desktop" sub="transport" />
+      </div>
+
+      <div className="my-4 flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="h-px flex-1 bg-[repeating-linear-gradient(to_right,var(--color-stone)_0_2px,transparent_2px_6px)]"
+        />
+        <span className="font-mono text-caption uppercase text-smoke">
+          Instinct · cloud
+        </span>
+      </div>
+
+      <CompactNode title="Instinct" sub="reasoning" />
+      <CompactLink down="deliver" up="03 JARVIS_CALL:…:END" />
+
+      <p className="mt-4 font-mono text-caption uppercase text-smoke">
+        This Mac · execution
+      </p>
+      <div className="mt-3">
+        <CompactNode title="86 tools · 9 engines" sub="05 dispatch · 06 result" />
+      </div>
+    </div>
   );
 }

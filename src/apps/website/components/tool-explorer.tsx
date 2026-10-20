@@ -27,8 +27,8 @@ export function ToolExplorer() {
   return (
     <>
       <div className="sticky top-16 z-40 border-y border-stone bg-eggshell/90 backdrop-blur-sm">
-        <div className="gutter flex flex-wrap items-center gap-x-6 gap-y-3 py-3">
-          <label className="flex min-w-56 max-w-md flex-1 items-center gap-2">
+        <div className="gutter flex flex-wrap items-center justify-between gap-x-6 gap-y-1 py-2 sm:py-3">
+          <label className="flex min-h-11 w-full min-w-0 max-w-md flex-1 items-center gap-2 sm:w-auto">
             <span className="sr-only">Filter tools</span>
             <svg
               aria-hidden="true"
@@ -52,7 +52,7 @@ export function ToolExplorer() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Filter by name, description or argument"
-              className="w-full bg-transparent py-1 font-mono text-code text-ink outline-none placeholder:text-smoke"
+              className="min-h-11 w-full min-w-0 bg-transparent font-mono text-code text-ink outline-none placeholder:text-smoke"
             />
           </label>
 
@@ -60,14 +60,18 @@ export function ToolExplorer() {
             aria-live="polite"
             className="tabular shrink-0 font-mono text-caption uppercase text-smoke"
           >
-            {query.trim()
-              ? `${matches} matching`
-              : `${matches} tools · 9 engines`}
+            {query.trim() ? (
+              `${matches} matching`
+            ) : (
+              <>
+                {matches} tools<span className="hidden sm:inline"> · 9 engines</span>
+              </>
+            )}
           </p>
         </div>
       </div>
 
-      <div className="gutter pb-24 lg:pb-32">
+      <div className="gutter pb-16 sm:pb-20 lg:pb-32">
         {filtered.length === 0 ? (
           <div className="border-t border-stone py-20 text-center">
             <p className="text-body text-graphite">
@@ -83,9 +87,9 @@ export function ToolExplorer() {
           <section
             key={category.slug}
             id={category.slug}
-            className="scroll-mt-32 pt-20 lg:pt-24"
+            className="scroll-mt-32 pt-12 sm:pt-20 lg:pt-24"
           >
-            <div className="grid gap-x-16 gap-y-4 border-t border-stone pt-7 lg:grid-cols-12">
+            <div className="grid gap-x-16 gap-y-3 border-t border-stone pt-6 sm:gap-y-4 sm:pt-7 lg:grid-cols-12">
               <div className="lg:col-span-4">
                 <h2 className="text-heading-sm text-ink">{category.label}</h2>
                 <p className="mt-2 font-mono text-caption uppercase text-smoke">
@@ -97,15 +101,18 @@ export function ToolExplorer() {
               </p>
             </div>
 
-            <table className="mt-8 w-full border-collapse text-left">
+            <table
+              role="table"
+              className="mt-8 w-full border-collapse text-left max-sm:block"
+            >
               <caption className="sr-only">
                 {category.label} tools, with their key arguments.
               </caption>
-              <thead>
-                <tr className="border-b border-stone">
+              <thead role="rowgroup" className="max-sm:hidden">
+                <tr role="row" className="border-b border-stone">
                   <th
                     scope="col"
-                    className="w-44 pb-2 pr-4 font-mono text-caption font-normal uppercase text-smoke lg:w-56"
+                    className="w-40 pb-2 pr-4 font-mono text-caption font-normal uppercase text-smoke lg:w-56"
                   >
                     Tool
                   </th>
@@ -123,16 +130,24 @@ export function ToolExplorer() {
                   </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody role="rowgroup" className="max-sm:block">
                 {category.tools.map((tool) => (
-                  <tr key={tool.name} className="border-b border-stone">
+                  <tr
+                    key={tool.name}
+                    role="row"
+                    className="border-b border-stone max-sm:block max-sm:py-4"
+                  >
                     <th
+                      role="rowheader"
                       scope="row"
-                      className="py-4 pr-4 align-top font-mono text-code font-normal text-ink"
+                      className="py-4 pr-4 align-top font-mono text-code font-normal text-ink [overflow-wrap:anywhere] max-sm:block max-sm:py-0"
                     >
                       {tool.name}
                     </th>
-                    <td className="py-4 pr-4 align-top text-body-sm text-smoke">
+                    <td
+                      role="cell"
+                      className="py-4 pr-4 align-top text-body-sm text-smoke max-sm:block max-sm:pr-0 max-sm:pt-1.5"
+                    >
                       {tool.summary}
                       {tool.args.length ? (
                         <span
@@ -143,7 +158,10 @@ export function ToolExplorer() {
                         </span>
                       ) : null}
                     </td>
-                    <td className="hidden py-4 align-top font-mono text-micro text-smoke md:table-cell">
+                    <td
+                      role="cell"
+                      className="hidden py-4 align-top font-mono text-micro text-smoke [overflow-wrap:anywhere] md:table-cell"
+                    >
                       {tool.args.length ? tool.args.join(" · ") : "—"}
                     </td>
                   </tr>

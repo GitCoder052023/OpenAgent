@@ -92,6 +92,8 @@ export function TransportDemo() {
   }, [playing, cursor, events, reduced]);
 
   const finished = cursor >= events.length;
+  // Items only animate in while the replay is actually playing.
+  const arrive = reduced ? "" : "animate-[arrive_260ms_ease-out]";
 
   function select(i: number) {
     setActive(i);
@@ -131,7 +133,7 @@ export function TransportDemo() {
     <section
       id="transport"
       ref={sectionRef}
-      className="scroll-mt-24 bg-taupe py-24 lg:py-32"
+      className="scroll-mt-24 bg-taupe py-16 sm:py-20 lg:py-32"
     >
       <div className="gutter">
         <div className="grid items-end gap-x-16 gap-y-8 lg:grid-cols-12">
@@ -151,7 +153,7 @@ export function TransportDemo() {
           </div>
         </div>
 
-        <div className="mt-12 flex flex-wrap items-center justify-between gap-4">
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 sm:mt-12">
           <div
             ref={tabsRef}
             role="tablist"
@@ -169,7 +171,7 @@ export function TransportDemo() {
                 aria-controls="transport-panel"
                 tabIndex={i === active ? 0 : -1}
                 onClick={() => select(i)}
-                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-body-sm transition-colors duration-200 ${
+                className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-body-sm transition-colors duration-200 ${
                   i === active
                     ? "border-stone bg-eggshell text-ink"
                     : "border-transparent text-smoke hover:border-stone hover:text-graphite"
@@ -189,7 +191,7 @@ export function TransportDemo() {
           <button
             type="button"
             onClick={replay}
-            className="inline-flex items-center gap-2 font-mono text-code text-graphite transition-colors duration-200 hover:text-ink"
+            className="-mx-2 inline-flex min-h-11 items-center gap-2 px-2 font-mono text-code text-graphite transition-colors duration-200 hover:text-ink"
           >
             <svg
               aria-hidden="true"
@@ -217,8 +219,8 @@ export function TransportDemo() {
         >
           {/* Lane headers. The vertical rule between them is the boundary
               between a cloud assistant and bare metal. */}
-          <div className="grid grid-cols-1 border-b border-stone md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-            <div className="flex items-center justify-between gap-3 px-5 py-3 md:border-r md:border-stone">
+          <div className="grid grid-cols-1 border-b border-stone lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-3 sm:px-5 lg:border-r lg:border-stone">
               <span className="font-mono text-caption uppercase text-graphite">
                 WhatsApp Desktop · transport
               </span>
@@ -226,7 +228,7 @@ export function TransportDemo() {
                 cloud ↔ local
               </span>
             </div>
-            <div className="hidden items-center justify-between gap-3 px-5 py-3 md:flex">
+            <div className="hidden items-center justify-between gap-3 px-5 py-3 lg:flex">
               <span className="font-mono text-caption uppercase text-graphite">
                 This Mac · execution
               </span>
@@ -238,14 +240,14 @@ export function TransportDemo() {
 
           <div
             aria-hidden="true"
-            className="grid grid-cols-1 md:min-h-[24rem] md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]"
+            className="grid grid-cols-1 lg:min-h-[24rem] lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]"
           >
             {/* The chat lane */}
-            <div className="min-w-0 space-y-4 border-b border-stone px-5 py-6 md:border-b-0 md:border-r">
+            <div className="min-w-0 space-y-4 border-b border-stone px-4 py-5 sm:px-5 sm:py-6 lg:border-b-0 lg:border-r">
               {turnEvents.map((e, i) => {
                 if (e.k === "you") {
                   return (
-                    <div key={i} className="animate-[arrive_260ms_ease-out]">
+                    <div key={i} className={arrive}>
                       <p className="font-mono text-caption uppercase text-smoke">
                         you · {e.aside} · voice note
                       </p>
@@ -257,7 +259,7 @@ export function TransportDemo() {
                   return (
                     <div
                       key={i}
-                      className="min-w-0 animate-[arrive_260ms_ease-out] border-l border-stone pl-3"
+                      className={`min-w-0 border-l border-stone pl-3 ${arrive}`}
                     >
                       <p className="font-mono text-caption uppercase text-smoke">
                         instinct → envelope
@@ -282,14 +284,14 @@ export function TransportDemo() {
                   return (
                     <p
                       key={i}
-                      className="truncate animate-[arrive_260ms_ease-out] font-mono text-micro text-smoke"
+                      className={`truncate font-mono text-micro text-smoke ${arrive}`}
                     >
                       [Jarvis Tool Response: {e.step.tool} | status: ok]
                     </p>
                   );
                 }
                 return (
-                  <div key={i} className="animate-[arrive_260ms_ease-out]">
+                  <div key={i} className={arrive}>
                     <p className="font-mono text-caption uppercase text-smoke">
                       jarvis · spoken reply
                     </p>
@@ -300,14 +302,14 @@ export function TransportDemo() {
             </div>
 
             {/* The receipt lane */}
-            <div className="px-5 py-6">
-              <p className="mb-3 font-mono text-caption uppercase text-graphite md:hidden">
+            <div className="min-w-0 px-4 py-5 sm:px-5 sm:py-6">
+              <p className="mb-3 font-mono text-caption uppercase text-graphite lg:hidden">
                 This Mac · execution
               </p>
               {receipts.length === 0 ? null : (
                 /* Step 04: nothing below this line runs until the message is
                    proven to have come from the verified chat. */
-                <div className="flex items-baseline gap-3 border-b border-stone pb-3">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-stone pb-3">
                   <span
                     aria-hidden="true"
                     className="mt-1 size-1.5 shrink-0 rounded-full bg-spark"
@@ -315,7 +317,7 @@ export function TransportDemo() {
                   <span className="font-mono text-code text-graphite">
                     verified chat header
                   </span>
-                  <span className="ml-auto shrink-0 font-mono text-code text-smoke">
+                  <span className="ml-auto shrink-0 font-mono text-micro text-smoke sm:text-code">
                     BRIDGE_SAFE_MODE=true
                   </span>
                 </div>
@@ -324,7 +326,7 @@ export function TransportDemo() {
                 {receipts.map((r, i) => (
                   <li
                     key={i}
-                    className="animate-[arrive_260ms_ease-out] border-b border-stone py-3 last:border-0"
+                    className={`border-b border-stone py-3 last:border-0 ${arrive}`}
                   >
                     <div className="flex items-baseline gap-3">
                       <span
@@ -332,17 +334,17 @@ export function TransportDemo() {
                           r.done ? "bg-ink" : "bg-spark"
                         }`}
                       />
-                      <span className="w-[9.5rem] shrink-0 font-mono text-code text-ink">
+                      <span className="min-w-0 flex-1 truncate font-mono text-code text-ink sm:w-[8.5rem] sm:flex-none xl:w-[9.5rem]">
                         {r.step.tool}
                       </span>
-                      <span className="hidden flex-1 truncate font-mono text-code text-smoke sm:block">
+                      <span className="hidden min-w-0 flex-1 truncate font-mono text-code text-smoke sm:block">
                         {r.step.argLabel}
                       </span>
                       <span className="ml-auto shrink-0 font-mono text-code text-graphite">
                         {r.done ? r.step.result : "running…"}
                       </span>
                     </div>
-                    <p className="mt-1 pl-[1.125rem] font-mono text-micro text-smoke sm:hidden">
+                    <p className="mt-1 truncate pl-[1.125rem] font-mono text-micro text-smoke sm:hidden">
                       {r.step.argLabel}
                     </p>
                   </li>
@@ -357,7 +359,7 @@ export function TransportDemo() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-stone px-5 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-t border-stone px-4 py-3 sm:px-5">
             <span className="font-mono text-caption uppercase text-smoke">
               {scenario.engines}
             </span>

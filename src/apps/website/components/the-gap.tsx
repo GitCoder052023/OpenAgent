@@ -27,14 +27,14 @@ function Absent() {
 
 export function TheGap() {
   return (
-    <section id="gap" className="py-24 lg:py-32">
-      <div className="gutter grid gap-x-16 gap-y-14 lg:grid-cols-12">
+    <section id="gap" className="py-16 sm:py-20 lg:py-32">
+      <div className="gutter grid gap-x-16 gap-y-10 sm:gap-y-14 lg:grid-cols-12">
         <div className="lg:col-span-5">
           <SectionLabel>The gap</SectionLabel>
-          <h2 className="mt-6 text-heading text-ink lg:text-display">
+          <h2 className="mt-5 text-heading text-ink sm:mt-6 lg:text-display">
             Your accounts are not your machine.
           </h2>
-          <div className="mt-8 space-y-5 text-body text-smoke">
+          <div className="mt-6 space-y-5 text-body text-smoke sm:mt-8">
             <p>
               Instinct is an invite-only personal assistant that works entirely
               through iMessage and WhatsApp. There is no app and no dashboard —
@@ -56,13 +56,13 @@ export function TheGap() {
         </div>
 
         <div className="lg:col-span-7">
-          <table className="w-full border-collapse text-left">
+          <table role="table" className="w-full border-collapse text-left max-sm:block">
             <caption className="sr-only">
               Capabilities available with Instinct alone, compared with Instinct
               running alongside OpenAgent.
             </caption>
-            <thead>
-              <tr className="border-b border-stone">
+            <thead role="rowgroup" className="max-sm:hidden">
+              <tr role="row" className="border-b border-stone">
                 <th
                   scope="col"
                   className="pb-3 pr-4 font-mono text-caption font-normal uppercase text-smoke"
@@ -71,34 +71,57 @@ export function TheGap() {
                 </th>
                 <th
                   scope="col"
-                  className="w-20 pb-3 text-center font-mono text-caption font-normal uppercase text-smoke sm:w-28"
+                  className="w-24 pb-3 text-center font-mono text-caption font-normal uppercase text-smoke lg:w-28"
                 >
                   Instinct
                 </th>
                 <th
                   scope="col"
-                  className="w-24 rounded-t-[10px] bg-taupe pb-3 pt-3 text-center font-mono text-caption font-normal uppercase text-graphite sm:w-36"
+                  className="w-28 rounded-t-[10px] bg-taupe pb-3 pt-3 text-center font-mono text-caption font-normal uppercase text-graphite lg:w-36"
                 >
                   + OpenAgent
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup" className="max-sm:block">
               {comparison.map((row) => (
-                <tr key={row.capability} className="border-b border-stone">
+                <tr
+                  key={row.capability}
+                  role="row"
+                  className="border-b border-stone max-sm:block max-sm:py-3"
+                >
                   <th
+                    role="rowheader"
                     scope="row"
-                    className="py-4 pr-4 text-body-sm font-normal text-graphite"
+                    className="py-4 pr-4 text-body-sm font-normal text-graphite max-sm:block max-sm:pr-0 max-sm:pt-0 max-sm:pb-2"
                   >
                     {row.capability}
                   </th>
-                  <td className="py-4 text-center align-middle text-smoke">
-                    <span className="inline-flex w-full justify-center">
+                  <td
+                    role="cell"
+                    className="py-4 text-center align-middle text-smoke max-sm:inline-flex max-sm:w-1/2 max-sm:items-center max-sm:gap-2 max-sm:py-0 max-sm:text-left"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="font-mono text-caption uppercase text-smoke sm:hidden"
+                    >
+                      Instinct
+                    </span>
+                    <span className="inline-flex justify-center max-sm:justify-start sm:w-full">
                       {row.instinct ? <Present /> : <Absent />}
                     </span>
                   </td>
-                  <td className="bg-taupe py-4 text-center align-middle text-ink">
-                    <span className="inline-flex w-full justify-center">
+                  <td
+                    role="cell"
+                    className="bg-taupe py-4 text-center align-middle text-ink max-sm:inline-flex max-sm:w-1/2 max-sm:items-center max-sm:gap-2 max-sm:bg-transparent max-sm:py-0 max-sm:text-left"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="font-mono text-caption uppercase text-graphite sm:hidden"
+                    >
+                      + OpenAgent
+                    </span>
+                    <span className="inline-flex justify-center max-sm:justify-start sm:w-full">
                       {row.withOpenAgent ? <Present /> : <Absent />}
                     </span>
                   </td>

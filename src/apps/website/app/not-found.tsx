@@ -28,11 +28,11 @@ const destinations = [
 
 export default function NotFound() {
   return (
-    <section className="pt-32 pb-24 lg:pt-44 lg:pb-32">
-      <div className="gutter grid gap-x-16 gap-y-12 lg:grid-cols-12">
+    <section className="pb-16 pt-28 sm:pb-24 sm:pt-32 lg:pt-44 lg:pb-32">
+      <div className="gutter grid gap-x-16 gap-y-10 sm:gap-y-12 lg:grid-cols-12">
         <div className="lg:col-span-5">
           <SectionLabel>404</SectionLabel>
-          <h1 className="mt-6 text-heading text-ink lg:text-display">
+          <h1 className="mt-5 text-heading text-ink sm:mt-6 lg:text-display">
             That page isn&rsquo;t here.
           </h1>
           <p className="mt-7 max-w-[42ch] text-body text-smoke">
@@ -44,7 +44,7 @@ export default function NotFound() {
             href={repoUrl}
             target="_blank"
             rel="noreferrer noopener"
-            className="mt-8 inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-body-sm font-medium text-eggshell transition-colors duration-200 hover:bg-graphite"
+            className="mt-7 inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-5 text-body-sm font-medium text-eggshell transition-colors duration-200 hover:bg-graphite sm:mt-8"
           >
             Go to the repository
           </a>
